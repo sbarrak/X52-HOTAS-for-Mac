@@ -1,0 +1,6 @@
+# Built programs and intermediate files
+bin/
+build/
+# Logitech's own manual and Windows installer: kept here for reference, not ours to publish
+local-only/
+.DS_Store
