@@ -200,3 +200,9 @@ presses) `tests/test_agent.cpp` (the menu bar app's saving rules) and `tests/tes
 
 The USB commands and button numbering follow the open-source
 [libx52](https://github.com/nirenjan/libx52) project's documentation of the device.
+
+## License
+
+[MIT](LICENSE). The bundled X-Plane SDK keeps its own licence; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Not affiliated with Laminar Research,
+Logitech or Saitek.

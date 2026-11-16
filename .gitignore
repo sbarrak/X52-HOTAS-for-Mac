@@ -4,3 +4,13 @@ build/
 # Logitech's own manual and Windows installer: kept here for reference, not ours to publish
 local-only/
 .DS_Store
+# Never commit secrets or vendor binaries
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.mobileprovision
+*.exe
+*.msi
+*.pdf
