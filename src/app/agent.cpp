@@ -1,0 +1,251 @@
+#include <cstdio>
+#include "agent.h"
+
+#include <algorithm>
+
+#include <sys/stat.h>
+
+#include <chrono>
+#include <ctime>
+
+namespace x52 {
+
+Agent::Agent() : engine_(*this) {}
+Agent::~Agent() { stop(); }
+
+double Agent::now() const {
+    using namespace std::chrono;
+    return duration<double>(steady_clock::now().time_since_epoch()).count();
+}
+
+std::string Agent::chooseDir(const std::string& xplaneDir, const std::string& fallbackDir) {
+    struct stat st;
+    std::string prefs = xplaneDir + "/Output/preferences";
+    if (!xplaneDir.empty() && stat(prefs.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) return prefs + "/X52Pro";
+    return fallbackDir;
+}
+
+void Agent::open(const std::string& dir, const std::string& key) {
+    store_.dir = dir;
+    key_ = key.empty() ? "default" : key;
+    if (key_ != "default" && !store_.exists(key_)) key_ = "default";
+    reload();
+}
+
+void Agent::reload() {
+    stamp_ = store_.stamp(key_);
+    Profile p;
+    std::string err;
+    if (!store_.exists(key_)) {
+        p = defaultProfile();
+        error_.clear();
+    } else if (store_.load(key_, p, &err)) {
+        error_.clear();
+    } else {
+        // Run on what we had (or defaults) and say so; change() will refuse to save.
+        error_ = "The profile file has a mistake (" + err + "). Nothing is saved until it is fixed.";
+        ++revision_;
+        return;
+    }
+    profile_ = p;
+    engine_.setProfile(profile_);
+    ++revision_;
+}
+
+bool Agent::change(const std::function<void(Profile&)>& edit) {
+    Profile p;
+    std::string err;
+    if (store_.exists(key_)) {
+        if (!store_.load(key_, p, &err)) {
+            error_ = "Not saved: the profile file has a mistake (" + err + ").";
+            ++revision_;
+            return false;
+        }
+    } else {
+        p = defaultProfile();
+    }
+    edit(p);
+    if (!store_.save(key_, p, &err)) {
+        error_ = "Could not save: " + err;
+        ++revision_;
+        return false;
+    }
+    error_.clear();
+    stamp_ = store_.stamp(key_);
+    profile_ = p;
+    engine_.setProfile(profile_);
+    ++revision_;
+    nextSlow_ = 0;
+    return true;
+}
+
+void Agent::select(const std::string& key) {
+    if (key.empty() || key == key_ || !store_.exists(key)) return;
+    key_ = key;
+    reload();
+}
+
+std::vector<std::string> Agent::profiles() const {
+    std::vector<std::string> keys = store_.list();
+    bool hasDefault = false;
+    for (const std::string& k : keys) hasDefault |= k == "default";
+    if (!hasDefault) keys.insert(keys.begin(), "default");
+    return keys;
+}
+
+void Agent::start() {
+    if (started_) return;
+    started_ = true;
+    input_.start();
+    nextSlow_ = 0;
+}
+
+void Agent::stop() {
+    if (!started_) return;
+    started_ = false;
+    input_.stop();
+    if (deviceRunning_) device_.stop(!pluginActive_);
+    deviceRunning_ = false;
+}
+
+void Agent::showLabel(const std::string& text) {
+    label_ = text;
+    labelUntil_ = now() + 3.0;
+}
+
+void Agent::setSimPort(int port) {
+    simPort_ = port;
+    link_.reset();
+}
+
+Color Agent::lightColor(int led, double t) {
+    bool previewing = preview_ && t < previewUntil_;
+    int mode = previewing ? preview_ : engine_.mode();
+    Color modeColor = profile_.ledAt(mode, previewing ? previewPinkie_ : engine_.shift(), led);
+    // A colour being previewed in another mode is shown as it is, not as the rules would.
+    if (!link_ || previewing) return modeColor;
+    SimLink* link = link_.get();
+    return liveColor(profile_.rules, led, modeColor,
+                     [link, t](const std::string& ref, double& v) { return link->value(ref, t, v); });
+}
+
+std::string Agent::liveStatus(const std::string& ref) {
+    if (ref.empty()) return "";
+    if (pluginActive_) return "X-Plane is running with the plugin: it reads this dataref inside the sim.";
+    double v = 0;
+    if (link_ && link_->value(ref, now(), v)) {
+        char buf[64];
+        snprintf(buf, sizeof buf, "%g", v);
+        return std::string("X-Plane answers: ") + buf;
+    }
+    return "No answer from X-Plane. Is it running, with Settings > Network > accept incoming connections on, and is the name right?";
+}
+
+// Live lights: ask X-Plane for what the rules need (the plugin does this itself when it runs).
+void Agent::updateLive(double t) {
+    std::vector<std::string> refs;
+    for (const LightRule& r : profile_.rules)
+        if (r.active() && std::find(refs.begin(), refs.end(), r.dataref) == refs.end()) refs.push_back(r.dataref);
+    if (refs.empty()) {
+        link_.reset();
+        return;
+    }
+    if (!link_) link_.reset(new SimLink(simPort_));
+    link_->want(refs, t);
+    link_->poll(t);
+}
+
+void Agent::previewMode(int mode, bool pinkie) {
+    preview_ = mode >= 1 && mode <= 3 ? mode : 0;
+    previewPinkie_ = pinkie;
+    previewUntil_ = now() + 4.0;
+}
+
+void Agent::setTest(bool on) {
+    input_.setWantAxes(on);
+    if (!on) moved_.clear();
+}
+
+void Agent::setText(const std::string& l0, const std::string& l1, const std::string& l2) {
+    haveText_ = true;
+    text_.l[0] = l0;
+    text_.l[1] = l1;
+    text_.l[2] = l2;
+}
+
+void Agent::clearText() { haveText_ = false; }
+
+std::string Agent::held() const {
+    std::string s;
+    for (int b = 1; b <= kMaxButton; ++b)
+        if (engine_.isDown(b)) s += (s.empty() ? "" : ", ") + std::to_string(b) + " " + buttonName(b);
+    return s;
+}
+
+void Agent::tick() {
+    if (!started_) return;
+    double t = now();
+
+    std::vector<ButtonEvent> events;
+    input_.drain(events);
+    for (const ButtonEvent& e : events) engine_.buttonEvent(e.button, e.down, t);
+    engine_.tick(t);
+
+    std::vector<AxisEvent> moves;
+    input_.drainAxes(moves);
+    for (const AxisEvent& m : moves)
+        moved_ = std::string(controlName(m.usagePage, m.usage)) + ": " +
+                 controlValueText(m.usagePage, m.usage, m.value, m.min, m.max);
+
+    if (t >= nextSlow_) {
+        nextSlow_ = t + 1.0;
+        long long s = store_.stamp(key_);
+        if (s != stamp_) reload();   // changed by the plugin's window or by hand
+        // X-Plane's plugin drives the stick while it runs; step aside without touching it.
+        bool busy = StickLock::heldByOther(store_.dir);
+        if (busy && deviceRunning_) {
+            device_.stop(false);
+            deviceRunning_ = false;
+        } else if (!busy && !deviceRunning_) {
+            device_.start();   // sends everything afresh
+            deviceRunning_ = true;
+        }
+        pluginActive_ = busy;
+    }
+    if (deviceRunning_) {
+        updateLive(t);
+        push(t);
+    } else if (link_) {
+        link_.reset();   // the plugin took over: stop asking
+    }
+}
+
+void Agent::push(double t) {
+    DeviceState s;
+    Lines lines;
+    if (haveText_) lines = text_;
+    else lines = formatButtonsPage(profile_.name, t < labelUntil_ ? label_ : "", engine_.mode(), engine_.shift());
+    int mode = preview_ && t < previewUntil_ ? preview_ : engine_.mode();
+    for (int i = 0; i < kMfdLines; ++i) s.lines[i] = screen_.l[i] = mfdText(lines.l[i]);
+    (void)mode;
+    for (int l = 0; l < kLedCount; ++l) s.leds[l] = lightColor(l, t);
+    s.shift = engine_.shift();
+    s.blink = engine_.clutch();
+    s.mfdBrightness = profile_.mfdBrightness;
+    s.ledBrightness = profile_.ledBrightness;
+    time_t tt = time(nullptr);
+    struct tm g;
+    gmtime_r(&tt, &g);
+    s.clockValid = true;
+    s.hour = g.tm_hour;
+    s.minute = g.tm_min;
+    s.day = g.tm_mday;
+    s.month = g.tm_mon + 1;
+    s.year2 = g.tm_year % 100;
+    for (int c = 0; c < 2; ++c) s.clockOffset[c] = profile_.clockOffset[c];
+    for (int c = 0; c < 3; ++c) s.h12[c] = profile_.clock12h[c];
+    s.dateFormat = profile_.dateFormat;
+    device_.setState(s);
+}
+
+}  // namespace x52
