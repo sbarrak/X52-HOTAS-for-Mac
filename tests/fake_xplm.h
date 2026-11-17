@@ -16,6 +16,8 @@ struct FakeSim {
     std::map<std::string, int> begins, ends, onces;
     std::map<std::string, double> datarefs;   // XPLMFindDataRef succeeds for these
     std::vector<std::string> knownCommands; // XPLMFindCommand succeeds for these
+    std::string acfDescrip;                 // sim/aircraft/view/acf_descrip
+    std::vector<int> joyValues;             // what sim/joystick/joystick_button_values reports (slot by slot)
     bool windowVisible = false;
     bool hasKeyboardFocus = false;
 

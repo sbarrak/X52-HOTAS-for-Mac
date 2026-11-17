@@ -35,7 +35,7 @@ void Engine::setProfile(const Profile& p) {
 
 // A lone command or key follows the button (down = begin, up = end); anything longer is a macro.
 void Engine::startHeld(Button& b, const Action& a, double now) {
-    if (a.size() == 1 && a[0].kind != StepKind::Wait) {
+    if (a.size() == 1 && (a[0].kind == StepKind::Command || a[0].kind == StepKind::Key)) {
         b.held = a[0];
         b.hasHeld = true;
         if (a[0].kind == StepKind::Command) host_.commandBegin(a[0].text);
@@ -56,6 +56,7 @@ void Engine::advance(Running& r, double now) {
                 host_.keyUp(s.text);
                 break;
             case StepKind::Wait: r.resumeAt = now + s.ms / 1000.0; break;
+            case StepKind::Dataref: host_.datarefStep(s); break;
         }
     }
 }

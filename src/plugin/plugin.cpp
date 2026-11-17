@@ -7,6 +7,8 @@
 #include <ctime>
 #include <fstream>
 #include <map>
+#include <set>
+#include <sstream>
 
 #include "XPLMDataAccess.h"
 #include "XPLMMenus.h"
@@ -145,6 +147,31 @@ bool readDataref(const std::string& spec, double now, double& out) {
     return true;
 }
 
+// Writes one dataref ("name" or "name[3]"); says why when it cannot.
+bool writeDataref(const std::string& spec, double value, std::string& why) {
+    RefName n = splitRef(spec);
+    XPLMDataRef ref = n.name.empty() ? nullptr : XPLMFindDataRef(n.name.c_str());
+    if (!ref) { why = "Unknown dataref: " + spec; return false; }
+    if (!XPLMCanWriteDataRef(ref)) { why = "X-Plane does not let a plugin change " + spec; return false; }
+    int types = XPLMGetDataRefTypes(ref);
+    if (types & (xplmType_FloatArray | xplmType_IntArray)) {
+        int i = n.index < 0 ? 0 : n.index;
+        if (types & xplmType_FloatArray) {
+            float v = (float)value;
+            XPLMSetDatavf(ref, &v, i, 1);
+        } else {
+            int v = (int)std::lround(value);
+            XPLMSetDatavi(ref, &v, i, 1);
+        }
+        return true;
+    }
+    if (types & xplmType_Double) XPLMSetDatad(ref, value);
+    else if (types & xplmType_Float) XPLMSetDataf(ref, (float)value);
+    else if (types & xplmType_Int) XPLMSetDatai(ref, (int)std::lround(value));
+    else { why = spec + " is not a number or a list of numbers"; return false; }
+    return true;
+}
+
 SimData readSim() {
     SimData d;
     d.com1 = geti(refs.com1);
@@ -192,6 +219,11 @@ void updateDevice(App& a, double now) {
         lines.l[2] = "> use   < auto";
     } else if (a.page == PageButtons || a.engine.clutch())
         lines = formatButtonsPage(a.profile.name, labelFresh ? a.label : "", a.engine.mode(), a.engine.shift());
+    else if (a.page == PageBrightness)
+        lines = formatBrightnessPage(a.profile.mfdBrightness, a.profile.ledBrightness, a.profile.brightScreen.active(),
+                                     a.profile.brightLights.active(), a.cursor);
+    else if (a.page >= kPageCount)
+        lines = a.userPageLines(now);
     else
         lines = formatSimPage(a.page, readSim(), a.cursor);
     for (int i = 0; i < kMfdLines; ++i) s.lines[i] = a.screen.l[i] = mfdText(lines.l[i]);
@@ -200,6 +232,22 @@ void updateDevice(App& a, double now) {
     s.mfdBrightness = a.profile.mfdBrightness;
     s.ledBrightness = a.profile.ledBrightness;
     s.blink = a.engine.clutch();
+    // Brightness and master switches follow datarefs (test mode shows the plain settings).
+    DatarefReader read = [now](const std::string& ref, double& v) { return readDataref(ref, now, v); };
+    if (!a.testMode) {
+        s.mfdBrightness = followBrightness(a.profile.brightScreen, s.mfdBrightness, read);
+        s.ledBrightness = followBrightness(a.profile.brightLights, s.ledBrightness, read);
+    }
+    if (!a.testMode && !masterOn(a.profile.masterScreen, read)) {
+        for (int i = 0; i < kMfdLines; ++i) s.lines[i] = a.screen.l[i] = "";
+        s.shift = false;
+        s.mfdBrightness = 0;
+    }
+    if (!a.testMode && !masterOn(a.profile.masterLights, read)) {
+        for (int l = 0; l < kLedCount; ++l) s.leds[l] = Color::Off;
+        s.ledBrightness = 0;
+        s.blink = false;
+    }
     for (int c = 0; c < 2; ++c) s.clockOffset[c] = a.profile.clockOffset[c];
     for (int c = 0; c < 3; ++c) s.h12[c] = a.profile.clock12h[c];
     s.dateFormat = a.profile.dateFormat;
@@ -217,6 +265,20 @@ void updateDevice(App& a, double now) {
     a.device.setState(s);
 }
 
+// After a press on the stick, watches X-Plane's own list of pressed joystick buttons to learn which of its
+// slots that button is (read-only: nothing is written to X-Plane).
+void learnSlots(App& a, double now) {
+    if (!a.learner.pending(now)) return;
+    XPLMDataRef ref = XPLMFindDataRef("sim/joystick/joystick_button_values");
+    if (!ref) return;
+    std::vector<int> v(kXPlaneButtonSlots, 0);
+    int n = XPLMGetDatavi(ref, v.data(), 0, kXPlaneButtonSlots);
+    std::set<int> active;
+    for (int i = 0; i < n && i < kXPlaneButtonSlots; ++i)
+        if (v[i]) active.insert(i);
+    if (a.learner.update(active, now)) a.saveButtonMap();
+}
+
 float flightLoop(float, float, int, void*) {
     App& a = *gApp;
     double now = a.now();
@@ -226,6 +288,7 @@ float flightLoop(float, float, int, void*) {
         if (e.down && e.button >= 1 && e.button <= kMaxButton) {
             a.lastPressed = e.button;
             ++a.pressSerial;
+            if (!a.profile.isReserved(e.button)) a.learner.pressed(e.button, now);
         }
         if (a.testMode) {
             if (e.down && e.button >= 1 && e.button <= kMaxButton) {
@@ -238,6 +301,7 @@ float flightLoop(float, float, int, void*) {
         }
         a.engine.buttonEvent(e.button, e.down, now);
     }
+    learnSlots(a, now);
     a.engine.tick(now);
     if (!a.engine.clutch()) a.pickIndex = -1;
 
@@ -293,8 +357,8 @@ int menuItem = -1;
 int onCommand(XPLMCommandRef cmd, XPLMCommandPhase phase, void*) {
     if (phase != xplm_CommandBegin) return 1;
     App& a = *gApp;
-    if (cmd == cmdPageNext) a.setPage((a.page + 1) % kPageCount);
-    else if (cmd == cmdPagePrev) a.setPage((a.page + kPageCount - 1) % kPageCount);
+    if (cmd == cmdPageNext) a.stepPage(1);
+    else if (cmd == cmdPagePrev) a.stepPage(-1);
     else if (cmd == cmdUp) a.wheel(Wheel::Up);
     else if (cmd == cmdDown) a.wheel(Wheel::Down);
     else if (cmd == cmdSelect) a.wheel(Wheel::Select);
@@ -362,10 +426,64 @@ std::string App::profileTitle(const std::string& key) {
 void App::setPage(int p) {
     page = p;
     cursor = PageCursor();   // a new page starts with the cursor on its first value, not editing
+    nav.reset();
+}
+
+int App::pageTotal() const { return kPageCount + (int)profile.pages.topLevel().size(); }
+
+// Radio pages, then the user's pages, and the Buttons page last.
+std::vector<int> App::pageOrder() const {
+    std::vector<int> order;
+    for (int p = 0; p < kPageCount; ++p)
+        if (p != PageButtons && p != PageBrightness) order.push_back(p);
+    for (int k = 0; k < (int)profile.pages.topLevel().size(); ++k) order.push_back(kPageCount + k);
+    order.push_back(PageButtons);
+    order.push_back(PageBrightness);
+    return order;
+}
+
+void App::stepPage(int direction) {
+    std::vector<int> order = pageOrder();
+    int n = (int)order.size(), at = 0;
+    for (int i = 0; i < n; ++i)
+        if (order[i] == page) at = i;
+    setPage(order[((at + (direction < 0 ? -1 : 1)) % n + n) % n]);
+}
+
+const std::string* App::userPageId(int p) const {
+    std::vector<int> top = profile.pages.topLevel();
+    int k = p - kPageCount;
+    return k >= 0 && k < (int)top.size() ? &profile.pages.pages[top[k]].id : nullptr;
+}
+
+std::string App::pageTitle(int p) const {
+    if (p < kPageCount) return pageName(p);
+    const std::string* id = userPageId(p);
+    int i = id ? profile.pages.find(*id) : -1;
+    return i >= 0 ? profile.pages.pages[i].title : std::string("(page removed)");
+}
+
+Lines App::userPageLines(double now) {
+    const std::string* id = userPageId(page);
+    if (!id) {
+        setPage(PageComNav1);   // the page is gone (the profile changed): back to the first radio page
+        return formatSimPage(page, readSim(), cursor);
+    }
+    return formatUserPage(profile.pages, *id, nav, [now](const std::string& ref, double& v) { return readDataref(ref, now, v); });
 }
 
 void App::wheel(Wheel w) {
     if (testMode || engine.clutch()) return;
+    if (page >= kPageCount) {
+        if (const std::string* id = userPageId(page)) pageTreeInput(profile.pages, *id, nav, w);
+        return;
+    }
+    if (page == PageBrightness) {
+        if (brightnessInput(cursor, w, profile.mfdBrightness, profile.ledBrightness, profile.brightScreen.active(),
+                            profile.brightLights.active()))
+            profileChanged();   // saved at once; the stick follows on the next refresh
+        return;
+    }
     for (const std::string& c : pageInput(page, cursor, w, profile.com833)) commandOnce(c);
 }
 
@@ -422,7 +540,21 @@ void App::profileChanged() {
     loadedStamp = store.stamp(profileKey());
 }
 
+// The aircraft's description as X-Plane keeps it ("Cessna Citation X"); the app uses it to find the aircraft's
+// joystick settings, since X-Plane stores those per aircraft.
+void App::saveAircraftDescription() {
+    char buf[512] = {0};
+    XPLMDataRef ref = XPLMFindDataRef("sim/aircraft/view/acf_descrip");
+    if (!ref) return;
+    int n = XPLMGetDatab(ref, buf, 0, (int)sizeof buf - 1);
+    buf[n > 0 ? n : 0] = 0;
+    std::string d(buf);
+    std::ofstream f(store.dir + "/xplane-aircraft.txt");
+    f << d << "\n";
+}
+
 void App::loadForAircraft(const std::string& acfName) {
+    saveAircraftDescription();
     if (acfName != aircraft) manualKey.clear();   // a profile picked on the stick lasts until the aircraft changes
     aircraft = acfName;
     std::string key = Store::keyForAircraft(aircraft);
@@ -536,6 +668,30 @@ void App::commandOnce(const std::string& name) {
     if (void* c = findCommand(name)) XPLMCommandOnce((XPLMCommandRef)c);
 }
 
+void App::loadButtonMap() {
+    std::ifstream f(store.dir + "/xplane-map.txt");
+    std::stringstream ss;
+    ss << f.rdbuf();
+    learner.map() = parseButtonMap(ss.str());
+}
+
+void App::saveButtonMap() {
+    std::ofstream f(store.dir + "/xplane-map.txt");
+    f << serializeButtonMap(learner.map());
+}
+
+void App::datarefStep(const Step& s) {
+    if (s.text.empty()) return;   // still being filled in
+    double cur = 0, out = 0;
+    bool have = readDataref(s.text, now(), cur);
+    if (!datarefStepValue(s, have, cur, out)) {
+        notice = "Cannot read " + s.text + " to add to it";
+        return;
+    }
+    std::string why;
+    if (!writeDataref(s.text, out, why)) notice = why;
+}
+
 void App::key(const std::string& combo, bool down) {
     KeyCombo k;
     if (!parseKey(combo, k)) {
@@ -621,6 +777,7 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc) {
 PLUGIN_API int XPluginEnable(void) {
     App& a = *gApp;
     a.loadForAircraft(currentAircraft());
+    a.loadButtonMap();
     a.lock.tryHold(a.store.dir);
     a.input.start();
     a.device.start();

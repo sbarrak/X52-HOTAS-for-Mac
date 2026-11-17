@@ -12,6 +12,7 @@
 
 #include "check.h"
 #include "../src/app/agent.h"
+#include "../src/app/bridge.h"
 
 using namespace x52;
 
@@ -172,6 +173,165 @@ TEST(an_alarm_can_be_tried_on_the_stick_and_alarms_are_saved_in_order) {
     ag.tryAlarm(-1);
     CHECK_EQ(ag.triedAlarm(), -1);
     CHECK(ag.lightColor(LedA, 10.0) == plain);
+}
+
+TEST(a_master_switch_can_be_tried_on_the_stick_without_the_sim) {
+    std::string dir = freshDir("master");
+    Agent ag;
+    ag.open(dir, "default");
+    CHECK(ag.change([](Profile& p) {
+        p.masterScreen.dataref = "sim/cockpit2/switches/avionics_power_on";
+        p.masterLights.dataref = "sim/cockpit/electrical/battery_on";
+    }));
+    CHECK_EQ(ag.triedMaster(), -1);
+    ag.tryMaster(1);
+    CHECK_EQ(ag.triedMaster(), 1);
+    ag.tryMaster(-1);
+    CHECK_EQ(ag.triedMaster(), -1);
+    // Saved and read back by a second agent (the plugin reads the same file).
+    Agent other;
+    other.open(dir, "default");
+    CHECK_EQ(other.profile().masterScreen.dataref, std::string("sim/cockpit2/switches/avionics_power_on"));
+    CHECK_EQ(other.profile().masterLights.dataref, std::string("sim/cockpit/electrical/battery_on"));
+}
+
+TEST(brightness_link_can_be_tried_and_is_saved) {
+    std::string dir = freshDir("bright");
+    Agent ag;
+    ag.open(dir, "default");
+    CHECK(ag.change([](Profile& p) {
+        p.brightLights.dataref = "sim/cockpit2/electrical/instrument_brightness_ratio[0]";
+        p.brightLights.outLow = 20;
+    }));
+    CHECK_EQ(ag.triedBright(), -1);
+    ag.tryBright(1, 0);
+    CHECK_EQ(ag.triedBright(), 1);
+    ag.tryBright(-1, 0);
+    CHECK_EQ(ag.triedBright(), -1);
+    Agent other;
+    other.open(dir, "default");
+    CHECK_EQ(other.profile().brightLights.outLow, 20);
+    CHECK(!other.profile().brightScreen.active());
+}
+
+TEST(what_x_plane_has_on_the_buttons_can_be_imported_without_touching_anything_already_programmed) {
+    std::string xp = freshDir("import_xp");
+    for (const char* sub : {"/Output", "/Output/preferences", "/Output/preferences/control profiles", "/Resources", "/Resources/plugins"})
+        mkdir((xp + sub).c_str(), 0755);
+    {
+        std::ofstream prf(xp + "/Output/preferences/X-Plane Joystick Settings.prf");
+        // Stick button n is slot 7 + n: button 3 (A) = slot 10, 4 (B) = 11, 7 (D) = 14, 28 (mode dial) = 35.
+        prf << "_joy_BUTN_use10 sim/FMS/CDU_popup\n_joy_BUTN_use11 sim/none/none\n"
+               "_joy_BUTN_use14 sim/flight_controls/brakes_toggle_regular\n_joy_BUTN_use35 sim/flight_controls/gear_toggle\n";
+        std::ofstream mp(xp + "/Output/preferences/X52Pro/xplane-map.txt");
+    }
+    mkdir((xp + "/Output/preferences/X52Pro").c_str(), 0755);
+    {
+        std::ofstream mp(xp + "/Output/preferences/X52Pro/xplane-map.txt");
+        mp << "3 10\n4 11\n";
+    }
+    {
+        std::ofstream cp(xp + "/Output/preferences/control profiles/Cesna X - Joysticks.prf");
+        cp << "_joy_BUTN_use10 sim/FMS/CDU_popup\n_joy_BUTN_use11 sim/none/none\n_joy_BUTN_use35 sim/flight_controls/gear_toggle\n";
+    }
+    x52_start(xp.c_str(), "", "default");
+    std::string list = x52_xplane_profiles();
+    CHECK(has(list, "Cesna X\n") && has(list, "(settings in use)\n"));
+    CHECK_EQ(std::string(x52_import_suggest("Cesna X")), std::string("Cesna X"));
+    int n = x52_import_profile("Cesna X", "Cesna X");
+    CHECK_EQ(n, 1);                                              // A only: B is Do nothing, 28 is the mode dial
+    CHECK_EQ(std::string(x52_key()), std::string("Cesna X"));    // switched to the new profile
+    CHECK_EQ(std::string(x52_step_text(3, 0, 0, 0)), std::string("sim/FMS/CDU_popup"));
+    CHECK_EQ(x52_bind_exists(28, 0), 0);
+    CHECK(has(slurp(xp + "/Output/preferences/X52Pro/Cesna X.x52"), "bind 3 any press \"\" cmd:sim/FMS/CDU_popup"));
+    CHECK_EQ(x52_import_profile("Cesna X", "Cesna X"), -1);      // the name is taken: nothing is overwritten
+    CHECK(has(x52_import_message(), "already exists"));
+    CHECK_EQ(x52_import_profile("Cesna X", "default"), -1);
+    CHECK_EQ(std::string(x52_import_suggest("Cesna X")), std::string("Cesna X 2"));   // the next free name
+    CHECK_EQ(x52_import_profile("Cesna X", ""), -1);
+    CHECK_EQ(x52_import_profile("Nobody", "Other"), -1);         // no such X-Plane profile
+    CHECK_EQ(x52_import_profile("(settings in use)", "From settings"), 2);   // the main settings file: A and D
+    x52_stop();
+}
+
+TEST(buttons_are_programmed_from_the_app_and_found_in_x_plane_lists) {
+    std::string xp = freshDir("buttons_xp");
+    mkdir((xp + "/Output").c_str(), 0755);
+    mkdir((xp + "/Output/preferences").c_str(), 0755);
+    mkdir((xp + "/Resources").c_str(), 0755);
+    mkdir((xp + "/Resources/plugins").c_str(), 0755);
+    {
+        std::ofstream c(xp + "/Resources/plugins/Commands.txt");
+        c << "sim/flight_controls/landing_gear_toggle   Toggle landing gear\n";
+        std::ofstream d(xp + "/Resources/plugins/DataRefs.txt");
+        d << "sim/cockpit2/switches/avionics_power_on\tint\ty\tboolean\tAvionics master\t\n";
+    }
+    x52_start(xp.c_str(), "", "default");
+    CHECK_EQ(x52_catalog_size(0), 1);
+    CHECK_EQ(x52_catalog_size(1), 1);
+    CHECK(has(x52_catalog_search(0, "gear", 5), "sim/flight_controls/landing_gear_toggle\tToggle landing gear\t1"));
+    CHECK(has(x52_catalog_search(1, "avionics", 5), "avionics_power_on\tint, boolean: Avionics master\t1"));
+
+    CHECK_EQ(x52_bind_exists(9, 2), 0);
+    int s0 = x52_step_add(9, 2, 0, 0);                                   // a command on button 9, mode 2
+    CHECK_EQ(s0, 0);
+    x52_step_set(9, 2, 0, 0, " sim/flight_controls/landing_gear_toggle ", 0, 0, 0, 1, 0, 0);
+    CHECK_EQ(std::string(x52_step_text(9, 2, 0, 0)), std::string("sim/flight_controls/landing_gear_toggle"));   // blanks removed
+    int s1 = x52_step_add(9, 2, 0, 3);                                   // then a dataref step
+    CHECK_EQ(s1, 1);
+    x52_step_set(9, 2, 0, 1, "sim/cockpit2/switches/avionics_power_on", 0, 2, 1, 1, 0, 1);   // add 1, between 0 and 1
+    x52_bind_set_label(9, 2, 0, "Gear and power please");
+    CHECK_EQ(std::string(x52_bind_label(9, 2, 0)), std::string("Gear and power p"));     // 16 characters on the screen
+    CHECK_EQ(x52_step_count(9, 2, 0), 2);
+    CHECK_EQ(x52_step_op(9, 2, 0, 1), 2);
+    CHECK_EQ(x52_step_num(9, 2, 0, 1, 3), 1.0);
+    CHECK_EQ(std::string(x52_bind_summary(9, 2)), std::string("Gear and power p"));
+    CHECK_EQ(x52_bind_exists(9, 0), 0);                                  // other layers are separate
+    std::string file = slurp(xp + "/Output/preferences/X52Pro/default.x52");
+    CHECK(has(file, "bind 9 2 press \"Gear and power p\" cmd:sim/flight_controls/landing_gear_toggle ; add:sim/cockpit2/switches/avionics_power_on=1,0,1"));
+    x52_step_add(12, 0, 0, 0);
+    CHECK_EQ(std::string(x52_bound_buttons()).find("9\t") != std::string::npos, true);
+    CHECK(has(x52_bound_buttons(), "9\t" + std::string(x52_button_name(9)) + "\tMode 2\t-1\t\n"));   // slot not learned yet
+    {
+        std::ofstream prf(xp + "/Output/preferences/X-Plane Joystick Settings.prf");
+        prf << "I\n10 Version\n_joy_BUTN_use14 sim/flight_controls/brakes_toggle_regular\n_joy_BUTN_use15 sim/none/none\n";
+        std::ofstream mp(xp + "/Output/preferences/X52Pro/xplane-map.txt");
+        mp << "# learned\n9 14\n12 15\n";
+    }
+    CHECK(has(x52_bound_buttons(), "9\t" + std::string(x52_button_name(9)) + "\tMode 2\t6\tsim/flight_controls/brakes_toggle_regular\n"));
+    CHECK(has(x52_bound_buttons(), "12\t" + std::string(x52_button_name(12)) + "\tAny mode\t7\tsim/none/none\n"));
+    // The aircraft's own joystick settings take over from the main file (found through Miscellaneous.prf).
+    mkdir((xp + "/Output/preferences/control profiles").c_str(), 0755);
+    {
+        std::ofstream misc(xp + "/Output/preferences/Miscellaneous.prf");
+        misc << "P acf_profile Cessna___Citation___X Cesna___X\n";
+        std::ofstream ac(xp + "/Output/preferences/X52Pro/xplane-aircraft.txt");
+        ac << "Cessna Citation X\n";
+        std::ofstream cp(xp + "/Output/preferences/control profiles/Cesna___X - Joysticks.prf");
+        cp << "_joy_BUTN_use14 sim/FMS/CDU_popup\n";
+    }
+    CHECK_EQ(std::string(x52_assignment_source()), std::string("Cesna___X - Joysticks.prf"));
+    CHECK(has(x52_bound_buttons(), "\tMode 2\t6\tsim/FMS/CDU_popup\n"));
+    x52_bind_clear(12, 0);
+    CHECK(!has(x52_bound_buttons(), "\n12\t") && std::string(x52_bound_buttons()).compare(0, 3, "12\t") != 0);
+    x52_step_move(9, 2, 0, 1, -1);                                       // the dataref step first
+    CHECK_EQ(x52_step_kind(9, 2, 0, 0), 3);
+    x52_step_remove(9, 2, 0, 0);
+    x52_step_remove(9, 2, 0, 0);
+    x52_bind_set_label(9, 2, 0, "");
+    CHECK_EQ(x52_bind_exists(9, 2), 0);                                  // nothing left: the binding is gone
+    CHECK(!has(slurp(xp + "/Output/preferences/X52Pro/default.x52"), "bind 9 2"));
+    CHECK_EQ(x52_step_add(28, 0, 0, 0), -1);                             // the mode dial cannot be programmed
+    CHECK_EQ(x52_button_reserved(28), 1);
+    x52_bind_set_label(10, 0, 1, "Long");                                // a name without a step does nothing: no binding
+    CHECK_EQ(x52_bind_exists(10, 0), 0);
+    CHECK_EQ(x52_step_add(10, 0, 1, 1), 0);                              // a blank keystroke step, still being typed
+    CHECK_EQ(x52_bind_exists(10, 0), 1);
+    CHECK_EQ(x52_step_add(10, 0, 1, 3), 1);                              // and a blank dataref step
+    CHECK_EQ(x52_step_count(10, 0, 1), 2);                               // both survive the save and reload in between
+    x52_bind_clear(10, 0);
+    CHECK_EQ(x52_bind_exists(10, 0), 0);
+    x52_stop();
 }
 
 int main() {

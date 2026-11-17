@@ -47,8 +47,9 @@ struct SimData {
     float obs1 = 0, obs2 = 0;
 };
 
-// The radio pages come first (the stick starts on COM1 / NAV1); the Buttons page is the last one.
-enum Page { PageComNav1, PageComNav2, PageAdf, PageDme, PageXpdr, PageAutopilot, PageVorHdg, PageButtons, kPageCount };
+// The radio pages come first (the stick starts on COM1 / NAV1), then the user's own pages (see pagetree.h), then
+// the Buttons page, and the Brightness page is the very last one.
+enum Page { PageComNav1, PageComNav2, PageAdf, PageDme, PageXpdr, PageAutopilot, PageVorHdg, PageButtons, PageBrightness, kPageCount };
 const char* pageName(int page);
 
 struct Lines {

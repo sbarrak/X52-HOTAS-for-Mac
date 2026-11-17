@@ -8,7 +8,9 @@
 #include "../core/engine.h"
 #include "../core/mfd.h"
 #include "../core/pages.h"
+#include "../core/pageview.h"
 #include "../core/profile.h"
+#include "../core/xpjoy.h"
 #include "../mac/x52device.h"
 #include "../mac/x52input.h"
 #include "store.h"
@@ -34,6 +36,15 @@ struct App : Host {
 
     int page = PageComNav1;
     PageCursor cursor;           // where the MFD's right wheel is on the current page
+    // Pages: the built-in ones are 0..kPageCount-1 (see mfd.h); the user's top-level pages follow as kPageCount,
+    // kPageCount+1, ... The left wheel goes through the radio pages, then the user's, and the Buttons page last.
+    PageNav nav;                 // where the wheels are inside a user page
+    int pageTotal() const;       // built-in pages plus the user's top-level ones
+    std::vector<int> pageOrder() const;
+    void stepPage(int direction);   // left wheel: +1 next, -1 previous
+    std::string pageTitle(int p) const;
+    const std::string* userPageId(int p) const;   // id of a user page's top-level page, or nullptr for a built-in one
+    Lines userPageLines(double now);
     void setPage(int p);
     void wheel(Wheel w);         // right wheel turned or pressed
 
@@ -61,6 +72,10 @@ struct App : Host {
     bool askedKeyAccess = false;
     bool saveBlocked = false;    // the profile file on disk is unreadable; never overwrite it
     std::vector<CommandInfo> commands;
+    ButtonLearner learner;       // which X-Plane joystick slot each stick button is (learned from presses)
+    void saveAircraftDescription();
+    void loadButtonMap();
+    void saveButtonMap();
 
     // Called by the window after it changed `profile`: applies and saves it.
     void profileChanged();
@@ -83,6 +98,7 @@ struct App : Host {
     void keyUp(const std::string& combo) override;
     void showLabel(const std::string& text) override;
     void layerChanged(int mode, bool shift) override;
+    void datarefStep(const Step& s) override;
 
 private:
     void* findCommand(const std::string& name);

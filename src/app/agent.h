@@ -35,6 +35,8 @@ public:
     // unreadable file is left alone (false, see error()).
     bool change(const std::function<void(Profile&)>& edit);
     void select(const std::string& key);
+    // Writes a new profile file and switches to it. Never replaces a profile that exists (false, see error).
+    bool createProfile(const std::string& key, const Profile& p, std::string* error);
 
     const Profile& profile() const { return profile_; }
     const std::string& key() const { return key_; }
@@ -63,6 +65,16 @@ public:
     // colours and blinking can be looked at (the Test tab). -1 stops it.
     void tryAlarm(int index);
     int triedAlarm() const;
+
+    // Pretends master switch `which` (0 screen, 1 lights) is off for a few seconds whatever the simulator
+    // says, so it can be seen working without X-Plane. -1 stops it.
+    void tryMaster(int which);
+    int triedMaster() const;
+
+    // Shows the screen (which 0) or lights (which 1) at the dim (level 0) or bright (level 1) end of their
+    // brightness link for a few seconds, whatever the simulator says. which -1 stops it.
+    void tryBright(int which, int level);
+    int triedBright() const;
 
     void previewMode(int mode, bool pinkie = false); // show this mode's lights for a few seconds
     void setTest(bool on);                          // report moving controls too
@@ -102,6 +114,11 @@ private:
     int preview_ = 0;
     bool previewPinkie_ = false;
     double previewUntil_ = 0;
+    int tryBright_ = -1;
+    int tryBrightLevel_ = 0;
+    double tryBrightUntil_ = 0;
+    int tryMaster_ = -1;
+    double tryMasterUntil_ = 0;
     int tryIndex_ = -1;
     double tryUntil_ = 0;
     bool haveText_ = false;

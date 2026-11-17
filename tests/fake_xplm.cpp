@@ -99,9 +99,41 @@ XPLMDataRef XPLMFindDataRef(const char* name) {
 int XPLMGetDatai(XPLMDataRef r) { return (int)refValue(r); }
 float XPLMGetDataf(XPLMDataRef r) { return (float)refValue(r); }
 double XPLMGetDatad(XPLMDataRef r) { return refValue(r); }
+int XPLMGetDatab(XPLMDataRef, void* out, int offset, int n) {
+    const std::string& d = sim().acfDescrip;
+    if (!out) return (int)d.size();
+    int got = 0;
+    for (; got < n && offset + got < (int)d.size(); ++got) ((char*)out)[got] = d[offset + got];
+    return got;
+}
 XPLMDataTypeID XPLMGetDataRefTypes(XPLMDataRef) { return xplmType_Float | xplmType_Int; }
+namespace {
+void refStore(XPLMDataRef r, double v) {
+    size_t i = (size_t)(intptr_t)r - 1;
+    if (i < refNames.size()) sim().datarefs[refNames[i]] = v;
+}
+}  // namespace
+int XPLMCanWriteDataRef(XPLMDataRef r) {
+    size_t i = (size_t)(intptr_t)r - 1;
+    return i < refNames.size() && refNames[i].find("readonly") == std::string::npos;   // a name with "readonly" cannot be written
+}
+void XPLMSetDatai(XPLMDataRef r, int v) { refStore(r, v); }
+void XPLMSetDataf(XPLMDataRef r, float v) { refStore(r, v); }
+void XPLMSetDatad(XPLMDataRef r, double v) { refStore(r, v); }
+void XPLMSetDatavf(XPLMDataRef r, float* v, int, int) { refStore(r, *v); }
+void XPLMSetDatavi(XPLMDataRef r, int* v, int, int) { refStore(r, *v); }
 int XPLMGetDatavf(XPLMDataRef r, float* out, int, int) { *out = (float)refValue(r); return 1; }
-int XPLMGetDatavi(XPLMDataRef r, int* out, int, int) { *out = (int)refValue(r); return 1; }
+int XPLMGetDatavi(XPLMDataRef r, int* out, int offset, int n) {
+    size_t i = (size_t)(intptr_t)r - 1;
+    if (i < refNames.size() && refNames[i] == "sim/joystick/joystick_button_values") {
+        int got = 0;
+        for (; got < n && offset + got < (int)sim().joyValues.size(); ++got) out[got] = sim().joyValues[offset + got];
+        for (int k = got; k < n; ++k) out[k] = 0;
+        return n;
+    }
+    *out = (int)refValue(r);
+    return 1;
+}
 
 XPLMCommandRef XPLMCreateCommand(const char* name, const char*) { return refFor(name); }
 XPLMCommandRef XPLMFindCommand(const char* name) {

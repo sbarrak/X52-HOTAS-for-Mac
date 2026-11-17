@@ -90,7 +90,7 @@ UsbCmd packBlink(bool on) { return {0xb4, (uint16_t)(on ? 0x51 : 0x50)}; }
 
 const char* pageName(int page) {
     static const char* const names[kPageCount] = {"COM1 / NAV1", "COM2 / NAV2", "ADF",       "DME",
-                                                  "Transponder", "Autopilot",   "OBS / Heading", "Buttons"};
+                                                  "Transponder", "Autopilot",   "OBS / Heading", "Buttons", "Brightness"};
     return page >= 0 && page < kPageCount ? names[page] : "";
 }
 
