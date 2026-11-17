@@ -297,7 +297,7 @@ TEST(every_page_line_fits_the_screen) {
     d.apVs = -9900;
     d.apIas = 399;
     d.obs1 = d.obs2 = 359;
-    for (int page = PageComNav1; page < kPageCount; ++page)
+    for (int page = PageComNav1; page < PageButtons; ++page)
         for (int item = 0; item < std::max(1, pageItemCount(page)); ++item)
             for (bool editing : {false, true}) {
                 PageCursor c;
