@@ -3,6 +3,7 @@
 // a private thread and handed over when the owner calls drain().
 #pragma once
 #include <atomic>
+#include <map>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -38,6 +39,8 @@ public:
     void setWantAxes(bool want) { wantAxes_ = want; }
     void drainAxes(std::vector<AxisEvent>& out);
     void pushAxis(const AxisEvent& e);
+    // Where every analog control sits right now (the last value the stick reported, whether or not axis events are wanted).
+    std::vector<AxisEvent> latestAxes() const;
     bool connected() const { return connected_; }
 
     // For the probe tool; filled when a device is matched.
@@ -55,6 +58,7 @@ private:
     mutable std::mutex mutex_;
     std::vector<ButtonEvent> pending_;
     std::vector<AxisEvent> axisPending_;
+    std::map<std::pair<int, int>, AxisEvent> axisLatest_;
     std::atomic<bool> wantAxes_{false};
     std::atomic<bool> connected_{false};
     std::atomic<bool> started_{false};

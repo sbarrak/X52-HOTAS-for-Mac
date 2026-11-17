@@ -4,6 +4,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include "dial.h"
 #include "mfd.h"
 
 namespace x52 {
@@ -26,7 +27,9 @@ Lines formatSimPage(int page, const SimData& d, const PageCursor& c = PageCursor
 // One wheel click or press. Moves the cursor or toggles editing, and returns the
 // X-Plane commands to run once (empty when only the cursor changed).
 // com833: fine COM steps are 8.33 kHz channels instead of 25 kHz.
-std::vector<std::string> pageInput(int page, PageCursor& c, Wheel w, bool com833 = false);
+// repeat: how many times the change is applied; only heading, altitude, vertical speed, speed, OBS and the fine
+// COM/NAV values take it (the whole-MHz and digit values would overshoot or wrap).
+std::vector<std::string> pageInput(int page, PageCursor& c, Wheel w, bool com833 = false, int repeat = 1);
 
 // The Brightness page: the screen's and the lights' brightness (0..127 as stored), shown in percent. The wheel
 // works as on the radio pages: turn to move the cursor, press to start changing (>>), turn to change in 5 % steps,

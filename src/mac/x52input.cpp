@@ -65,6 +65,11 @@ void onAttach(void* ctx, IOReturn, void*, IOHIDDeviceRef device) {
                 IOHIDValueRef v = nullptr;
                 if (IOHIDDeviceGetValue(device, el, &v) == kIOReturnSuccess && v)
                     self->push(info.usage, IOHIDValueGetIntegerValue(v) != 0);
+            } else if (info.kind == "axis") {
+                // Where each axis rests at the start: no event comes until it moves.
+                IOHIDValueRef v = nullptr;
+                if (IOHIDDeviceGetValue(device, el, &v) == kIOReturnSuccess && v)
+                    self->pushAxis({info.usagePage, info.usage, (long)IOHIDValueGetIntegerValue(v), info.min, info.max});
             }
         }
         CFRelease(els);
@@ -91,9 +96,17 @@ void X52Input::push(int button, bool down) {
 
 void X52Input::pushAxis(const AxisEvent& e) {
     bool hat = e.usagePage == 0x01 && e.usage == 0x39;
-    if (!wantAxes_ && !hat) return;
     std::lock_guard<std::mutex> lock(mutex_);
+    axisLatest_[{e.usagePage, e.usage}] = e;
+    if (!wantAxes_ && !hat) return;
     axisPending_.push_back(e);
+}
+
+std::vector<AxisEvent> X52Input::latestAxes() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<AxisEvent> out;
+    for (const auto& kv : axisLatest_) out.push_back(kv.second);
+    return out;
 }
 
 void X52Input::drainAxes(std::vector<AxisEvent>& out) {

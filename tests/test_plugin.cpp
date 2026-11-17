@@ -12,6 +12,7 @@
 #include "XPLMDefs.h"
 #include "XPLMPlugin.h"
 #include "XPLMUtilities.h"
+#include <cmath>
 #include "check.h"
 #include "fake_xplm.h"
 #include "../src/plugin/app.h"
@@ -312,6 +313,124 @@ TEST(right_wheel_and_its_button_tune_the_radio_from_the_stick) {
     XPLMCommandOnce(XPLMFindCommand("x52pro/mfd_page_next"));
     CHECK(!gApp->cursor.editing);   // a new page never starts in editing
     gApp->setPage(PageButtons);
+}
+
+TEST(a_fast_turn_of_the_right_wheel_jumps_and_a_slow_one_steps_by_one) {
+    sim().knownCommands.push_back("sim/autopilot/heading_up");
+    sim().knownCommands.push_back("sim/autopilot/heading_down");
+    gApp->setPage(PageAutopilot);
+    gApp->cursor.item = 0;   // HDG
+    const double t = gApp->now() + 5000;
+    gApp->wheelAt(Wheel::Select, t);   // start changing
+    CHECK(gApp->cursor.editing);
+    int up = sim().onces["sim/autopilot/heading_up"];
+    gApp->wheelAt(Wheel::Up, t + 1.0);    // first click after a rest: one degree
+    CHECK_EQ(sim().onces["sim/autopilot/heading_up"], up + 1);
+    gApp->wheelAt(Wheel::Up, t + 1.4);    // slow turn: still one
+    CHECK_EQ(sim().onces["sim/autopilot/heading_up"], up + 2);
+    gApp->wheelAt(Wheel::Up, t + 1.42);   // 20 ms later: a fast spin jumps 10
+    CHECK_EQ(sim().onces["sim/autopilot/heading_up"], up + 12);
+    int down = sim().onces["sim/autopilot/heading_down"];
+    gApp->wheelAt(Wheel::Down, t + 1.43);   // reversing restarts at one step
+    CHECK_EQ(sim().onces["sim/autopilot/heading_down"], down + 1);
+    gApp->profile.dial.on = false;
+    gApp->wheelAt(Wheel::Up, t + 1.44);
+    gApp->wheelAt(Wheel::Up, t + 1.45);
+    CHECK_EQ(sim().onces["sim/autopilot/heading_up"], up + 14);
+    gApp->profile.dial.on = true;
+    gApp->wheelAt(Wheel::Select, t + 3.0);   // done editing
+    gApp->setPage(PageButtons);
+}
+
+static bool nearTo(double a, double b) { return std::fabs(a - b) < 1e-3; }
+
+TEST(flight_axes_stay_with_x_plane_unless_the_override_is_on) {
+    auto& d = sim().datarefs;
+    d["sim/joystick/yoke_roll_ratio"] = 0.7;
+    d["sim/operation/override/override_joystick"] = 0;
+    gApp->profile.axes = AxisSettings();
+    CHECK(!gApp->profile.axes.overrideXPlane);
+    gApp->input.pushAxis({0x01, 0x30, 1023, 0, 1023});
+    sim().frame();
+    CHECK(nearTo(d["sim/joystick/yoke_roll_ratio"], 0.7));
+    CHECK_EQ((int)d["sim/operation/override/override_joystick"], 0);
+}
+
+TEST(with_the_override_on_the_plugin_writes_shaped_axes_and_hands_them_back_when_it_is_switched_off) {
+    auto& d = sim().datarefs;
+    const char* roll = "sim/joystick/yoke_roll_ratio";
+    const char* pitch = "sim/joystick/yoke_pitch_ratio";
+    const char* ovr = "sim/operation/override/override_joystick";
+    const char* thr = "sim/cockpit2/engine/actuators/throttle_ratio_all";
+    const char* ovrThr = "sim/operation/override/override_throttles";
+    for (const char* n : {roll, pitch, "sim/joystick/yoke_heading_ratio", ovr, thr, ovrThr}) d[n] = 0.0;
+    gApp->profile.axes = AxisSettings();
+    gApp->profile.axes.overrideXPlane = true;
+    gApp->profile.axes.roll.deadzone = 10;
+    gApp->profile.axes.pitch.invert = true;
+    gApp->profile.axes.pitch.deadzone = 0;
+
+    gApp->input.pushAxis({0x01, 0x30, 560, 0, 1023});    // a little right of centre: inside the dead zone
+    gApp->input.pushAxis({0x01, 0x31, 0, 0, 1023});      // pitch fully one way, inverted
+    sim().frame();
+    CHECK(nearTo(d[roll], 0.0));
+    CHECK(nearTo(d[pitch], 1.0));
+    CHECK_EQ((int)d[ovr], 1);
+
+    gApp->input.pushAxis({0x01, 0x30, 1023, 0, 1023});
+    gApp->input.pushAxis({0x01, 0x32, 255, 0, 255});
+    sim().frame();
+    CHECK(nearTo(d[roll], 1.0));
+    CHECK(nearTo(d[thr], 1.0));
+    CHECK_EQ((int)d[ovrThr], 1);
+
+    gApp->profile.axes.overrideXPlane = false;
+    sim().frame();
+    CHECK_EQ((int)d[ovr], 0);
+    CHECK_EQ((int)d[ovrThr], 0);
+    d[roll] = 0.25;   // X-Plane's own reading is left alone again
+    sim().frame();
+    CHECK(nearTo(d[roll], 0.25));
+}
+
+TEST(the_window_can_tell_which_axis_is_moving) {
+    gApp->profile.axes = AxisSettings();
+    gApp->input.pushAxis({0x01, 0x30, 100, 0, 1023});
+    gApp->input.pushAxis({0x01, 0x33, 100, 0, 255});
+    sim().frame();
+    gApp->input.pushAxis({0x01, 0x30, 102, 0, 1023});   // noise: under 2 % of the travel
+    sim().frame();
+    gApp->input.pushAxis({0x01, 0x33, 200, 0, 255});    // the lower rotary turned
+    sim().frame();
+    CHECK_EQ(gApp->axisMoved.first, 0x01);
+    CHECK_EQ(gApp->axisMoved.second, 0x33);
+    CHECK_EQ(std::string(controlName(0x01, 0x33)), std::string("Lower rotary (i)"));
+    auto it = gApp->axisLive.find(gApp->axisMoved);
+    CHECK(it != gApp->axisLive.end());
+    if (it != gApp->axisLive.end()) CHECK_EQ(it->second.value, 200L);
+    gApp->input.pushAxis({0x01, 0x30, 900, 0, 1023});
+    sim().frame();
+    CHECK_EQ(gApp->axisMoved.second, 0x30);
+}
+
+TEST(the_axes_tab_shows_live_values_names_the_moving_control_and_has_the_override_checkbox) {
+    gApp->profile.axes = AxisSettings();
+    CHECK(sim().clickText("Axes", 0, true));
+    gApp->input.pushAxis({0x01, 0x34, 10, 0, 255});
+    sim().frame();
+    gApp->input.pushAxis({0x01, 0x34, 200, 0, 255});    // the upper rotary turned
+    sim().frame();
+    CHECK(sim().sees("Moving now: Upper rotary (E)"));
+    CHECK(sim().sees("Stick left/right"));
+    CHECK(!gApp->profile.axes.overrideXPlane);
+    CHECK(sim().clickText("[  ]", 0, true));   // the first checkbox on the tab: process the axes here
+    CHECK(gApp->profile.axes.overrideXPlane);
+    int dz = gApp->profile.axes.roll.deadzone;
+    CHECK(sim().clickText("+", 0, true));      // first "+" is the roll dead zone
+    CHECK_EQ(gApp->profile.axes.roll.deadzone, dz + 1);
+    gApp->profile.axes = AxisSettings();
+    gApp->profileChanged();
+    CHECK(sim().clickText("Buttons", 0, true));
 }
 
 TEST(clutch_flashes_and_the_pov_hat_picks_a_profile) {

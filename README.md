@@ -219,7 +219,7 @@ lights go dark. With no dataref chosen, or one X-Plane does not know, it stays o
 **Important:** a button you program here must be set to *Do nothing* in X-Plane's own
 *Settings > Joystick*, otherwise X-Plane and the plugin both act on it. Buttons you
 leave unprogrammed here keep working through X-Plane as before. Axes and the main POV
-hat always stay with X-Plane.
+hat stay with X-Plane unless you tick the override on the **Axes** tab (below).
 
 Other things to know:
 
@@ -233,6 +233,15 @@ Other things to know:
   swap it with standby. `>` or `<` marks a part of a value: press (it becomes `>>` or
   `<<`), turn to change it, press again to finish. Turning alone never changes anything.
   COM fine steps are 25 kHz, or 8.33 kHz channels if you tick that on the Settings tab.
+  **Fast turns jump:** while changing heading, altitude, vertical speed, speed, OBS or a fine COM/NAV
+  value, spinning the wheel quickly repeats each click (up to x10 by default: HDG moves 10 degrees, ALT 1000 ft),
+  while slow turns still step by one. Tune or switch it off on the Settings tab (profile keys `dial_*`).
+- **Axes tab:** shows every control the stick reports with its value, and names the one that is moving, the
+  rotaries and slider included. X-Plane stays in charge of the flight axes by default. Tick *Process the flight
+  axes in this plugin* and the plugin reads roll, pitch, twist and throttle itself, applies a dead zone, an
+  expo curve and optional inversion, and writes the result into X-Plane (it sets X-Plane's
+  `override_joystick` / `override_throttles`, and releases them when you untick it). The throttle is only
+  taken over once it has moved. Test mode on the Settings tab also names moving controls on the stick's screen.
 - **Picking a profile in the window:** **Change profile...** (top right, next to the tabs) lists every profile,
   including ones you imported, and **Automatic** to go back to the aircraft's own or Default. A profile picked
   here, like one picked on the stick, stays until the aircraft changes; the window says "(picked)".

@@ -38,6 +38,7 @@ struct Item {
     bool swap = false;
     std::string select;   // swap only
     std::string up, down;
+    bool accel = false;   // a fast turn repeats the change
 };
 
 Item swapItem(const std::string& cmd) {
@@ -46,10 +47,11 @@ Item swapItem(const std::string& cmd) {
     i.select = cmd;
     return i;
 }
-Item editItem(const std::string& stem, const char* downWord = "down") {
+Item editItem(const std::string& stem, const char* downWord = "down", bool accel = false) {
     Item i;
     i.up = stem + "up";
     i.down = stem + downWord;
+    i.accel = accel;
     return i;
 }
 
@@ -62,13 +64,14 @@ Item itemFor(int page, int item, bool com833) {
             Item fine;
             fine.up = "sim/radios/stby_com" + n + "_fine_up" + tail;
             fine.down = "sim/radios/stby_com" + n + "_fine_down" + tail;
+            fine.accel = true;
             switch (item) {
                 case 0: return swapItem("sim/radios/com" + n + "_standy_flip");   // X-Plane's own spelling
                 case 1: return editItem("sim/radios/stby_com" + n + "_coarse_");
                 case 2: return fine;
                 case 3: return swapItem("sim/radios/nav" + n + "_standy_flip");
                 case 4: return editItem("sim/radios/stby_nav" + n + "_coarse_");
-                default: return editItem("sim/radios/stby_nav" + n + "_fine_");
+                default: return editItem("sim/radios/stby_nav" + n + "_fine_", "down", true);
             }
         }
         case PageAdf: {
@@ -87,12 +90,12 @@ Item itemFor(int page, int item, bool com833) {
         }
         case PageAutopilot: {
             static const char* const what[] = {"heading", "altitude", "vertical_speed", "airspeed"};
-            return editItem(std::string("sim/autopilot/") + what[std::min(item, 3)] + "_");
+            return editItem(std::string("sim/autopilot/") + what[std::min(item, 3)] + "_", "down", true);
         }
         case PageVorHdg:
-            if (item == 0) return editItem("sim/radios/obs1_");
-            if (item == 1) return editItem("sim/radios/obs2_");
-            return editItem("sim/autopilot/heading_");
+            if (item == 0) return editItem("sim/radios/obs1_", "down", true);
+            if (item == 1) return editItem("sim/radios/obs2_", "down", true);
+            return editItem("sim/autopilot/heading_", "down", true);
     }
     return Item();
 }
@@ -240,7 +243,16 @@ Lines formatSimPage(int page, const SimData& d, const PageCursor& cur) {
     return p;
 }
 
-std::vector<std::string> pageInput(int page, PageCursor& c, Wheel w, bool com833) {
+int dialRepeat(double gapSeconds, const DialAccel& d) {
+    if (!d.on || d.factor <= 1) return 1;
+    double gap = gapSeconds * 1000.0, slow = d.slowMs, fast = std::min(d.fastMs, d.slowMs);
+    if (gap >= slow) return 1;
+    if (gap <= fast) return d.factor;
+    double t = (slow - gap) / (slow - fast);   // 0 at the slow end, 1 at the fast end
+    return 1 + (int)lround((d.factor - 1) * t);
+}
+
+std::vector<std::string> pageInput(int page, PageCursor& c, Wheel w, bool com833, int repeat) {
     int count = pageItemCount(page);
     if (count == 0) {
         c = PageCursor();
@@ -253,7 +265,10 @@ std::vector<std::string> pageInput(int page, PageCursor& c, Wheel w, bool com833
         c.editing = !c.editing;
         return {};
     }
-    if (c.editing && !it.swap) return {w == Wheel::Up ? it.up : it.down};
+    if (c.editing && !it.swap) {
+        int n = it.accel ? std::max(1, repeat) : 1;
+        return std::vector<std::string>(n, w == Wheel::Up ? it.up : it.down);
+    }
     c.editing = false;
     c.item = (c.item + (w == Wheel::Down ? 1 : count - 1)) % count;
     return {};
