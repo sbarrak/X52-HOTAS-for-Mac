@@ -54,6 +54,9 @@ struct App : Host {
     int pickIndex = -1;          // -1: not picking
     int lastHat = -1;
     void hatMoved(int direction);
+    // The profile picker in the window: "" goes back to the automatic choice (this aircraft's profile, else
+    // Default), otherwise the profile with this key is used until the aircraft changes.
+    void chooseProfile(const std::string& key);
     static std::string profileTitle(const std::string& key);
 
     StickLock lock;              // held while the plugin drives the stick

@@ -599,6 +599,29 @@ TEST(the_plugin_saves_the_aircraft_description_for_the_app) {
     gApp->loadForAircraft("Cessna_172SP");
 }
 
+TEST(the_window_has_a_profile_picker) {
+    Profile other = defaultProfile();
+    other.name = "Other";
+    std::string err;
+    CHECK(gApp->store.save("Other", other, &err));
+    CHECK(gApp->manualKey.empty());
+    CHECK(sim().clickText("Change profile...", 0, true));
+    sim().frame();
+    CHECK(sim().sees("Automatic (aircraft, else Default)"));
+    CHECK(sim().clickText("Other", 0, true));
+    CHECK_EQ(gApp->manualKey, std::string("Other"));
+    CHECK_EQ(gApp->profile.name, std::string("Other"));
+    sim().frame();
+    CHECK(sim().sees("Profile: Other (picked)"));
+    CHECK(!sim().sees("Delete, use Default"));                // the aircraft's own profile is not offered for deletion now
+    CHECK(sim().clickText("Change profile...", 0, true));
+    sim().frame();
+    CHECK(sim().clickText("Automatic (aircraft, else Default)", 0, true));
+    CHECK(gApp->manualKey.empty());
+    CHECK_EQ(gApp->profile.name, gApp->usingAircraftProfile ? gApp->aircraft : std::string("default"));
+    gApp->store.remove("Other");
+}
+
 TEST(the_brightness_page_changes_and_saves_the_screen_and_light_brightness) {
     gApp->profile.pages = PageTree();
     gApp->profile.brightScreen = BrightnessLink();
