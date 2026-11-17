@@ -324,6 +324,8 @@ float flightLoop(float, float, int, void*) {
         }
         a.lastHat = dir;
     }
+    a.trackAxes(now);
+    a.applyAxes();
     if (a.testMode) {
         for (const AxisEvent& m : moves) {
             auto key = std::make_pair(m.usagePage, m.usage);
@@ -472,8 +474,76 @@ Lines App::userPageLines(double now) {
     return formatUserPage(profile.pages, *id, nav, [now](const std::string& ref, double& v) { return readDataref(ref, now, v); });
 }
 
-void App::wheel(Wheel w) {
+namespace {
+XPLMDataRef cachedRef(const char* name) {
+    static std::map<std::string, XPLMDataRef> cache;
+    auto it = cache.find(name);
+    if (it != cache.end() && it->second) return it->second;
+    XPLMDataRef r = XPLMFindDataRef(name);
+    cache[name] = r;
+    return r;
+}
+const std::pair<int, int> kFlightAxes[] = {{0x01, 0x30}, {0x01, 0x31}, {0x01, 0x35}, {0x01, 0x32}};
+}  // namespace
+
+void App::trackAxes(double t) {
+    for (const AxisEvent& e : input.latestAxes()) {
+        auto key = std::make_pair(e.usagePage, e.usage);
+        auto it = axisLive.find(key);
+        if (it == axisLive.end()) {   // where a control rests is not news
+            axisLive[key] = {e.value, e.min, e.max, e.value, 0};
+            continue;
+        }
+        AxisLive& l = it->second;
+        l.value = e.value;
+        l.min = e.min;
+        l.max = e.max;
+        if (controlMoved(e.usagePage, e.usage, l.reference, e.value, e.min, e.max)) {
+            l.reference = e.value;
+            l.changedAt = t;
+            axisMoved = key;
+            axisMovedAt = t;
+        }
+    }
+}
+
+void App::applyAxes() {
+    if (!profile.axes.overrideXPlane) {
+        if (axesOverridden) releaseAxes();
+        return;
+    }
+    bool joy = false, thr = false;
+    for (const auto& key : kFlightAxes) {
+        const AxisTarget* t = axisTarget(key.first, key.second);
+        auto it = axisLive.find(key);
+        if (!t || (it == axisLive.end() && !t->centred)) continue;   // an unseen throttle stays X-Plane's
+        double v = 0.0;
+        if (it != axisLive.end()) {
+            const AxisLive& l = it->second;
+            v = shapeAxis(normalizeAxis(l.value, l.min, l.max, t->centred), axisCurve(profile.axes, t->usage), t->centred);
+        }
+        if (XPLMDataRef r = cachedRef(t->dataref)) XPLMSetDataf(r, (float)v);
+        (t->centred ? joy : thr) = true;
+    }
+    if (joy) if (XPLMDataRef r = cachedRef("sim/operation/override/override_joystick")) XPLMSetDatai(r, 1);
+    if (thr) if (XPLMDataRef r = cachedRef("sim/operation/override/override_throttles")) XPLMSetDatai(r, 1);
+    axesOverridden = axesOverridden || joy || thr;
+}
+
+void App::releaseAxes() {
+    for (const char* n : {"sim/operation/override/override_joystick", "sim/operation/override/override_throttles"})
+        if (XPLMDataRef r = cachedRef(n)) XPLMSetDatai(r, 0);
+    axesOverridden = false;
+}
+
+void App::wheel(Wheel w) { wheelAt(w, now()); }
+
+void App::wheelAt(Wheel w, double t) {
     if (testMode || engine.clutch()) return;
+    // A turn in the same direction soon after the last click is a fast spin: the change is repeated.
+    double gap = w == lastWheelDir && w != Wheel::Select ? t - lastWheelTime : 1e9;
+    lastWheelTime = t;
+    lastWheelDir = w;
     if (page >= kPageCount) {
         if (const std::string* id = userPageId(page)) pageTreeInput(profile.pages, *id, nav, w);
         return;
@@ -484,7 +554,7 @@ void App::wheel(Wheel w) {
             profileChanged();   // saved at once; the stick follows on the next refresh
         return;
     }
-    for (const std::string& c : pageInput(page, cursor, w, profile.com833)) commandOnce(c);
+    for (const std::string& c : pageInput(page, cursor, w, profile.com833, dialRepeat(gap, profile.dial))) commandOnce(c);
 }
 
 void App::hatMoved(int direction) {
@@ -801,6 +871,7 @@ PLUGIN_API void XPluginDisable(void) {
     App& a = *gApp;
     XPLMUnregisterFlightLoopCallback(flightLoop, nullptr);
     a.engine.releaseAll();
+    a.releaseAxes();
     uiDestroy();
     a.input.stop();
     a.device.stop();

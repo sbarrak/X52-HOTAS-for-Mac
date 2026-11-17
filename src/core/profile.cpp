@@ -470,6 +470,16 @@ std::string serialize(const Profile& p) {
     for (int c = 0; c < 3; ++c) o << "clock" << (c + 1) << "_12h = " << (p.clock12h[c] ? 1 : 0) << "\n";
     o << "date_format = " << p.dateFormat << "\n";
     o << "com_833 = " << (p.com833 ? 1 : 0) << "\n";
+    o << "axis_override = " << (p.axes.overrideXPlane ? 1 : 0) << "\n";
+    o << "# axis_<name> = dead zone %, expo %, inverted (1/0)\n";
+    for (int u : {0x30, 0x31, 0x35, 0x32}) {
+        const AxisCurve& c = axisCurve(p.axes, u);
+        o << "axis_" << axisTarget(0x01, u)->name << " = " << c.deadzone << " " << c.expo << " " << (c.invert ? 1 : 0) << "\n";
+    }
+    o << "dial_accel = " << (p.dial.on ? 1 : 0) << "\n";
+    o << "dial_slow_ms = " << p.dial.slowMs << "\n";
+    o << "dial_fast_ms = " << p.dial.fastMs << "\n";
+    o << "dial_factor = " << p.dial.factor << "\n";
     for (int m = 0; m < 3; ++m) {
         o << "leds " << (m + 1) << " =";
         for (int l = 0; l < kLedCount; ++l) o << " " << ledName(l) << ":" << colorName(p.leds[m][l]);
@@ -821,6 +831,18 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
             p.modeButtons[0] = a;
             p.modeButtons[1] = b;
             p.modeButtons[2] = c;
+        } else if (key.compare(0, 5, "axis_") == 0 && key != "axis_override") {
+            int usage = 0;
+            for (int u : {0x30, 0x31, 0x35, 0x32})
+                if (key == std::string("axis_") + axisTarget(0x01, u)->name) usage = u;
+            if (!usage) continue;   // unknown axis: ignored so newer files still load
+            std::stringstream as(value);
+            int dz = 0, ex = 0, inv = 0;
+            if (!(as >> dz >> ex >> inv)) return fail("'" + key + "' needs dead zone, expo and inverted");
+            AxisCurve& c = axisCurve(p.axes, usage);
+            c.deadzone = clampInt(dz, 0, 90);
+            c.expo = clampInt(ex, 0, 100);
+            c.invert = inv != 0;
         } else if (!toInt(value, n)) {
             return fail("'" + key + "' needs a number");
         } else if (key == "pinkie_shift") {
@@ -853,6 +875,16 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
             p.clock12h[2] = n != 0;
         } else if (key == "com_833") {
             p.com833 = n != 0;
+        } else if (key == "axis_override") {
+            p.axes.overrideXPlane = n != 0;
+        } else if (key == "dial_accel") {
+            p.dial.on = n != 0;
+        } else if (key == "dial_slow_ms") {
+            p.dial.slowMs = clampInt(n, 20, 1000);
+        } else if (key == "dial_fast_ms") {
+            p.dial.fastMs = clampInt(n, 5, 1000);
+        } else if (key == "dial_factor") {
+            p.dial.factor = clampInt(n, 1, 50);
         } else if (key == "date_format") {
             p.dateFormat = clampInt(n, 0, 2);
         }

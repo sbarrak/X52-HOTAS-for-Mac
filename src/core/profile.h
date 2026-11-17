@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include "axes.h"
+#include "dial.h"
 #include "pagetree.h"
 
 namespace x52 {
@@ -212,6 +214,8 @@ struct Profile {
     bool clutchLatched = false;   // clutch toggles safe mode instead of holding it
     int clockOffset[2] = {0, 0};  // clock 2 and 3: minutes from GMT
     bool clock12h[3] = {false, false, false};
+    AxisSettings axes;        // flight axes processed by the plugin (off: X-Plane reads the stick itself)
+    DialAccel dial;           // fast turns of the right wheel change values in bigger jumps
     bool com833 = false;      // fine COM tuning from the stick steps 8.33 kHz channels instead of 25 kHz
     int dateFormat = 0;       // 0 DD-MM-YY, 1 MM-DD-YY, 2 YY-MM-DD
     std::vector<Binding> bindings;

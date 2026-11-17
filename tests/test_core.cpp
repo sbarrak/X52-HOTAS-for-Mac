@@ -1,6 +1,8 @@
 #include <fstream>
 #include <map>
 #include "check.h"
+#include <cmath>
+#include "../src/core/axes.h"
 #include "../src/core/catalog.h"
 #include "../src/core/xpjoy.h"
 #include "../src/core/pagetree.h"
@@ -1523,4 +1525,176 @@ TEST(the_alarm_templates_are_complete) {
         CHECK(!a.name.empty());
         CHECK(a.dataref.compare(0, 4, "sim/") == 0);
     }
+}
+
+// ---------------------------------------------------------------- dial acceleration
+
+static std::string joinCmds(const std::vector<std::string>& v) {
+    std::string s;
+    for (auto& c : v) s += c + " ";
+    return s;
+}
+
+TEST(a_slow_dial_turn_repeats_nothing_and_a_fast_one_repeats_by_the_factor) {
+    DialAccel d;   // defaults: slow from 150 ms, fast below 60 ms, factor 10
+    CHECK_EQ(dialRepeat(10.0, d), 1);    // first click after a rest
+    CHECK_EQ(dialRepeat(0.30, d), 1);
+    CHECK_EQ(dialRepeat(0.15, d), 1);
+    CHECK_EQ(dialRepeat(0.06, d), 10);
+    CHECK_EQ(dialRepeat(0.01, d), 10);
+    int mid = dialRepeat(0.10, d);       // in between it ramps up smoothly
+    CHECK(mid > 1 && mid < 10);
+    CHECK(dialRepeat(0.12, d) <= dialRepeat(0.08, d));
+}
+
+TEST(dial_acceleration_can_be_switched_off) {
+    DialAccel d;
+    d.on = false;
+    CHECK_EQ(dialRepeat(0.01, d), 1);
+    DialAccel one;
+    one.factor = 1;
+    CHECK_EQ(dialRepeat(0.01, one), 1);
+}
+
+TEST(fast_turns_repeat_the_command_on_heading_altitude_speed_and_fine_tuning_only) {
+    PageCursor c;
+    c.item = 0;   // HDG
+    pageInput(PageAutopilot, c, Wheel::Select);
+    CHECK(c.editing);
+    CHECK_EQ(joinCmds(pageInput(PageAutopilot, c, Wheel::Up, false, 1)), std::string("sim/autopilot/heading_up "));
+    std::string ten;
+    for (int i = 0; i < 10; ++i) ten += "sim/autopilot/heading_up ";
+    CHECK_EQ(joinCmds(pageInput(PageAutopilot, c, Wheel::Up, false, 10)), ten);
+
+    PageCursor f;   // COM1 fine: item 2
+    f.item = 2;
+    pageInput(PageComNav1, f, Wheel::Select);
+    CHECK_EQ(pageInput(PageComNav1, f, Wheel::Down, false, 4).size(), (size_t)4);
+
+    PageCursor k;   // COM1 coarse (MHz) never jumps
+    k.item = 1;
+    pageInput(PageComNav1, k, Wheel::Select);
+    CHECK_EQ(pageInput(PageComNav1, k, Wheel::Up, false, 10).size(), (size_t)1);
+
+    PageCursor x;   // transponder digit wraps around: no repeat
+    x.item = 0;
+    pageInput(PageXpdr, x, Wheel::Select);
+    CHECK_EQ(pageInput(PageXpdr, x, Wheel::Up, false, 10).size(), (size_t)1);
+}
+
+TEST(moving_the_cursor_never_repeats) {
+    PageCursor c;
+    c.item = 0;
+    pageInput(PageAutopilot, c, Wheel::Down, false, 10);
+    CHECK_EQ(c.item, 1);
+}
+
+TEST(dial_acceleration_is_saved_in_the_profile) {
+    Profile p;
+    CHECK(p.dial.on);
+    CHECK_EQ(p.dial.factor, 10);
+    p.dial.on = false;
+    p.dial.slowMs = 200;
+    p.dial.fastMs = 40;
+    p.dial.factor = 5;
+    Profile q;
+    std::string err;
+    CHECK(parse(serialize(p), q, &err));
+    CHECK(!q.dial.on);
+    CHECK_EQ(q.dial.slowMs, 200);
+    CHECK_EQ(q.dial.fastMs, 40);
+    CHECK_EQ(q.dial.factor, 5);
+}
+
+// ---------------------------------------------------------------- flight axes
+
+static bool near(double a, double b) { return std::fabs(a - b) < 1e-4; }
+
+TEST(raw_stick_values_become_minus_one_to_one_or_zero_to_one) {
+    CHECK(near(normalizeAxis(0, 0, 1023, true), -1.0));
+    CHECK(near(normalizeAxis(1023, 0, 1023, true), 1.0));
+    CHECK(near(normalizeAxis(511, 0, 1022, true), 0.0));
+    CHECK(near(normalizeAxis(0, 0, 255, false), 0.0));
+    CHECK(near(normalizeAxis(255, 0, 255, false), 1.0));
+    CHECK(near(normalizeAxis(5000, 0, 255, false), 1.0));   // never outside the range
+    CHECK(near(normalizeAxis(7, 3, 3, true), 0.0));         // a broken range does not divide by zero
+}
+
+TEST(the_dead_zone_is_flat_and_the_rest_still_reaches_full_travel) {
+    AxisCurve c;
+    c.deadzone = 10;
+    c.expo = 0;
+    CHECK(near(shapeAxis(0.05, c, true), 0.0));
+    CHECK(near(shapeAxis(-0.10, c, true), 0.0));
+    CHECK(near(shapeAxis(0.55, c, true), 0.5));
+    CHECK(near(shapeAxis(-0.55, c, true), -0.5));
+    CHECK(near(shapeAxis(1.0, c, true), 1.0));
+    CHECK(near(shapeAxis(-1.0, c, true), -1.0));
+}
+
+TEST(expo_softens_the_middle_and_keeps_the_ends) {
+    AxisCurve c;
+    c.deadzone = 0;
+    c.expo = 100;
+    CHECK(near(shapeAxis(0.5, c, true), 0.125));
+    CHECK(near(shapeAxis(-0.5, c, true), -0.125));
+    CHECK(near(shapeAxis(1.0, c, true), 1.0));
+    c.expo = 50;
+    CHECK(near(shapeAxis(0.5, c, true), 0.5 * 0.5 + 0.5 * 0.125));
+}
+
+TEST(an_inverted_axis_is_mirrored) {
+    AxisCurve c;
+    c.deadzone = 0;
+    c.expo = 0;
+    c.invert = true;
+    CHECK(near(shapeAxis(0.25, c, true), -0.25));
+    CHECK(near(shapeAxis(0.25, c, false), 0.75));
+}
+
+TEST(a_one_sided_axis_such_as_the_throttle_has_its_dead_zone_at_the_bottom) {
+    AxisCurve c;
+    c.deadzone = 5;
+    c.expo = 0;
+    CHECK(near(shapeAxis(0.03, c, false), 0.0));
+    CHECK(near(shapeAxis(0.525, c, false), 0.5));
+    CHECK(near(shapeAxis(1.0, c, false), 1.0));
+}
+
+TEST(each_stick_axis_knows_which_x_plane_value_it_replaces) {
+    const AxisTarget* roll = axisTarget(0x01, 0x30);
+    const AxisTarget* pitch = axisTarget(0x01, 0x31);
+    const AxisTarget* yaw = axisTarget(0x01, 0x35);
+    const AxisTarget* thr = axisTarget(0x01, 0x32);
+    CHECK(roll && pitch && yaw && thr);
+    if (!(roll && pitch && yaw && thr)) return;
+    CHECK_EQ(std::string(roll->dataref), std::string("sim/joystick/yoke_roll_ratio"));
+    CHECK_EQ(std::string(pitch->dataref), std::string("sim/joystick/yoke_pitch_ratio"));
+    CHECK_EQ(std::string(yaw->dataref), std::string("sim/joystick/yoke_heading_ratio"));
+    CHECK(roll->centred && pitch->centred && yaw->centred && !thr->centred);
+    CHECK_EQ(std::string(roll->overrideRef), std::string("sim/operation/override/override_joystick"));
+    CHECK_EQ(std::string(thr->overrideRef), std::string("sim/operation/override/override_throttles"));
+    CHECK(axisTarget(0x01, 0x36) == nullptr);   // the slider and the rotaries are not flight axes
+    CHECK(axisTarget(0x01, 0x39) == nullptr);
+}
+
+TEST(axis_settings_start_with_x_plane_in_charge_and_are_saved_in_the_profile) {
+    Profile p;
+    CHECK(!p.axes.overrideXPlane);
+    p.axes.overrideXPlane = true;
+    p.axes.roll.deadzone = 12;
+    p.axes.pitch.expo = 40;
+    p.axes.yaw.invert = true;
+    p.axes.throttle.deadzone = 3;
+    Profile q;
+    std::string err;
+    CHECK(parse(serialize(p), q, &err));
+    CHECK(q.axes.overrideXPlane);
+    CHECK_EQ(q.axes.roll.deadzone, 12);
+    CHECK_EQ(q.axes.pitch.expo, 40);
+    CHECK(q.axes.yaw.invert);
+    CHECK_EQ(q.axes.throttle.deadzone, 3);
+    Profile old;   // a profile written before the axes existed
+    CHECK(parse("x52pro-profile 3\nname = old\n", old, &err));
+    CHECK(!old.axes.overrideXPlane);
 }

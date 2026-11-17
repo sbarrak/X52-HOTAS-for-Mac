@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "../core/axes.h"
 #include "../core/engine.h"
 #include "../core/mfd.h"
 #include "../core/pages.h"
@@ -47,6 +48,9 @@ struct App : Host {
     Lines userPageLines(double now);
     void setPage(int p);
     void wheel(Wheel w);         // right wheel turned or pressed
+    void wheelAt(Wheel w, double now);   // the same at a given time (the time between clicks sets the jump size)
+    double lastWheelTime = 0;
+    Wheel lastWheelDir = Wheel::Select;
 
     // Picking a profile on the stick: clutch engaged + POV hat (up/down scroll, right use, left automatic).
     std::string manualKey;       // profile picked on the stick; empty = default / per-aircraft
@@ -108,6 +112,19 @@ private:
     void key(const std::string& combo, bool down);
     std::map<std::string, void*> commandCache_;
 public:
+    // Every analog control seen on the stick, for the window's live view and the axis override.
+    struct AxisLive {
+        long value = 0, min = 0, max = 0;
+        long reference = 0;       // the value when it last counted as moving
+        double changedAt = 0;
+    };
+    std::map<std::pair<int, int>, AxisLive> axisLive;
+    std::pair<int, int> axisMoved{0, 0};   // usage page / usage of the control that moved last
+    double axisMovedAt = 0;
+    void trackAxes(double now);            // updates axisLive / axisMoved from the stick (every frame)
+    void applyAxes();                      // writes the shaped flight axes into X-Plane while the override is on
+    void releaseAxes();                    // gives the axes back to X-Plane
+    bool axesOverridden = false;           // the plugin has set X-Plane's override flags
     std::map<std::pair<int, int>, long> axisShown;   // test mode: last value shown per moving control
 };
 

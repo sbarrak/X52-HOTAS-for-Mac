@@ -61,7 +61,7 @@ std::vector<Hit> hits;
 std::vector<ScrollArea> scrolls;
 int fontH = 10;
 
-enum Tab { TabButtons, TabLights, TabLive, TabSettings };
+enum Tab { TabButtons, TabLights, TabLive, TabSettings, TabAxes };
 int tab = TabButtons;
 int selButton = 1;
 int selLayer = kLayerAny;
@@ -1069,6 +1069,26 @@ void drawSettingsTab(const Rect& area) {
     check(a.testMode, "Test mode: the stick's screen names whatever you move or press (buttons do nothing meanwhile)", [] {
         gApp->setTestMode(!gApp->testMode);
     });
+    check(a.profile.dial.on, "Fast turns of the right wheel jump: heading, altitude, speed and fine tuning change in bigger steps", [] {
+        gApp->profile.dial.on = !gApp->profile.dial.on;
+        gApp->profileChanged();
+    });
+    if (a.profile.dial.on) {
+        rc.x = area.l;
+        Rect dl = rc.take(150);
+        text(dl.l, dl, "Fast jump");
+        auto bump = [](int d) {
+            int& v = gApp->profile.dial.factor;
+            v = std::max(2, std::min(50, v + d));
+            gApp->profileChanged();
+        };
+        button(rc.take(26), "-", [bump] { bump(-1); });
+        Rect dv = rc.take(70);
+        std::string times = "x " + std::to_string(a.profile.dial.factor);
+        text(dv.l + (dv.w() - textW(times)) / 2, dv, times);
+        button(rc.take(26), "+", [bump] { bump(1); });
+        rc.t -= kRow + kGap;
+    }
 
     rc.x = area.l;
     Rect lab = rc.take(150);
@@ -1132,12 +1152,114 @@ void drawSettingsTab(const Rect& area) {
 
     const char* notes[] = {
         "Buttons you program here should be set to 'Do nothing' in X-Plane's own Joystick settings,",
-        "otherwise both X-Plane and this plugin will act on them. Axes and the main POV hat stay with X-Plane.",
+        "otherwise both X-Plane and this plugin will act on them. Axes and the main POV hat stay with X-Plane unless you override them on the Axes tab.",
     };
     for (const char* n : notes) {
         r = {area.l, rc.t, area.r, rc.t - kRow};
         text(r.l, r, n, kDim);
         rc.t -= kRow - 4;
+    }
+}
+
+// ---------------------------------------------------------------- Axes tab
+
+void drawAxesTab(const Rect& area) {
+    App& a = *gApp;
+    RowCursor rc{area.l, area.t};
+    bool on = a.profile.axes.overrideXPlane;
+    button(rc.take(36), on ? "[x]" : "[  ]", [] {
+        gApp->profile.axes.overrideXPlane = !gApp->profile.axes.overrideXPlane;
+        gApp->profileChanged();
+    }, on);
+    Rect r = rc.take(area.r - rc.x);
+    text(r.l, r, "Process the flight axes in this plugin (overrides X-Plane's own axis settings)");
+    rc.t -= kRow + kGap;
+    const char* notes[] = {
+        on ? "The plugin reads the stick and gives X-Plane the result. Dead zone, curve and inversion below apply."
+           : "Off: X-Plane reads the stick itself (its Joystick settings, including its null zone). The settings below wait.",
+        "Throttle is only taken over once it has been moved. Axis assignments in X-Plane can stay as they are.",
+    };
+    for (const char* n : notes) {
+        r = {area.l, rc.t, area.r, rc.t - kRow};
+        text(r.l, r, fit(n, area.r - area.l), kDim);
+        rc.t -= kRow - 4;
+    }
+    rc.t -= kGap;
+
+    auto stepper = [&](const char* label, int value, const char* unit, int lo, int hi, int step, int* field) {
+        Rect l = rc.take(70);
+        text(l.l, l, label, kDim);
+        button(rc.take(26), "-", [field, lo, hi, step] {
+            *field = std::max(lo, std::min(hi, *field - step));
+            gApp->profileChanged();
+        });
+        Rect v = rc.take(46);
+        std::string t = std::to_string(value) + unit;
+        text(v.l + (v.w() - textW(t)) / 2, v, t);
+        button(rc.take(26), "+", [field, lo, hi, step] {
+            *field = std::max(lo, std::min(hi, *field + step));
+            gApp->profileChanged();
+        });
+    };
+    auto percent = [](const App::AxisLive& l) { return l.max > l.min ? (int)((l.value - l.min) * 100 / (l.max - l.min)) : 0; };
+
+    for (int usage : {0x30, 0x31, 0x35, 0x32}) {
+        const AxisTarget* t = axisTarget(0x01, usage);
+        AxisCurve& c = axisCurve(a.profile.axes, usage);
+        auto live = a.axisLive.find({0x01, usage});
+        rc.x = area.l;
+        Rect name = rc.take(110);
+        text(name.l, name, controlName(0x01, usage), a.axisMoved == std::make_pair(0x01, usage) ? kGreen : kWhite);
+        Rect bar = rc.take(100);
+        fill({bar.l, bar.t - 4, bar.r, bar.b + 4}, cField);
+        std::string val = "-";
+        if (live != a.axisLive.end()) {
+            int pc = std::max(0, std::min(100, percent(live->second)));
+            fill({bar.l, bar.t - 4, bar.l + bar.w() * pc / 100, bar.b + 4}, cSelected);
+            val = std::to_string(pc) + " %";
+        }
+        Rect vr = rc.take(46);
+        text(vr.l, vr, val);
+        stepper("Dead zone", c.deadzone, " %", 0, 40, 1, &c.deadzone);
+        stepper("Expo", c.expo, " %", 0, 100, 5, &c.expo);
+        button(rc.take(90), c.invert ? "[x] Invert" : "[  ] Invert", [&c] {
+            c.invert = !c.invert;
+            gApp->profileChanged();
+        }, c.invert);
+        (void)t;
+        rc.t -= kRow + kGap;
+    }
+    rc.t -= kGap;
+
+    std::string moving = "Moving now: -";
+    if (a.axisMoved.first) {
+        auto it = a.axisLive.find(a.axisMoved);
+        std::string v = it == a.axisLive.end() ? ""
+            : "   " + controlValueText(a.axisMoved.first, a.axisMoved.second, it->second.value, it->second.min, it->second.max);
+        moving = std::string("Moving now: ") + controlName(a.axisMoved.first, a.axisMoved.second) + v;
+    }
+    r = {area.l, rc.t, area.r, rc.t - kRow};
+    text(r.l, r, moving, kAmber);
+    rc.t -= kRow + kGap;
+    r = {area.l, rc.t, area.r, rc.t - kRow};
+    text(r.l, r, "Every control the stick reports (move one to see which it is):", kDim);
+    rc.t -= kRow + 2;
+    for (const auto& kv : a.axisLive) {
+        if (rc.t - kRow < area.b) break;
+        rc.x = area.l;
+        Rect name = rc.take(150);
+        bool moved = a.axisMoved == kv.first;
+        text(name.l, name, controlName(kv.first.first, kv.first.second), moved ? kGreen : kWhite);
+        Rect bar = rc.take(200);
+        fill({bar.l, bar.t - 4, bar.r, bar.b + 4}, cField);
+        bool hat = kv.first.first == 0x01 && kv.first.second == 0x39;
+        int pc = hat ? 0 : std::max(0, std::min(100, percent(kv.second)));
+        fill({bar.l, bar.t - 4, bar.l + bar.w() * pc / 100, bar.b + 4}, moved ? cPressed : cSelected);
+        Rect vr = rc.take(120);
+        text(vr.l, vr, controlValueText(kv.first.first, kv.first.second, kv.second.value, kv.second.min, kv.second.max));
+        Rect raw = rc.take(120);
+        text(raw.l, raw, "raw " + std::to_string(kv.second.value), kDim);
+        rc.t -= kRow;
     }
 }
 
@@ -1230,8 +1352,8 @@ void draw(XPLMWindowID w, void*) {
 
     // tabs
     RowCursor tc{area.l, area.t - kRow - kGap};
-    static const char* const tabNames[] = {"Buttons", "Lights", "Live lights", "Settings"};
-    for (int t = 0; t < 4; ++t)
+    static const char* const tabNames[] = {"Buttons", "Lights", "Live lights", "Settings", "Axes"};
+    for (int t = 0; t < 5; ++t)
         button(tc.take(110), tabNames[t], [t] {
             tab = t;
             pickerOpen = false;
@@ -1251,6 +1373,7 @@ void draw(XPLMWindowID w, void*) {
     if (tab == TabButtons) drawButtonsTab(content);
     else if (tab == TabLights) drawLightsTab(content);
     else if (tab == TabLive) drawLiveTab(content);
+    else if (tab == TabAxes) drawAxesTab(content);
     else drawSettingsTab(content);
     if (tab != TabLive && !drop.anyTab) drop.open = false;
     drawDrop(L, T, R, B);
