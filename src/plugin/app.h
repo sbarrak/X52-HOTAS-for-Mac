@@ -32,7 +32,7 @@ struct App : Host {
     X52Device device;
     X52Input input;
 
-    int page = PageButtons;
+    int page = PageComNav1;
     PageCursor cursor;           // where the MFD's right wheel is on the current page
     void setPage(int p);
     void wheel(Wheel w);         // right wheel turned or pressed

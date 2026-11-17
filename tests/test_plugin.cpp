@@ -70,11 +70,13 @@ TEST(window_opens_from_its_command_and_lists_the_buttons) {
 }
 
 TEST(page_wheel_command_changes_the_screen_page) {
-    CHECK_EQ(gApp->page, (int)PageButtons);
+    CHECK_EQ(gApp->page, (int)PageComNav1);
     XPLMCommandOnce(XPLMFindCommand("x52pro/mfd_page_next"));
+    CHECK_EQ(gApp->page, (int)PageComNav2);
+    XPLMCommandOnce(XPLMFindCommand("x52pro/mfd_page_prev"));
     CHECK_EQ(gApp->page, (int)PageComNav1);
     XPLMCommandOnce(XPLMFindCommand("x52pro/mfd_page_prev"));
-    CHECK_EQ(gApp->page, (int)PageButtons);
+    CHECK_EQ(gApp->page, (int)PageButtons);   // the Buttons page is last, so previous wraps to it
 }
 
 TEST(clicking_a_button_row_selects_it) {
