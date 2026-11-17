@@ -61,7 +61,7 @@ TEST(saving_an_older_file_from_the_app_still_adds_the_wheel_bindings) {
     a.open(dir, "default");
     CHECK(a.change([](Profile& p) { p.ledBrightness = 90; }));
     std::string file = slurp(dir + "/default.x52");
-    CHECK(has(file, "x52pro-profile 2"));
+    CHECK(has(file, "x52pro-profile 3"));
     CHECK(has(file, "cmd:x52pro/mfd_select"));
     CHECK(has(file, "cmd:x52pro/mfd_page_prev"));
 }
@@ -147,6 +147,31 @@ TEST(live_light_in_the_app_follows_x_plane_over_udp) {
     CHECK(ag.lightColor(LedE, 10.1) == Color::Red);
     CHECK(ag.lightColor(LedE, 13.0) == plain);        // X-Plane went quiet
     close(srv);
+}
+
+TEST(an_alarm_can_be_tried_on_the_stick_and_alarms_are_saved_in_order) {
+    std::string dir = freshDir("alarm");
+    Agent ag;
+    ag.open(dir, "default");
+    CHECK(ag.change([](Profile& p) {
+        Alarm a = alarmPreset(0).alarm;   // stall: red blink, fast, on the POV light
+        a.led = LedA;
+        Alarm b = alarmPreset(1).alarm;
+        p.alarms = {a, b};
+    }));
+    CHECK_EQ(ag.profile().alarms.size(), (size_t)2);
+    CHECK_EQ(ag.profile().alarms[0].name, std::string("Stall"));
+    CHECK_EQ(ag.triedAlarm(), -1);
+    Color plain = ag.profile().leds[0][LedA];
+    CHECK(ag.lightColor(LedA, 10.0) == plain);        // nothing triggered, nothing tried
+    ag.tryAlarm(0);
+    CHECK_EQ(ag.triedAlarm(), 0);
+    CHECK(ag.lightColor(LedA, 10.0) == Color::Red);   // on half of the 0.5 s cycle
+    CHECK(ag.lightColor(LedA, 10.3) == Color::Off);   // off the other half
+    CHECK(ag.lightColor(LedB, 10.0) == ag.profile().leds[0][LedB]);   // other lights untouched
+    ag.tryAlarm(-1);
+    CHECK_EQ(ag.triedAlarm(), -1);
+    CHECK(ag.lightColor(LedA, 10.0) == plain);
 }
 
 int main() {

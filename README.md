@@ -12,6 +12,9 @@ software and X-Plane plugin do, from inside the simulator:
   the button you pressed, or radio / autopilot pages; button lights change colour by mode.
 - **Live lights** – a button light can follow the simulator instead of the mode: for
   example Button E red while the parking brake is on, green while it is off.
+- **Alarms** – lights that flash or alternate colours when something is wrong (stall, gear
+  unsafe, low fuel, overspeed, autopilot disconnect). They override live lights, which
+  override the plain mode colours.
 - **A window in X-Plane** to set all of this up, with one profile for all aircraft and
   optional profiles per aircraft.
 
@@ -82,19 +85,23 @@ status line. A profile from before this keeps its colours for the pinkie too.
 ## Live lights
 
 A live light follows the simulator instead of the mode: for example Button E red while the
-parking brake is on, green while it is off. You can save as many rules as you like.
+parking brake is on, green while it is off. Each light can have one rule. A rule
+overrides the plain colours of the Lights tab; alarms (below) override rules.
 
 - Set them in X-Plane (**Program buttons... > Live lights**) or in the menu bar app
   (**Live lights** tab); both write the same profile file.
 - **Add rule** adds a line; click a line (its arrow) to open or close it. Tick the boxes and
   press **Remove selected** to delete several at once (*Select all* ticks every line).
-- A rule is: light, dataref, comparison, number, colour if true, colour if not.
+- A rule is: light, dataref, comparison, number, colour if true, colour if not. A second
+  test can be joined with **AND** or **OR**, and either test can be turned around with
+  **NOT**. Closing a line hides all of it.
   **Start from** fills in a ready-made rule (parking brake, gear, flaps, speedbrake,
   autopilot, landing lights, stall and master warning) or type any dataref; `name[3]`
   reads one item of a list. A colour can also be *mode colour*, which leaves that state to
   the mode dial's colour.
-- Several rules may drive the same light: they are applied in order and the last one that
-  has a colour wins.
+- A light can follow only one rule: the app explains why and refuses when you pick a light
+  that already has one. In a profile written by an older version, rules were reversed once
+  on loading (the first rule wins now, the last one used to) so the lights look the same.
 - Inside X-Plane the plugin reads the datarefs directly, ten times a second.
 - With X-Plane running but the plugin not, the app asks X-Plane over its network
   interface (UDP port 49000, on this Mac only). That needs *Settings > Network > Accept
@@ -104,6 +111,28 @@ parking brake is on, green while it is off. You can save as many rules as you li
   shows mode colours.
 - In the profile file a rule looks like
   `rule e > 0.5 red green sim/cockpit2/controls/parking_brake_ratio`.
+
+## Alarms
+
+The **Alarms** tab of the menu bar app (the plugin applies them inside X-Plane). Priority,
+from highest: **alarms**, then **live lights**, then the plain **mode colours**.
+
+- The list is in priority order. The first alarm that is **triggered** decides its light; an
+  alarm that is not triggered leaves the light to the next one. So with Stall above Gear
+  unsafe, a gear problem still shows while the plane is not stalling.
+- An alarm has a name, a light, an effect (**steady**, **blink**, or **alternate** between
+  two colours), a speed for the last two (slow: one cycle a second, fast: two a second) and
+  a trigger: one test on a dataref, or two joined with AND / OR, each with an optional NOT.
+- **Add from template** adds stall, gear unsafe, low fuel, overspeed (Vne) and autopilot
+  disconnect; change the light, colours or speed afterwards. **Move up / Move down** change
+  the priority.
+- **Try on the stick** (also on the **Test** tab) shows an alarm for a few seconds whatever
+  the simulator says, so you can see the blinking.
+- In the profile file:
+  `alarm pov blink fast red amber "Stall" > 0 sim/cockpit2/annunciators/stall_warning`,
+  and a second test as `... and not == 1 sim/other/dataref`.
+- Alarms are edited in the menu bar app, not in the X-Plane window. Brightness is not
+  affected.
 
 ## Use
 

@@ -47,6 +47,7 @@ std::string modeLabel(int mode, bool pinkie);      // "Any mode", "Mode 1", "Mod
 // A live light: while the simulator runs, the light shows `thenColor` when the dataref
 // satisfies the condition and `elseColor` when it does not. kRuleMode means "the colour
 // this mode gives the light", so a rule can leave one of its two states alone.
+typedef std::function<bool(const std::string&, double&)> DatarefReader;   // current value of a dataref; false if unreadable
 enum class Compare { Greater, GreaterEq, Less, LessEq, Equal, NotEqual };
 constexpr int kRuleMode = -1;
 constexpr int kCompareCount = 6;
@@ -54,17 +55,39 @@ const char* compareName(Compare c);                  // ">", ">=", "<", "<=", "=
 bool compareValues(Compare c, double value, double limit);
 const char* ruleColorName(int color);                // "off".."red", or "mode"
 
-struct LightRule {
-    int led = 4;              // which light (an Led; Button E by default)
-    std::string dataref;      // "sim/x/y" or "sim/x/y[3]" for one element of an array; empty = no rule
+// One test on a dataref: "<dataref> <op> <value>", optionally negated (NOT).
+struct Condition {
+    std::string dataref;
     Compare op = Compare::Greater;
     double value = 0.5;
+    bool negate = false;
+    bool active() const { return !dataref.empty(); }
+    bool operator==(const Condition& o) const {
+        return dataref == o.dataref && op == o.op && value == o.value && negate == o.negate;
+    }
+};
+
+// What a light waits for: one condition, or two joined by AND / OR. The first condition's
+// fields live directly in the trigger so a one-condition rule reads like it always did.
+enum class Join { None, And, Or };
+struct Trigger : Condition {
+    Join join = Join::None;
+    Condition second;               // only used when join is not None
+    bool hasSecond() const { return join != Join::None && second.active(); }
+    bool operator==(const Trigger& o) const {
+        return Condition::operator==(o) && join == o.join && second == o.second;
+    }
+};
+
+enum class TriggerState { Unknown, False, True };   // Unknown: a dataref could not be read (or none chosen)
+TriggerState evaluate(const Trigger& t, const DatarefReader& read);
+
+struct LightRule : Trigger {
+    int led = 4;              // which light (an Led; Button E by default)
     int thenColor = (int)Color::Red;     // a Color, or kRuleMode
     int elseColor = (int)Color::Green;
-    bool active() const { return !dataref.empty(); }
     bool operator==(const LightRule& o) const {
-        return led == o.led && dataref == o.dataref && op == o.op && value == o.value && thenColor == o.thenColor &&
-               elseColor == o.elseColor;
+        return Trigger::operator==(o) && led == o.led && thenColor == o.thenColor && elseColor == o.elseColor;
     }
 };
 
@@ -73,10 +96,53 @@ struct LightRule {
 Color ruleColor(const LightRule& r, int led, bool valid, double current, Color modeColor);
 
 // What a light shows given every rule of the profile, in order: a rule whose result is "mode
-// colour" leaves the light alone, otherwise the last rule for that light wins. `read` fetches a
-// dataref's current value (false if it cannot).
-typedef std::function<bool(const std::string&, double&)> DatarefReader;
+// colour" leaves the light alone, otherwise the FIRST rule for that light wins.
 Color liveColor(const std::vector<LightRule>& rules, int led, Color modeColor, const DatarefReader& read);
+
+// Conditional lights allow one rule per light. Returns the index of the other rule that
+// already uses `led` (ignoring rule `self`), or -1 when the light is free.
+int ruleUsingLed(const std::vector<LightRule>& rules, int led, int self);
+// First light no rule uses yet, or -1 when every light has one.
+int firstFreeLed(const std::vector<LightRule>& rules);
+
+// ---- Alarms: the highest priority. The first alarm that is triggered decides the light;
+// an alarm that is not triggered leaves the light to the next one.
+enum class Effect { Steady, Blink, Alternate };   // Alternate: colour and colour2 take turns
+constexpr double kBlinkSlow = 1.0;   // seconds for one full on/off cycle
+constexpr double kBlinkFast = 0.5;
+
+struct Alarm : Trigger {
+    std::string name;
+    int led = LedPov;
+    int color = (int)Color::Red;
+    int color2 = (int)Color::Amber;   // Alternate only
+    Effect effect = Effect::Blink;
+    bool fast = false;                // Blink / Alternate speed: false 1 s per cycle, true 0.5 s
+    bool operator==(const Alarm& o) const {
+        return Trigger::operator==(o) && name == o.name && led == o.led && color == o.color && color2 == o.color2 &&
+               effect == o.effect && fast == o.fast;
+    }
+};
+const char* effectName(Effect e);   // "steady", "blink", "alternate"
+
+// The colour an alarm gives its light at time t (seconds).
+Color alarmColorAt(const Alarm& a, double t);
+// The first triggered alarm for `led`: index, or -1 when none is triggered.
+int activeAlarm(const std::vector<Alarm>& alarms, int led, const DatarefReader& read);
+
+// Everything together: alarms over conditional lights over the mode colour.
+Color shownColor(const std::vector<Alarm>& alarms, const std::vector<LightRule>& rules, int led, Color modeColor,
+                 double t, const DatarefReader& read);
+
+// Every dataref the rules and alarms read, without repeats (what a live link has to ask the sim for).
+std::vector<std::string> datarefsUsed(const std::vector<Alarm>& alarms, const std::vector<LightRule>& rules);
+
+struct AlarmPreset {
+    const char* name;
+    Alarm alarm;
+};
+int alarmPresetCount();
+const AlarmPreset& alarmPreset(int i);
 
 struct RulePreset {
     const char* name;
@@ -100,8 +166,9 @@ struct Profile {
     Color ledsPinkie[3][kLedCount];    // per mode while the pinkie switch is held
     Color& ledAt(int mode, bool pinkie, int led) { return pinkie ? ledsPinkie[mode - 1][led] : leds[mode - 1][led]; }
     Color ledAt(int mode, bool pinkie, int led) const { return pinkie ? ledsPinkie[mode - 1][led] : leds[mode - 1][led]; }
-    std::vector<LightRule> rules;   // live lights, the same in every mode; several per light are fine
-    int version = 2;          // file format the profile was read from; 1 = older file, wheel bindings were added on reading
+    std::vector<LightRule> rules;   // conditional lights, the same in every mode; one rule per light, the first wins
+    std::vector<Alarm> alarms;      // alarms, in priority order: the first triggered one wins
+    int version = 3;          // file format the profile was read from; 1 = older file (wheel bindings added on reading); below 3 the rules were reversed on reading (first rule wins now)
     bool clutchLatched = false;   // clutch toggles safe mode instead of holding it
     int clockOffset[2] = {0, 0};  // clock 2 and 3: minutes from GMT
     bool clock12h[3] = {false, false, false};
