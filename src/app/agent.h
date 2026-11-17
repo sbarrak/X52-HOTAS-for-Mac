@@ -3,6 +3,7 @@
 // No Swift and no UI here, so the saving rules can be unit tested.
 #pragma once
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -52,6 +53,15 @@ public:
     const Lines& screen() const { return screen_; }
     std::string held() const;                       // names of the buttons held right now
     const std::string& moved() const { return moved_; }
+
+    // Every analog control the stick reports with where it sits now; `moving` marks the one that moved last.
+    struct AxisView {
+        int usagePage, usage;
+        long value, min, max;
+        bool moving;
+    };
+    std::vector<AxisView> axes() const;
+    void pushAxisForTest(const AxisEvent& e) { input_.pushAxis(e); }   // tests: stand in for the stick
 
     // What a light shows at time t: the mode's colour, or its live rule when X-Plane answers
     // over UDP (only while the plugin is not driving the stick itself).
@@ -125,6 +135,8 @@ private:
     Lines text_;
     Lines screen_;
     std::string moved_;
+    std::map<std::pair<int, int>, long> axisRef_;   // value when each control last counted as moving
+    std::pair<int, int> axisMoved_{0, 0};
 };
 
 }  // namespace x52

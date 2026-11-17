@@ -361,7 +361,7 @@ TEST(with_the_override_on_the_plugin_writes_shaped_axes_and_hands_them_back_when
     const char* roll = "sim/joystick/yoke_roll_ratio";
     const char* pitch = "sim/joystick/yoke_pitch_ratio";
     const char* ovr = "sim/operation/override/override_joystick";
-    const char* thr = "sim/cockpit2/engine/actuators/throttle_ratio_all";
+    const char* thr = "sim/flightmodel/engine/ENGN_thro_use";
     const char* ovrThr = "sim/operation/override/override_throttles";
     for (const char* n : {roll, pitch, "sim/joystick/yoke_heading_ratio", ovr, thr, ovrThr}) d[n] = 0.0;
     gApp->profile.axes = AxisSettings();

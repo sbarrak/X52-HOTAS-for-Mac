@@ -39,6 +39,15 @@ int* field(Profile& p, const std::string& n, int& lo, int& hi) {
     lo = 0;
     hi = 2;
     if (n == "date_format") return &p.dateFormat;
+    lo = 2;
+    hi = 50;
+    if (n == "dial_factor") return &p.dial.factor;
+    // axis_<roll|pitch|yaw|throttle>_<deadzone|expo>
+    for (int u : {0x30, 0x31, 0x35, 0x32}) {
+        std::string base = std::string("axis_") + axisTarget(0x01, u)->name + "_";
+        if (n == base + "deadzone") { lo = 0; hi = 40; return &axisCurve(p.axes, u).deadzone; }
+        if (n == base + "expo") { lo = 0; hi = 100; return &axisCurve(p.axes, u).expo; }
+    }
     return nullptr;
 }
 
@@ -47,6 +56,10 @@ bool* flag(Profile& p, const std::string& n) {
     if (n == "clock2_12h") return &p.clock12h[1];
     if (n == "clock3_12h") return &p.clock12h[2];
     if (n == "clutch_latched") return &p.clutchLatched;
+    if (n == "dial_accel") return &p.dial.on;
+    if (n == "axis_override") return &p.axes.overrideXPlane;
+    for (int u : {0x30, 0x31, 0x35, 0x32})
+        if (n == std::string("axis_") + axisTarget(0x01, u)->name + "_invert") return &axisCurve(p.axes, u).invert;
     return nullptr;
 }
 
@@ -739,6 +752,21 @@ void x52_set(const char* name, int value) {
         if (int* f = field(p, n, lo, hi)) *f = std::max(lo, std::min(hi, value));
         else if (bool* b = flag(p, n)) *b = value != 0;
     });
+}
+
+const char* x52_axes(void) {
+    static std::string out;
+    out.clear();
+    if (!agent) return "";
+    for (const Agent::AxisView& a : agent->axes()) {
+        bool hat = a.usagePage == 0x01 && a.usage == 0x39;
+        long range = a.max - a.min;
+        int pc = hat || range <= 0 ? 0 : (int)std::max(0L, std::min(100L, (a.value - a.min) * 100 / range));
+        out += std::string(controlName(a.usagePage, a.usage)) + "\t" + std::to_string(pc) + "\t" +
+               controlValueText(a.usagePage, a.usage, a.value, a.min, a.max) + "\t" + std::to_string(a.value) + "\t" +
+               (a.moving ? "1" : "0") + "\t" + std::to_string(a.usage) + "\n";
+    }
+    return out.c_str();
 }
 
 const char* x52_profiles(void) {

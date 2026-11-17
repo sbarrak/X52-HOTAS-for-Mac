@@ -148,6 +148,11 @@ const char* x52_catalog_search(int kind, const char* query, int max);
 int x52_get(const char* name);
 void x52_set(const char* name, int value);
 
+// Every analog control the stick reports, one line each: "name<TAB>percent<TAB>value text<TAB>raw<TAB>moving 1/0<TAB>usage".
+// Settings by name for the flight axes: axis_override, axis_<roll|pitch|yaw|throttle>_deadzone (0..40 %),
+// _expo (0..100 %) and _invert; for the right wheel: dial_accel and dial_factor (2..50).
+const char* x52_axes(void);
+
 const char* x52_profiles(void);                // keys, one per line
 const char* x52_key(void);
 void x52_select(const char* key);
