@@ -211,6 +211,13 @@ void Agent::setText(const std::string& l0, const std::string& l1, const std::str
 
 void Agent::clearText() { haveText_ = false; }
 
+std::vector<Agent::AxisView> Agent::axes() const {
+    std::vector<AxisView> out;
+    for (const AxisEvent& e : input_.latestAxes())
+        out.push_back({e.usagePage, e.usage, e.value, e.min, e.max, axisMoved_ == std::make_pair(e.usagePage, e.usage)});
+    return out;
+}
+
 std::string Agent::held() const {
     std::string s;
     for (int b = 1; b <= kMaxButton; ++b)
@@ -226,6 +233,17 @@ void Agent::tick() {
     input_.drain(events);
     for (const ButtonEvent& e : events) engine_.buttonEvent(e.button, e.down, t);
     engine_.tick(t);
+
+    for (const AxisEvent& e : input_.latestAxes()) {
+        auto key = std::make_pair(e.usagePage, e.usage);
+        auto it = axisRef_.find(key);
+        if (it == axisRef_.end()) {   // where a control rests is not news
+            axisRef_[key] = e.value;
+        } else if (controlMoved(e.usagePage, e.usage, it->second, e.value, e.min, e.max)) {
+            it->second = e.value;
+            axisMoved_ = key;
+        }
+    }
 
     std::vector<AxisEvent> moves;
     input_.drainAxes(moves);

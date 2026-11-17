@@ -7,11 +7,10 @@ namespace x52 {
 
 namespace {
 const AxisTarget kTargets[] = {
-    {0x01, 0x30, "roll", "sim/joystick/yoke_roll_ratio", "sim/operation/override/override_joystick", true},
-    {0x01, 0x31, "pitch", "sim/joystick/yoke_pitch_ratio", "sim/operation/override/override_joystick", true},
-    {0x01, 0x35, "yaw", "sim/joystick/yoke_heading_ratio", "sim/operation/override/override_joystick", true},
-    {0x01, 0x32, "throttle", "sim/cockpit2/engine/actuators/throttle_ratio_all", "sim/operation/override/override_throttles",
-     false},
+    {0x01, 0x30, "roll", "sim/joystick/yoke_roll_ratio", "sim/operation/override/override_joystick", true, 1},
+    {0x01, 0x31, "pitch", "sim/joystick/yoke_pitch_ratio", "sim/operation/override/override_joystick", true, 1},
+    {0x01, 0x35, "yaw", "sim/joystick/yoke_heading_ratio", "sim/operation/override/override_joystick", true, 1},
+    {0x01, 0x32, "throttle", "sim/flightmodel/engine/ENGN_thro_use", "sim/operation/override/override_throttles", false, 16},
 };
 }  // namespace
 

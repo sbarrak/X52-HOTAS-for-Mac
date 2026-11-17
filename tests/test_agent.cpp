@@ -346,3 +346,56 @@ int main() {
     root = buf.data();
     return runAllTests();
 }
+
+TEST(axis_and_dial_settings_are_edited_from_the_app_and_saved) {
+    std::string dir = freshDir("axes_settings");
+    x52_start("", dir.c_str(), "default");
+    CHECK_EQ(x52_get("axis_override"), 0);
+    CHECK_EQ(x52_get("dial_accel"), 1);
+    x52_set("axis_override", 1);
+    x52_set("axis_roll_deadzone", 12);
+    x52_set("axis_pitch_expo", 40);
+    x52_set("axis_yaw_invert", 1);
+    x52_set("axis_throttle_deadzone", 3);
+    x52_set("dial_factor", 6);
+    x52_set("dial_accel", 0);
+    CHECK_EQ(x52_get("axis_roll_deadzone"), 12);
+    x52_set("axis_roll_deadzone", 500);   // kept inside the allowed range
+    CHECK_EQ(x52_get("axis_roll_deadzone"), 40);
+    x52_set("axis_roll_deadzone", 12);
+    std::string file = slurp(dir + "/default.x52");
+    CHECK(has(file, "axis_override = 1"));
+    CHECK(has(file, "axis_roll = 12 0 0"));
+    CHECK(has(file, "axis_pitch = 5 40 0"));
+    CHECK(has(file, "axis_yaw = 5 0 1"));
+    CHECK(has(file, "axis_throttle = 3 0 0"));
+    CHECK(has(file, "dial_factor = 6"));
+    CHECK(has(file, "dial_accel = 0"));
+    x52_stop();
+}
+
+TEST(the_app_lists_every_control_and_names_the_one_that_moves) {
+    std::string dir = freshDir("axes_live");
+    Agent ag;
+    ag.open(dir, "default");
+    ag.start();
+    ag.tick();
+    ag.pushAxisForTest({0x01, 0x30, 100, 0, 1023});
+    ag.pushAxisForTest({0x01, 0x33, 100, 0, 255});
+    ag.tick();
+    ag.pushAxisForTest({0x01, 0x30, 102, 0, 1023});   // noise
+    ag.tick();
+    ag.pushAxisForTest({0x01, 0x33, 200, 0, 255});    // the lower rotary turned
+    ag.tick();
+    std::vector<Agent::AxisView> v = ag.axes();
+    CHECK(v.size() >= 2);   // a real stick on this Mac adds its own controls
+    int movingCount = 0;
+    for (const auto& a : v)
+        if (a.moving) {
+            ++movingCount;
+            CHECK_EQ(a.usage, 0x33);
+            CHECK_EQ(a.value, 200L);
+        }
+    CHECK_EQ(movingCount, 1);
+    ag.stop();
+}

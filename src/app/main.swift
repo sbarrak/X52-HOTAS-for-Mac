@@ -9,6 +9,24 @@ func str(_ p: UnsafePointer<CChar>?) -> String { p.map { String(cString: $0) } ?
 
 // MARK: - Model
 
+struct AxisRow: Equatable, Identifiable {
+    let name: String
+    let percent: Int
+    let text: String
+    let raw: String
+    let moving: Bool
+    let usage: Int
+    var id: String { name }
+}
+
+func parseAxes(_ text: String) -> [AxisRow] {
+    text.split(separator: "\n").compactMap { line in
+        let f = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+        guard f.count >= 6 else { return nil }
+        return AxisRow(name: f[0], percent: Int(f[1]) ?? 0, text: f[2], raw: f[3], moving: f[4] == "1", usage: Int(f[5]) ?? 0)
+    }
+}
+
 final class Model: ObservableObject {
     @Published var connected = false
     @Published var isPro = true
@@ -45,6 +63,7 @@ final class Model: ObservableObject {
     @Published var pluginMessage = ""
     @Published var loginItem = false
     @Published var testLines = ["", "", ""]   // text typed on the Test tab
+    @Published var axes: [AxisRow] = []       // every analog control, while the Axes tab is showing
 
     private var timer: Timer?
     private var slow = 0
@@ -93,6 +112,7 @@ final class Model: ObservableObject {
         set(\.moved, str(x52_moved()))
         set(\.screen, (0..<3).map { str(x52_screen(Int32($0))) })
         set(\.revision, Int(x52_revision()))
+        if tab == 7 { set(\.axes, parseAxes(str(x52_axes()))) }   // changes constantly: only while it is shown
         set(\.liveStatus, statusMap())
         set(\.tried, Int(x52_alarm_tried()))
         set(\.masterTried, Int(x52_master_tried()))
@@ -747,6 +767,15 @@ struct ScreenTab: View {
             Toggle("Latched clutch: one press of the clutch (i) turns safe mode on, the next turns it off", isOn: latched)
             Text("Safe mode applies in X-Plane: buttons only show their name on the screen. The clutch and POV lights flash while it is on.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Divider()
+            let dialOn = Binding<Bool>(get: { m.get("dial_accel") != 0 }, set: { m.set("dial_accel", $0 ? 1 : 0) })
+            let factor = Binding<Int>(get: { m.get("dial_factor") }, set: { m.set("dial_factor", $0) })
+            Toggle("Fast turns of the right wheel jump: heading, altitude, speed and fine tuning change in bigger steps", isOn: dialOn)
+            if dialOn.wrappedValue {
+                Stepper("Fast jump: x \(factor.wrappedValue)", value: factor, in: 2...50).frame(width: 200, alignment: .leading)
+            }
+            Text("A slow turn still steps by one; spinning the wheel repeats each click (HDG 10 degrees, altitude 1000 ft at x 10).")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Spacer()
         }
     }
@@ -1230,10 +1259,72 @@ struct TestTab: View {
     }
 }
 
+// MARK: - Axes
+
+struct AxisCurveRow: View {
+    @ObservedObject var m: Model
+    let title: String
+    let key: String
+    let usage: Int
+    var body: some View {
+        let dz = Binding<Int>(get: { m.get("axis_\(key)_deadzone") }, set: { m.set("axis_\(key)_deadzone", $0) })
+        let ex = Binding<Int>(get: { m.get("axis_\(key)_expo") }, set: { m.set("axis_\(key)_expo", $0) })
+        let inv = Binding<Bool>(get: { m.get("axis_\(key)_invert") != 0 }, set: { m.set("axis_\(key)_invert", $0 ? 1 : 0) })
+        let row = m.axes.first { $0.usage == usage }
+        HStack(spacing: 12) {
+            Text(title).frame(width: 120, alignment: .leading).foregroundStyle(row?.moving == true ? Color.green : Color.primary)
+            ProgressView(value: Double(row?.percent ?? 0), total: 100).frame(width: 110)
+            Text(row.map { "\($0.percent) %" } ?? "-").frame(width: 48, alignment: .trailing).monospacedDigit()
+            Stepper("Dead zone \(dz.wrappedValue) %", value: dz, in: 0...40).frame(width: 170, alignment: .leading)
+            Stepper("Expo \(ex.wrappedValue) %", value: ex, in: 0...100, step: 5).frame(width: 150, alignment: .leading)
+            Toggle("Invert", isOn: inv)
+        }
+    }
+}
+
+struct AxesTab: View {
+    @ObservedObject var m: Model
+    var body: some View {
+        let on = Binding<Bool>(get: { m.get("axis_override") != 0 }, set: { m.set("axis_override", $0 ? 1 : 0) })
+        VStack(alignment: .leading, spacing: 10) {
+            Toggle("Process the flight axes in the plugin (overrides X-Plane's own axis settings)", isOn: on)
+            Text(on.wrappedValue
+                 ? "While X-Plane runs, the plugin reads the stick and gives X-Plane the result. The dead zone, curve and inversion below apply."
+                 : "Off: X-Plane reads the stick itself, with its own Joystick settings and null zone. The settings below wait until you switch this on.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text("The throttle is only taken over once it has moved. This works inside X-Plane only: the app itself never moves the controls.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            AxisCurveRow(m: m, title: "Stick left/right", key: "roll", usage: 0x30)
+            AxisCurveRow(m: m, title: "Stick fwd/back", key: "pitch", usage: 0x31)
+            AxisCurveRow(m: m, title: "Stick twist", key: "yaw", usage: 0x35)
+            AxisCurveRow(m: m, title: "Throttle", key: "throttle", usage: 0x32)
+            Divider()
+            let moving = m.axes.first { $0.moving }
+            Text(moving.map { "Moving now: \($0.name)   \($0.text)" } ?? "Moving now: move a control to see which one it is")
+                .foregroundStyle(.orange)
+            Text("Every control the stick reports").foregroundStyle(.secondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(m.axes) { a in
+                        HStack(spacing: 12) {
+                            Text(a.name).frame(width: 150, alignment: .leading).foregroundStyle(a.moving ? Color.green : Color.primary)
+                            ProgressView(value: Double(a.percent), total: 100).frame(width: 200)
+                            Text(a.text).frame(width: 90, alignment: .leading)
+                            Text("raw \(a.raw)").foregroundStyle(.secondary)
+                        }
+                    }
+                    if m.axes.isEmpty { Text("The stick is not reporting anything yet.").foregroundStyle(.secondary) }
+                }
+            }
+            Spacer()
+        }
+    }
+}
+
 // MARK: - Window
 
 let tabList: [(Int, String)] = [(6, "Buttons"), (0, "Lights"), (1, "Live lights"), (2, "Alarms"), (3, "Screen & clock"),
-                                (5, "Master & brightness"), (4, "Test")]
+                                (5, "Master & brightness"), (7, "Axes"), (4, "Test")]
 
 struct SettingsView: View {
     @ObservedObject var m: Model
@@ -1279,6 +1370,7 @@ struct SettingsView: View {
                 case 2: AlarmsTab(m: m)
                 case 3: ScreenTab(m: m)
                 case 5: MasterTab(m: m)
+                case 7: AxesTab(m: m)
                 default: TestTab(m: m)
                 }
             }

@@ -22,6 +22,7 @@ struct AxisTarget {
     const char* dataref;       // written every frame while the override is on
     const char* overrideRef;   // set to 1 so X-Plane stops writing `dataref` itself
     bool centred;              // -1..1 (true) or 0..1 (false)
+    int count;                 // values in the dataref: 1, or one per engine for the throttle
 };
 const AxisTarget* axisTarget(int usagePage, int usage);   // nullptr: not a flight axis
 AxisCurve& axisCurve(AxisSettings& s, int usage);          // the curve for a flight axis usage (roll when unknown)

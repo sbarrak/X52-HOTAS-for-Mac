@@ -522,7 +522,14 @@ void App::applyAxes() {
             const AxisLive& l = it->second;
             v = shapeAxis(normalizeAxis(l.value, l.min, l.max, t->centred), axisCurve(profile.axes, t->usage), t->centred);
         }
-        if (XPLMDataRef r = cachedRef(t->dataref)) XPLMSetDataf(r, (float)v);
+        if (XPLMDataRef r = cachedRef(t->dataref)) {
+            if (t->count > 1) {
+                std::vector<float> all(t->count, (float)v);   // every engine gets the same throttle
+                XPLMSetDatavf(r, all.data(), 0, t->count);
+            } else {
+                XPLMSetDataf(r, (float)v);
+            }
+        }
         (t->centred ? joy : thr) = true;
     }
     if (joy) if (XPLMDataRef r = cachedRef("sim/operation/override/override_joystick")) XPLMSetDatai(r, 1);

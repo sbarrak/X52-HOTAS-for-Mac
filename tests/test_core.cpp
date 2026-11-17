@@ -1674,6 +1674,10 @@ TEST(each_stick_axis_knows_which_x_plane_value_it_replaces) {
     CHECK(roll->centred && pitch->centred && yaw->centred && !thr->centred);
     CHECK_EQ(std::string(roll->overrideRef), std::string("sim/operation/override/override_joystick"));
     CHECK_EQ(std::string(thr->overrideRef), std::string("sim/operation/override/override_throttles"));
+    // With override_throttles on, X-Plane takes the throttles from ENGN_thro_use (one value per engine).
+    CHECK_EQ(std::string(thr->dataref), std::string("sim/flightmodel/engine/ENGN_thro_use"));
+    CHECK_EQ(thr->count, 16);
+    CHECK_EQ(roll->count, 1);
     CHECK(axisTarget(0x01, 0x36) == nullptr);   // the slider and the rotaries are not flight axes
     CHECK(axisTarget(0x01, 0x39) == nullptr);
 }
