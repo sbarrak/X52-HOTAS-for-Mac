@@ -513,6 +513,17 @@ void App::hatMoved(int direction) {
     }
 }
 
+void App::chooseProfile(const std::string& key) {
+    pickIndex = -1;
+    if (key.empty()) {
+        manualKey.clear();
+        loadForAircraft(aircraft);
+    } else if (store.exists(key)) {
+        manualKey = key;
+        reload();
+    }
+}
+
 // What every light shows: an alarm, else the live rule, else the mode's colour (the sim must answer for the first two).
 void App::lightColors(Color out[kLedCount], double now) {
     for (int l = 0; l < kLedCount; ++l) {

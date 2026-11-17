@@ -259,11 +259,13 @@ struct Drop {
     Rect anchor{0, 0, 0, 0};
     std::vector<std::string> items;
     int current = -1;
+    bool anyTab = false;   // stays open on every tab (the profile picker); other lists only live on the Live lights tab
     std::function<void(int)> pick;
 } drop;
 
 void openDrop(const Rect& anchor, std::vector<std::string> items, int current, std::function<void(int)> pick) {
     drop.open = true;
+    drop.anyTab = false;
     drop.anchor = anchor;
     drop.items = std::move(items);
     drop.current = current;
@@ -1172,7 +1174,11 @@ void draw(XPLMWindowID w, void*) {
     text(status.l + 330, status, mode);
 
     RowCursor pr{0, area.t};
-    if (a.usingAircraftProfile) {
+    if (!a.manualKey.empty()) {
+        confirmDrop = false;   // a profile picked here or on the stick is in use: the aircraft's own is left alone
+        std::string p = fit("Profile: " + App::profileTitle(a.manualKey) + " (picked)", 400);
+        text(area.r - textW(p), status, p);
+    } else if (a.usingAircraftProfile) {
         std::string lab = confirmDrop ? "Really delete it?" : "Delete, use Default";
         pr.x = area.r - 170;
         button(pr.take(170), lab, [] {
@@ -1206,6 +1212,22 @@ void draw(XPLMWindowID w, void*) {
         text(area.r - bw - (bw ? kGap : 0) - ub - kGap - textW(p), status, p);
     }
 
+    // profile picker, at the right end of the tab row
+    {
+        Rect pick{area.r - 190, area.t - kRow - kGap, area.r, area.t - 2 * kRow - kGap};
+        button(pick, "Change profile...", [pick] {
+            std::vector<std::string> keys = gApp->store.list();
+            std::vector<std::string> items = {"Automatic (aircraft, else Default)"};
+            int current = gApp->manualKey.empty() ? 0 : -1;
+            for (size_t i = 0; i < keys.size(); ++i) {
+                items.push_back(keys[i] == "default" ? "Default (all aircraft)" : App::profileTitle(keys[i]));
+                if (keys[i] == gApp->manualKey) current = (int)i + 1;
+            }
+            openDrop(pick, items, current, [keys](int i) { gApp->chooseProfile(i == 0 ? "" : keys[i - 1]); });
+            drop.anyTab = true;
+        });
+    }
+
     // tabs
     RowCursor tc{area.l, area.t - kRow - kGap};
     static const char* const tabNames[] = {"Buttons", "Lights", "Live lights", "Settings"};
@@ -1230,7 +1252,7 @@ void draw(XPLMWindowID w, void*) {
     else if (tab == TabLights) drawLightsTab(content);
     else if (tab == TabLive) drawLiveTab(content);
     else drawSettingsTab(content);
-    if (tab != TabLive) drop.open = false;
+    if (tab != TabLive && !drop.anyTab) drop.open = false;
     drawDrop(L, T, R, B);
 }
 

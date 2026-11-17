@@ -233,6 +233,9 @@ Other things to know:
   swap it with standby. `>` or `<` marks a part of a value: press (it becomes `>>` or
   `<<`), turn to change it, press again to finish. Turning alone never changes anything.
   COM fine steps are 25 kHz, or 8.33 kHz channels if you tick that on the Settings tab.
+- **Picking a profile in the window:** **Change profile...** (top right, next to the tabs) lists every profile,
+  including ones you imported, and **Automatic** to go back to the aircraft's own or Default. A profile picked
+  here, like one picked on the stick, stays until the aircraft changes; the window says "(picked)".
 - **Picking a profile on the stick:** hold the clutch, push the main POV hat up or down
   to scroll the profiles, right to use the one shown, left to go back to automatic.
   (X-Plane also sees the hat, so the view may move while you do this.)
