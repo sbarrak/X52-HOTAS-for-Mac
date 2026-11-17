@@ -278,7 +278,7 @@ float flightLoop(float, float, int, void*) {
     }
 
     if (now >= a.nextDeviceUpdate || !events.empty() || axisNews) {
-        a.nextDeviceUpdate = now + 0.1;
+        a.nextDeviceUpdate = now + 0.05;   // fast enough for the 2 Hz alarm blink
         updateDevice(a, now);
     }
     return -1.0f;   // every frame
@@ -395,7 +395,7 @@ void App::hatMoved(int direction) {
     }
 }
 
-// What every light shows: the mode's colour, or its live rule while the sim can answer.
+// What every light shows: an alarm, else the live rule, else the mode's colour (the sim must answer for the first two).
 void App::lightColors(Color out[kLedCount], double now) {
     for (int l = 0; l < kLedCount; ++l) {
         Color mode = profile.ledAt(engine.mode(), engine.shift(), l);
@@ -403,8 +403,8 @@ void App::lightColors(Color out[kLedCount], double now) {
             out[l] = mode;
             continue;
         }
-        out[l] = liveColor(profile.rules, l, mode,
-                           [now](const std::string& ref, double& v) { return readDataref(ref, now, v); });
+        out[l] = shownColor(profile.alarms, profile.rules, l, mode, now,
+                            [now](const std::string& ref, double& v) { return readDataref(ref, now, v); });
     }
 }
 

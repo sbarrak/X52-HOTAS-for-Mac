@@ -123,10 +123,13 @@ Color Agent::lightColor(int led, double t) {
     int mode = previewing ? preview_ : engine_.mode();
     Color modeColor = profile_.ledAt(mode, previewing ? previewPinkie_ : engine_.shift(), led);
     // A colour being previewed in another mode is shown as it is, not as the rules would.
-    if (!link_ || previewing) return modeColor;
+    if (previewing) return modeColor;
+    if (tryIndex_ >= 0 && t < tryUntil_ && tryIndex_ < (int)profile_.alarms.size() && profile_.alarms[tryIndex_].led == led)
+        return alarmColorAt(profile_.alarms[tryIndex_], t);   // being looked at, whatever the sim says
+    if (!link_) return modeColor;
     SimLink* link = link_.get();
-    return liveColor(profile_.rules, led, modeColor,
-                     [link, t](const std::string& ref, double& v) { return link->value(ref, t, v); });
+    return shownColor(profile_.alarms, profile_.rules, led, modeColor, t,
+                      [link, t](const std::string& ref, double& v) { return link->value(ref, t, v); });
 }
 
 std::string Agent::liveStatus(const std::string& ref) {
@@ -143,9 +146,7 @@ std::string Agent::liveStatus(const std::string& ref) {
 
 // Live lights: ask X-Plane for what the rules need (the plugin does this itself when it runs).
 void Agent::updateLive(double t) {
-    std::vector<std::string> refs;
-    for (const LightRule& r : profile_.rules)
-        if (r.active() && std::find(refs.begin(), refs.end(), r.dataref) == refs.end()) refs.push_back(r.dataref);
+    std::vector<std::string> refs = datarefsUsed(profile_.alarms, profile_.rules);
     if (refs.empty()) {
         link_.reset();
         return;
@@ -154,6 +155,13 @@ void Agent::updateLive(double t) {
     link_->want(refs, t);
     link_->poll(t);
 }
+
+void Agent::tryAlarm(int index) {
+    tryIndex_ = index >= 0 && index < (int)profile_.alarms.size() ? index : -1;
+    tryUntil_ = now() + 6.0;
+}
+
+int Agent::triedAlarm() const { return tryIndex_ >= 0 && now() < tryUntil_ ? tryIndex_ : -1; }
 
 void Agent::previewMode(int mode, bool pinkie) {
     preview_ = mode >= 1 && mode <= 3 ? mode : 0;

@@ -1,6 +1,7 @@
 #include "profile.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <sstream>
 
@@ -86,26 +87,91 @@ bool compareValues(Compare c, double v, double limit) {
 
 const char* ruleColorName(int color) { return color >= 0 && color <= 3 ? kColorNames[color] : "mode"; }
 
+namespace {
+TriggerState testCondition(const Condition& c, const DatarefReader& read) {
+    double v = 0;
+    if (!c.active() || !read || !read(c.dataref, v)) return TriggerState::Unknown;
+    return compareValues(c.op, v, c.value) != c.negate ? TriggerState::True : TriggerState::False;
+}
+Color litOnly(int led, Color c) { return ledIsSingleColor(led) && c != Color::Off ? Color::Green : c; }
+}  // namespace
+
+TriggerState evaluate(const Trigger& t, const DatarefReader& read) {
+    TriggerState a = testCondition(t, read);
+    if (!t.hasSecond()) return a;
+    TriggerState b = testCondition(t.second, read);
+    if (a == TriggerState::Unknown || b == TriggerState::Unknown) return TriggerState::Unknown;
+    bool both = a == TriggerState::True && b == TriggerState::True;
+    bool either = a == TriggerState::True || b == TriggerState::True;
+    return (t.join == Join::And ? both : either) ? TriggerState::True : TriggerState::False;
+}
+
 Color ruleColor(const LightRule& r, int led, bool valid, double current, Color modeColor) {
     if (!r.active() || !valid) return modeColor;
-    int c = compareValues(r.op, current, r.value) ? r.thenColor : r.elseColor;
+    int c = compareValues(r.op, current, r.value) != r.negate ? r.thenColor : r.elseColor;
     Color out = c >= 0 && c <= 3 ? (Color)c : modeColor;
-    if (ledIsSingleColor(led) && out != Color::Off) out = Color::Green;
-    return out;
+    return litOnly(led, out);
 }
 
 Color liveColor(const std::vector<LightRule>& rules, int led, Color modeColor, const DatarefReader& read) {
-    Color shown = modeColor;
     for (const LightRule& r : rules) {
         if (r.led != led || !r.active()) continue;
-        double v = 0;
-        bool ok = read && read(r.dataref, v);
-        if (!ok) continue;
-        int c = compareValues(r.op, v, r.value) ? r.thenColor : r.elseColor;
+        TriggerState st = evaluate(r, read);
+        if (st == TriggerState::Unknown) continue;
+        int c = st == TriggerState::True ? r.thenColor : r.elseColor;
         if (c < 0 || c > 3) continue;   // "mode colour": this rule has nothing to say
-        shown = ledIsSingleColor(led) && c != 0 ? Color::Green : (Color)c;
+        return litOnly(led, (Color)c);
     }
-    return shown;
+    return modeColor;
+}
+
+int ruleUsingLed(const std::vector<LightRule>& rules, int led, int self) {
+    for (int i = 0; i < (int)rules.size(); ++i)
+        if (i != self && rules[i].led == led) return i;
+    return -1;
+}
+
+int firstFreeLed(const std::vector<LightRule>& rules) {
+    for (int l = 0; l < kLedCount; ++l)
+        if (ruleUsingLed(rules, l, -1) < 0) return l;
+    return -1;
+}
+
+const char* effectName(Effect e) {
+    return e == Effect::Steady ? "steady" : e == Effect::Blink ? "blink" : "alternate";
+}
+
+Color alarmColorAt(const Alarm& a, double t) {
+    Color c1 = (Color)(a.color & 3), c2 = (Color)(a.color2 & 3);
+    if (a.effect == Effect::Steady) return litOnly(a.led, c1);
+    double period = a.fast ? kBlinkFast : kBlinkSlow;
+    bool first = std::fmod(t < 0 ? 0 : t, period) < period / 2;
+    if (a.effect == Effect::Blink) return first ? litOnly(a.led, c1) : Color::Off;
+    return litOnly(a.led, first ? c1 : c2);
+}
+
+int activeAlarm(const std::vector<Alarm>& alarms, int led, const DatarefReader& read) {
+    for (int i = 0; i < (int)alarms.size(); ++i)
+        if (alarms[i].led == led && alarms[i].active() && evaluate(alarms[i], read) == TriggerState::True) return i;
+    return -1;
+}
+
+Color shownColor(const std::vector<Alarm>& alarms, const std::vector<LightRule>& rules, int led, Color modeColor,
+                 double t, const DatarefReader& read) {
+    int a = activeAlarm(alarms, led, read);
+    if (a >= 0) return alarmColorAt(alarms[a], t);
+    return liveColor(rules, led, modeColor, read);
+}
+
+std::vector<std::string> datarefsUsed(const std::vector<Alarm>& alarms, const std::vector<LightRule>& rules) {
+    std::vector<std::string> out;
+    auto add = [&out](const Trigger& t) {
+        for (const std::string& r : {t.dataref, t.hasSecond() ? t.second.dataref : std::string()})
+            if (!r.empty() && std::find(out.begin(), out.end(), r) == out.end()) out.push_back(r);
+    };
+    for (const Alarm& a : alarms) add(a);
+    for (const LightRule& r : rules) add(r);
+    return out;
 }
 
 namespace {
@@ -128,10 +194,33 @@ const RulePreset kPresets[] = {
     {"Stall warning: red", mk("sim/cockpit2/annunciators/stall_warning", Compare::Equal, 1, Color::Red, Color::Off)},
     {"Master warning: red", mk("sim/cockpit2/annunciators/master_warning", Compare::Equal, 1, Color::Red, Color::Off)},
 };
+
+Alarm al(const char* name, const char* ref, int led, Color c, Color c2, Effect e, bool fast) {
+    Alarm a;
+    a.name = name;
+    a.dataref = ref;
+    a.op = Compare::Greater;
+    a.value = 0;
+    a.led = led;
+    a.color = (int)c;
+    a.color2 = (int)c2;
+    a.effect = e;
+    a.fast = fast;
+    return a;
+}
+const AlarmPreset kAlarmPresets[] = {
+    {"Stall: red flashing", al("Stall", "sim/cockpit2/annunciators/stall_warning", LedPov, Color::Red, Color::Amber, Effect::Blink, true)},
+    {"Gear unsafe: amber flashing", al("Gear unsafe", "sim/cockpit2/annunciators/gear_unsafe", LedB, Color::Amber, Color::Red, Effect::Blink, false)},
+    {"Low fuel: red / amber", al("Low fuel", "sim/cockpit2/annunciators/fuel_quantity", LedD, Color::Red, Color::Amber, Effect::Alternate, false)},
+    {"Overspeed (Vne): red flashing", al("Overspeed", "sim/flightmodel/failures/over_vne", LedT1, Color::Red, Color::Amber, Effect::Blink, true)},
+    {"Autopilot disconnect: amber flashing", al("Autopilot disconnect", "sim/cockpit2/annunciators/autopilot_disconnect", LedT2, Color::Amber, Color::Red, Effect::Blink, true)},
+};
 }  // namespace
 
 int rulePresetCount() { return (int)(sizeof(kPresets) / sizeof(kPresets[0])); }
 const RulePreset& rulePreset(int i) { return kPresets[i < 0 || i >= rulePresetCount() ? 0 : i]; }
+int alarmPresetCount() { return (int)(sizeof(kAlarmPresets) / sizeof(kAlarmPresets[0])); }
+const AlarmPreset& alarmPreset(int i) { return kAlarmPresets[i < 0 || i >= alarmPresetCount() ? 0 : i]; }
 
 std::string modeLabel(int mode, bool pinkie) {
     return (pinkie ? "Pinkie + " : "Mode ") + std::to_string(mode);
@@ -254,9 +343,23 @@ bool actionFromText(const std::string& text, Action& out, std::string* error) {
     return true;
 }
 
+namespace {
+std::string numText(double v) {
+    std::ostringstream o;
+    o << v;
+    return o.str();
+}
+// " and [not] <op> <number> <dataref>", or "" for a trigger with one condition
+std::string secondText(const Trigger& t) {
+    if (t.join == Join::None) return "";
+    return std::string(t.join == Join::And ? " and " : " or ") + (t.second.negate ? "not " : "") + compareName(t.second.op) +
+           " " + numText(t.second.value) + " " + (t.second.dataref.empty() ? "-" : t.second.dataref);
+}
+}  // namespace
+
 std::string serialize(const Profile& p) {
     std::ostringstream o;
-    o << "x52pro-profile 2\n";
+    o << "x52pro-profile 3\n";
     o << "# X52 Pro button profile. Written by the X52 Pro plugin; safe to edit by hand.\n";
     o << "name = " << cleanLabel(p.name) << "\n";
     o << "pinkie_shift = " << (p.pinkieShift ? 1 : 0) << "\n";
@@ -286,14 +389,24 @@ std::string serialize(const Profile& p) {
         for (int l = 0; l < kLedCount; ++l) o << " " << ledName(l) << ":" << colorName(p.ledsPinkie[m][l]);
         o << "\n";
     }
-    o << "# rule <light> <op> <number> <colour if true> <colour if not> <dataref>   (colours: off green amber red mode)\n";
-    o << "# several rules per light are fine; for one light the last rule that has a colour wins. A dataref of - is not chosen yet.\n";
+    o << "# rule <light> <op> <number> <colour if true> <colour if not> [not] <dataref> [and|or [not] <op> <number> <dataref>]\n";
+    o << "#   colours: off green amber red mode. One rule per light; the first rule that has a colour wins. A dataref of - is not chosen yet.\n";
     for (const LightRule& r : p.rules) {
         if (r.led < 0 || r.led >= kLedCount) continue;
-        std::ostringstream v;
-        v << r.value;
-        o << "rule " << ledName(r.led) << " " << compareName(r.op) << " " << v.str() << " " << ruleColorName(r.thenColor)
-          << " " << ruleColorName(r.elseColor) << " " << (r.dataref.empty() ? "-" : r.dataref) << "\n";
+        o << "rule " << ledName(r.led) << " " << compareName(r.op) << " " << numText(r.value) << " " << ruleColorName(r.thenColor)
+          << " " << ruleColorName(r.elseColor) << " " << (r.negate ? "not " : "") << (r.dataref.empty() ? "-" : r.dataref)
+          << secondText(r) << "\n";
+    }
+    o << "# alarm <light> <steady|blink|alternate> <slow|fast> <colour> <colour 2> \"name\" [not] <op> <number> <dataref> [and|or [not] <op> <number> <dataref>]\n";
+    o << "#   alarms beat the rules above and the mode colours; the first alarm that is triggered wins, one that is not leaves the light to the next.\n";
+    for (const Alarm& a : p.alarms) {
+        if (a.led < 0 || a.led >= kLedCount) continue;
+        std::string name = a.name;
+        for (char& ch : name) if (ch == '"') ch = '\'';
+        o << "alarm " << ledName(a.led) << " " << effectName(a.effect) << " " << (a.fast ? "fast" : "slow") << " "
+          << colorName((Color)(a.color & 3)) << " " << colorName((Color)(a.color2 & 3)) << " \"" << name << "\" "
+          << (a.negate ? "not " : "") << compareName(a.op) << " " << numText(a.value) << " "
+          << (a.dataref.empty() ? "-" : a.dataref) << secondText(a) << "\n";
     }
     o << "# bind <button> <any|1..6> <press|hold> \"label\" step ; step ...\n";
     o << "#   layers 1-3 = mode 1-3, 4-6 = mode 1-3 with the pinkie held\n";
@@ -354,6 +467,44 @@ int parseRuleColor(const std::string& s) {
     return -2;
 }
 
+int findLed(const std::string& n) {
+    for (int l = 0; l < kLedCount; ++l)
+        if (n == kLedNames[l]) return l;
+    return -1;
+}
+int findOp(const std::string& n) {
+    for (int c = 0; c < kCompareCount; ++c)
+        if (n == compareName((Compare)c)) return c;
+    return -1;
+}
+
+// "[not] <op> <number> <dataref>"
+bool parseCondition(std::istream& in, Condition& c, std::string& err) {
+    std::string tok, sOp, sValue, ref;
+    in >> tok;
+    c.negate = tok == "not";
+    if (c.negate) in >> sOp; else sOp = tok;
+    if (!(in >> sValue >> ref)) { err = "a condition needs: [not] op number dataref"; return false; }
+    int op = findOp(sOp);
+    char* end = nullptr;
+    double value = strtod(sValue.c_str(), &end);
+    if (op < 0) { err = "unknown comparison '" + sOp + "'"; return false; }
+    if (sValue.empty() || *end) { err = "'" + sValue + "' is not a number"; return false; }
+    c.op = (Compare)op;
+    c.value = value;
+    c.dataref = ref == "-" ? "" : ref;
+    return true;
+}
+
+// Optional "and|or <condition>" at the end of a line.
+bool parseSecond(std::istream& in, Trigger& t, std::string& err) {
+    std::string j;
+    if (!(in >> j)) return true;
+    if (j != "and" && j != "or") { err = "expected 'and' or 'or', not '" + j + "'"; return false; }
+    t.join = j == "and" ? Join::And : Join::Or;
+    return parseCondition(in, t.second, err);
+}
+
 bool parseRule(const std::string& rest, Profile& p, std::string& err) {
     std::stringstream ss(rest);
     std::string sLed, sOp, sValue, sThen, sElse, ref;
@@ -361,11 +512,9 @@ bool parseRule(const std::string& rest, Profile& p, std::string& err) {
         err = "rule needs: light op number colour colour dataref";
         return false;
     }
-    int led = -1, op = -1;
-    for (int l = 0; l < kLedCount; ++l)
-        if (sLed == kLedNames[l]) led = l;
-    for (int c = 0; c < kCompareCount; ++c)
-        if (sOp == compareName((Compare)c)) op = c;
+    bool negate = ref == "not";
+    if (negate && !(ss >> ref)) { err = "rule needs: light op number colour colour dataref"; return false; }
+    int led = findLed(sLed), op = findOp(sOp);
     char* end = nullptr;
     double value = strtod(sValue.c_str(), &end);
     int t = parseRuleColor(sThen), e = parseRuleColor(sElse);
@@ -373,14 +522,49 @@ bool parseRule(const std::string& rest, Profile& p, std::string& err) {
     if (op < 0) { err = "unknown comparison '" + sOp + "'"; return false; }
     if (sValue.empty() || *end) { err = "'" + sValue + "' is not a number"; return false; }
     if (t == -2 || e == -2) { err = "colours are off, green, amber, red or mode"; return false; }
-    p.rules.emplace_back();
-    LightRule& r = p.rules.back();
+    LightRule r;
     r.led = led;
     r.dataref = ref == "-" ? "" : ref;
     r.op = (Compare)op;
     r.value = value;
+    r.negate = negate;
     r.thenColor = t;
     r.elseColor = e;
+    if (!parseSecond(ss, r, err)) return false;
+    p.rules.push_back(r);
+    return true;
+}
+
+bool parseAlarm(const std::string& rest, Profile& p, std::string& err) {
+    std::stringstream ss(rest);
+    std::string sLed, sEffect, sSpeed, sC1, sC2;
+    if (!(ss >> sLed >> sEffect >> sSpeed >> sC1 >> sC2)) {
+        err = "alarm needs: light effect speed colour colour \"name\" condition";
+        return false;
+    }
+    std::string tail;
+    std::getline(ss, tail);
+    size_t q1 = tail.find('"');
+    size_t q2 = q1 == std::string::npos ? std::string::npos : tail.find('"', q1 + 1);
+    if (q2 == std::string::npos) { err = "the alarm's name must be in double quotes"; return false; }
+    Alarm a;
+    a.name = tail.substr(q1 + 1, q2 - q1 - 1);
+    a.led = findLed(sLed);
+    if (a.led < 0) { err = "unknown light '" + sLed + "'"; return false; }
+    if (sEffect == "steady") a.effect = Effect::Steady;
+    else if (sEffect == "blink") a.effect = Effect::Blink;
+    else if (sEffect == "alternate") a.effect = Effect::Alternate;
+    else { err = "effect is steady, blink or alternate"; return false; }
+    if (sSpeed != "slow" && sSpeed != "fast") { err = "speed is slow or fast"; return false; }
+    a.fast = sSpeed == "fast";
+    int c1 = parseRuleColor(sC1), c2 = parseRuleColor(sC2);
+    if (c1 < 0 || c2 < 0) { err = "alarm colours are off, green, amber or red"; return false; }
+    a.color = c1;
+    a.color2 = c2;
+    std::stringstream cs(tail.substr(q2 + 1));
+    if (!parseCondition(cs, a, err)) return false;
+    if (!parseSecond(cs, a, err)) return false;
+    p.alarms.push_back(a);
     return true;
 }
 
@@ -451,6 +635,10 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
             if (!parseRule(line.substr(5), p, err)) return fail(err);
             continue;
         }
+        if (line.compare(0, 6, "alarm ") == 0) {
+            if (!parseAlarm(line.substr(6), p, err)) return fail(err);
+            continue;
+        }
         if (line.compare(0, 5, "bind ") == 0) {
             if (!parseBind(line.substr(5), p, err)) return fail(err);
             continue;
@@ -514,6 +702,9 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
     // Written before the screen cursor existed: add the wheel bindings. `version` stays
     // as read so a caller can tell the file on disk is still the old one.
     if (p.version < 2) addWheelBindings(p);
+    // Before version 3 the last rule for a light won; now the first does. Reverse the order
+    // once so the lights keep behaving as they did.
+    if (p.version < 3) std::reverse(p.rules.begin(), p.rules.end());
     // A file from before the pinkie lights: with the pinkie held the lights stay as the mode has them.
     for (int m = 0; m < 3; ++m)
         if (!pinkieSeen[m])

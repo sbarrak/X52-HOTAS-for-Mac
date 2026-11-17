@@ -781,10 +781,17 @@ void drawLiveTab(const Rect& area) {
     App& a = *gApp;
     RowCursor rc{area.l, area.t};
     Rect head{area.l, rc.t, area.r, rc.t - kRow};
-    text(head.l, head, "Live lights follow the simulator and replace the mode colour while X-Plane runs. Several can be saved.", kDim);
+    text(head.l, head, "Live lights follow the simulator and replace the mode colour. One rule per light; alarms (set in the X52 Pro app) override them.", kDim);
     rc.t -= kRow + kGap;
     button(rc.take(120), "Add rule", [] {
-        gApp->profile.rules.push_back(LightRule());
+        int free = firstFreeLed(gApp->profile.rules);
+        if (free < 0) {
+            gApp->notice = "Every light already has a rule. A light follows only one rule: remove one first.";
+            return;
+        }
+        LightRule fresh;
+        fresh.led = free;
+        gApp->profile.rules.push_back(fresh);
         liveOpen.insert((int)gApp->profile.rules.size() - 1);
         gApp->profileChanged();
     });
@@ -863,10 +870,16 @@ void drawLiveTab(const Rect& area) {
             text(lab.l, lab, "Light", kDim);
             Rect lb = er.take(180);
             int curLed = r.led;
-            button(lb, ledTitle(r.led), [lb, edit, curLed] {
+            button(lb, ledTitle(r.led), [lb, edit, curLed, idx] {
                 std::vector<std::string> names;
                 for (int l = 0; l < kLedCount; ++l) names.push_back(ledTitle(l));
-                openDrop(lb, names, curLed, [edit](int i) { edit([i](LightRule& x) { x.led = i; }); });
+                openDrop(lb, names, curLed, [edit, idx](int i) {
+                    if (ruleUsingLed(gApp->profile.rules, i, idx) >= 0) {
+                        gApp->notice = std::string(ledTitle(i)) + " already follows another rule, and a light follows only one. Pick a free light.";
+                        return;
+                    }
+                    edit([i](LightRule& x) { x.led = i; });
+                });
             });
         }
         ++line;

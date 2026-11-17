@@ -28,7 +28,11 @@ final class Model: ObservableObject {
     @Published var tab = 0              // selected tab of the settings window
     @Published var liveOpen: Set<Int> = []     // live light rules shown opened
     @Published var liveChecked: Set<Int> = []  // ticked for "Remove selected"
-    @Published var liveStatus: [Int: String] = [:]   // what X-Plane makes of each opened rule's dataref
+    @Published var liveStatus: [Int: String] = [:]   // what X-Plane makes of each opened rule's / alarm's datarefs (see statusKey)
+    @Published var liveNotice = ""      // why a live light change was refused
+    @Published var alarmOpen: Set<Int> = []
+    @Published var alarmChecked: Set<Int> = []
+    @Published var tried = -1           // the alarm being shown on the stick for a look
     @Published var pluginState = 0      // 0 not installed, 1 out of date, 2 up to date
     @Published var pluginMessage = ""
     @Published var loginItem = false
@@ -51,7 +55,7 @@ final class Model: ObservableObject {
         loginItem = SMAppService.mainApp.status == .enabled
         revision = -1
         if timer == nil {
-            let t = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in self?.tick() }
+            let t = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in self?.tick() }
             RunLoop.main.add(t, forMode: .common)   // keeps running while a menu or slider is tracked
             timer = t
         }
@@ -81,13 +85,25 @@ final class Model: ObservableObject {
         set(\.moved, str(x52_moved()))
         set(\.screen, (0..<3).map { str(x52_screen(Int32($0))) })
         set(\.revision, Int(x52_revision()))
-        set(\.liveStatus, tab == 1 ? Dictionary(uniqueKeysWithValues: liveOpen.map { ($0, str(x52_rule_status(Int32($0)))) }) : [:])
+        set(\.liveStatus, statusMap())
+        set(\.tried, Int(x52_alarm_tried()))
         slow += 1
-        if slow % 20 == 1 {
+        if slow % 40 == 1 {
             set(\.profiles, str(x52_profiles()).split(separator: "\n").map(String.init))
             set(\.key, str(x52_key()))
             refreshPlugin()
         }
+    }
+
+    // What X-Plane makes of the datarefs of the rows opened on the Live lights or Alarms tab.
+    private func statusMap() -> [Int: String] {
+        guard tab == 1 || tab == 2 else { return [:] }
+        let kind = tab == 1 ? 0 : 1
+        var d: [Int: String] = [:]
+        for i in (kind == 0 ? liveOpen : alarmOpen) {
+            for w in 0..<2 { d[statusKey(kind, i, w)] = str(x52_trg_status(Int32(kind), Int32(i), Int32(w))) }
+        }
+        return d
     }
 
     func led(_ mode: Int, _ led: Int) -> Int { Int(x52_get_led(Int32(mode), Int32(led), lightsPinkie ? 1 : 0)) }
@@ -253,77 +269,121 @@ struct LightsTab: View {
     }
 }
 
-// MARK: - Live lights
+// MARK: - Conditions shared by live lights and alarms
 
 let ruleOps = [">", ">=", "<", "<=", "==", "!="]
+let joinNames = ["Only this test", "AND", "OR"]
 
-struct LiveRow: View {
+// kind 0 is a live light rule, kind 1 an alarm
+func statusKey(_ kind: Int, _ index: Int, _ which: Int) -> Int { kind * 100000 + index * 10 + which }
+
+func numberText(_ v: Double) -> String { String(format: "%g", v) }
+
+func conditionText(_ kind: Int, _ index: Int, _ which: Int) -> String {
+    let k = Int32(kind), i = Int32(index), w = Int32(which)
+    let ref = str(x52_trg_ref(k, i, w))
+    if ref.isEmpty { return "no dataref yet" }
+    let core = "\(ref) \(ruleOps[Int(x52_trg_op(k, i, w))]) \(numberText(x52_trg_value(k, i, w)))"
+    return x52_trg_negate(k, i, w) != 0 ? "NOT (\(core))" : core
+}
+
+func triggerSummary(_ kind: Int, _ index: Int) -> String {
+    let join = Int(x52_trg_join(Int32(kind), Int32(index)))
+    if join == 0 { return conditionText(kind, index, 0) }
+    return "\(conditionText(kind, index, 0)) \(joinNames[join]) \(conditionText(kind, index, 1))"
+}
+
+struct ConditionRow: View {
     @ObservedObject var m: Model
-    let rule: Int
+    let kind: Int
+    let index: Int
+    let which: Int
     var body: some View {
-        let r = Int32(rule)
-        let led = Binding<Int>(get: { Int(x52_rule_led(r)) }, set: { write(led: $0) })
-        let single = x52_led_single(x52_rule_led(r)) != 0
-        let ref = Binding<String>(get: { str(x52_rule_dataref(r)) }, set: { write(ref: $0) })
-        let op = Binding<Int>(get: { Int(x52_rule_op(r)) }, set: { write(op: $0) })
-        let value = Binding<Double>(get: { x52_rule_value(r) }, set: { write(value: $0) })
-        let then = Binding<Int>(get: { Int(x52_rule_then(r)) }, set: { write(then: $0) })
-        let other = Binding<Int>(get: { Int(x52_rule_else(r)) }, set: { write(other: $0) })
-        VStack(alignment: .leading, spacing: 10) {
+        let k = Int32(kind), i = Int32(index), w = Int32(which)
+        let ref = Binding<String>(get: { str(x52_trg_ref(k, i, w)) }, set: { write(ref: $0) })
+        let op = Binding<Int>(get: { Int(x52_trg_op(k, i, w)) }, set: { write(op: $0) })
+        let value = Binding<Double>(get: { x52_trg_value(k, i, w) }, set: { write(value: $0) })
+        let negate = Binding<Bool>(get: { x52_trg_negate(k, i, w) != 0 }, set: { write(negate: $0) })
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Light").frame(width: 90, alignment: .leading)
-                Picker("", selection: led) {
-                    ForEach(0..<Int(x52_led_count()), id: \.self) { Text(str(x52_led_title(Int32($0)))).tag($0) }
-                }
-                .labelsHidden().frame(width: 180)
-                Spacer()
-                Menu("Start from") {
-                    ForEach(0..<Int(x52_preset_count()), id: \.self) { i in
-                        Button(str(x52_preset_name(Int32(i)))) { x52_rule_preset(r, Int32(i)); m.tick() }
-                    }
-                }
-                .frame(width: 100)
-            }
-            HStack {
-                Text("Dataref").frame(width: 90, alignment: .leading)
+                Text(which == 0 ? "Dataref" : "Second dataref").frame(width: 110, alignment: .leading)
                 TextField("e.g. sim/cockpit2/controls/parking_brake_ratio, or name[3]", text: ref)
                     .textFieldStyle(.roundedBorder)
             }
-            if let status = m.liveStatus[rule], !status.isEmpty {
-                Text(status).font(.callout).foregroundStyle(.secondary).padding(.leading, 98)
+            if let status = m.liveStatus[statusKey(kind, index, which)], !status.isEmpty {
+                Text(status).font(.callout).foregroundStyle(.secondary).padding(.leading, 118)
                     .fixedSize(horizontal: false, vertical: true)
             }
             HStack {
-                Text("When value is").frame(width: 90, alignment: .leading)
+                Text(which == 0 ? "When value is" : "and its value is").frame(width: 110, alignment: .leading)
                 Picker("", selection: op) { ForEach(0..<ruleOps.count, id: \.self) { Text(ruleOps[$0]).tag($0) } }
                     .labelsHidden().frame(width: 70)
                 TextField("", value: value, format: .number).textFieldStyle(.roundedBorder).frame(width: 90)
-            }
-            HStack {
-                Text("Light is").frame(width: 90, alignment: .leading)
-                ColorChoice(selection: then, single: single)
-                Text("when true, and")
-                ColorChoice(selection: other, single: single)
-                Text("when not")
+                Toggle("NOT", isOn: negate).toggleStyle(.checkbox)
+                    .help("Turns the test around: true when the test is not met")
             }
         }
-        .padding(.leading, 28).padding(.vertical, 6)
     }
-    private func write(led: Int? = nil, ref: String? = nil, op: Int? = nil, value: Double? = nil, then: Int? = nil, other: Int? = nil) {
-        let r = Int32(rule)
-        x52_rule_set(r, Int32(led ?? Int(x52_rule_led(r))), ref ?? str(x52_rule_dataref(r)),
-                     Int32(op ?? Int(x52_rule_op(r))), value ?? x52_rule_value(r),
-                     Int32(then ?? Int(x52_rule_then(r))), Int32(other ?? Int(x52_rule_else(r))))
+    private func write(ref: String? = nil, op: Int? = nil, value: Double? = nil, negate: Bool? = nil) {
+        let k = Int32(kind), i = Int32(index), w = Int32(which)
+        x52_trg_set(k, i, w, ref ?? str(x52_trg_ref(k, i, w)), Int32(op ?? Int(x52_trg_op(k, i, w))),
+                    value ?? x52_trg_value(k, i, w), (negate ?? (x52_trg_negate(k, i, w) != 0)) ? 1 : 0)
         m.tick()
+    }
+}
+
+// The first test, and an optional second one joined with AND / OR.
+struct TriggerEditor: View {
+    @ObservedObject var m: Model
+    let kind: Int
+    let index: Int
+    var body: some View {
+        let join = Binding<Int>(get: { Int(x52_trg_join(Int32(kind), Int32(index))) },
+                                set: { x52_trg_set_join(Int32(kind), Int32(index), Int32($0)); m.tick() })
+        VStack(alignment: .leading, spacing: 10) {
+            ConditionRow(m: m, kind: kind, index: index, which: 0)
+            HStack {
+                Text("Combine with").frame(width: 110, alignment: .leading)
+                FixedSegments(selection: join, names: joinNames, width: 110)
+            }
+            if join.wrappedValue != 0 {
+                ConditionRow(m: m, kind: kind, index: index, which: 1)
+            }
+        }
+    }
+}
+
+// Like a segmented picker, but every segment has the same fixed width, so the control never
+// changes size when the selection changes.
+struct FixedSegments: View {
+    @Binding var selection: Int
+    let names: [String]
+    let width: CGFloat
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(0..<names.count, id: \.self) { n in
+                let on = selection == n
+                Button { selection = n } label: {
+                    Text(names[n]).lineLimit(1).frame(width: width, height: 24)
+                        .background(on ? Color.accentColor : Color.clear)
+                        .foregroundStyle(on ? Color.white : Color.primary)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .background(Color.secondary.opacity(0.15))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 }
 
 struct ColorChoice: View {
     @Binding var selection: Int
     let single: Bool
+    var allowMode = true
     var body: some View {
         Picker("", selection: $selection) {
-            Text("Mode colour").tag(-1)
+            if allowMode { Text("Mode colour").tag(-1) }
             Text("Off").tag(0)
             if single {
                 Text("On").tag(1)
@@ -337,10 +397,59 @@ struct ColorChoice: View {
     }
 }
 
-func ruleSummary(_ rule: Int) -> String {
-    let r = Int32(rule)
-    let ref = str(x52_rule_dataref(r))
-    return ref.isEmpty ? "no dataref yet" : "\(ref) \(ruleOps[Int(x52_rule_op(r))]) \(x52_rule_value(r))"
+// MARK: - Live lights (conditional colours)
+
+struct LiveRow: View {
+    @ObservedObject var m: Model
+    let rule: Int
+    var body: some View {
+        let r = Int32(rule)
+        let led = Binding<Int>(get: { Int(x52_rule_led(r)) }, set: { write(led: $0) })
+        let single = x52_led_single(x52_rule_led(r)) != 0
+        let then = Binding<Int>(get: { Int(x52_rule_then(r)) }, set: { write(then: $0) })
+        let other = Binding<Int>(get: { Int(x52_rule_else(r)) }, set: { write(other: $0) })
+        let clash = Int(x52_rule_conflict(r))
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Light").frame(width: 110, alignment: .leading)
+                Picker("", selection: led) {
+                    ForEach(0..<Int(x52_led_count()), id: \.self) { Text(str(x52_led_title(Int32($0)))).tag($0) }
+                }
+                .labelsHidden().frame(width: 180)
+                Spacer()
+                Menu("Start from") {
+                    ForEach(0..<Int(x52_preset_count()), id: \.self) { i in
+                        Button(str(x52_preset_name(Int32(i)))) { x52_rule_preset(r, Int32(i)); m.tick() }
+                    }
+                }
+                .frame(width: 100)
+            }
+            if clash >= 0 {
+                Text("This light is also used by rule \(clash + 1). That one comes first, so it decides the colour and this rule never shows. Give one of them another light, or remove one.")
+                    .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+            }
+            TriggerEditor(m: m, kind: 0, index: rule)
+            HStack {
+                Text("Light is").frame(width: 110, alignment: .leading)
+                ColorChoice(selection: then, single: single)
+                Text("when true, and")
+                ColorChoice(selection: other, single: single)
+                Text("when not")
+            }
+        }
+        .padding(.leading, 28).padding(.vertical, 6)
+    }
+    private func write(led: Int? = nil, then: Int? = nil, other: Int? = nil) {
+        let r = Int32(rule)
+        let target = led ?? Int(x52_rule_led(r))
+        let clash = Int(x52_rule_set(r, Int32(target), Int32(then ?? Int(x52_rule_then(r))), Int32(other ?? Int(x52_rule_else(r)))))
+        if clash >= 0 {
+            m.liveNotice = "\(str(x52_led_title(Int32(target)))) already follows rule \(clash + 1). A light can follow only one rule, because a rule decides the colour whether its test is true or not, so a second rule on the same light would never be seen. The light was not changed: pick a free light, or remove the other rule first."
+        } else {
+            m.liveNotice = ""
+        }
+        m.tick()
+    }
 }
 
 struct LiveTab: View {
@@ -348,12 +457,17 @@ struct LiveTab: View {
     var body: some View {
         let count = Int(x52_rule_count())
         VStack(alignment: .leading, spacing: 10) {
-            Text("Live lights follow the simulator instead of the mode dial. Open a rule to set the dataref it watches and the colours it shows. For one light, the last rule that has a colour wins.")
+            Text("Live lights follow the simulator instead of the mode dial. Open a rule to set what it watches and the colours it shows. A rule overrides the plain colours from the Lights tab, and alarms (Alarms tab) override rules. Each light can have one rule.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack {
                 Button("Add rule") {
                     let i = Int(x52_rule_add())
-                    if i >= 0 { m.liveOpen.insert(i) }
+                    if i >= 0 {
+                        m.liveOpen.insert(i)
+                        m.liveNotice = ""
+                    } else {
+                        m.liveNotice = "Every light already has a rule. A light can follow only one rule, so remove one or change an existing rule."
+                    }
                     m.tick()
                 }
                 Button("Remove selected") {
@@ -369,6 +483,9 @@ struct LiveTab: View {
                 .disabled(count == 0)
                 Spacer()
                 Text(count == 1 ? "1 rule" : "\(count) rules").foregroundStyle(.secondary)
+            }
+            if !m.liveNotice.isEmpty {
+                Text(m.liveNotice).font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
             }
             Divider()
             if count == 0 {
@@ -388,7 +505,7 @@ struct LiveTab: View {
                                 HStack(spacing: 8) {
                                     Image(systemName: open ? "chevron.down" : "chevron.right").frame(width: 12)
                                     Text(str(x52_led_title(x52_rule_led(Int32(i))))).frame(width: 110, alignment: .leading)
-                                    Text(ruleSummary(i)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                                    Text(triggerSummary(0, i)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                                     Spacer()
                                 }
                                 .contentShape(Rectangle())
@@ -402,6 +519,160 @@ struct LiveTab: View {
                 }
             }
             Text("The plugin reads the dataref inside X-Plane. Without the plugin this app asks X-Plane over the network (X-Plane Settings > Network > accept incoming connections, port 49000).")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+// MARK: - Alarms
+
+let effectNames = ["Steady", "Blink", "Alternate"]
+
+func alarmEffectText(_ a: Int32) -> String {
+    let effect = Int(x52_alarm_effect(a))
+    if effect == 0 { return "steady" }
+    return (effect == 1 ? "blinks" : "alternates") + (x52_alarm_fast(a) != 0 ? " fast" : " slowly")
+}
+
+struct AlarmRow: View {
+    @ObservedObject var m: Model
+    let alarm: Int
+    var body: some View {
+        let a = Int32(alarm)
+        let name = Binding<String>(get: { str(x52_alarm_name(a)) }, set: { write(name: $0) })
+        let led = Binding<Int>(get: { Int(x52_alarm_led(a)) }, set: { write(led: $0) })
+        let effect = Binding<Int>(get: { Int(x52_alarm_effect(a)) }, set: { write(effect: $0) })
+        let fast = Binding<Int>(get: { Int(x52_alarm_fast(a)) }, set: { write(fast: $0) })
+        let c1 = Binding<Int>(get: { Int(x52_alarm_color(a)) }, set: { write(color: $0) })
+        let c2 = Binding<Int>(get: { Int(x52_alarm_color2(a)) }, set: { write(color2: $0) })
+        let single = x52_led_single(x52_alarm_led(a)) != 0
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Name").frame(width: 110, alignment: .leading)
+                TextField("e.g. Stall", text: name).textFieldStyle(.roundedBorder).frame(width: 240)
+                Spacer()
+                Button("Move up") { x52_alarm_move(a, -1); m.alarmOpen = [alarm - 1]; m.tick() }.disabled(alarm == 0)
+                Button("Move down") { x52_alarm_move(a, 1); m.alarmOpen = [alarm + 1]; m.tick() }
+                    .disabled(alarm >= Int(x52_alarm_count()) - 1)
+            }
+            HStack {
+                Text("Light").frame(width: 110, alignment: .leading)
+                Picker("", selection: led) {
+                    ForEach(0..<Int(x52_led_count()), id: \.self) { Text(str(x52_led_title(Int32($0)))).tag($0) }
+                }
+                .labelsHidden().frame(width: 180)
+            }
+            HStack {
+                Text("Effect").frame(width: 110, alignment: .leading)
+                FixedSegments(selection: effect, names: effectNames, width: 90)
+                if effect.wrappedValue != 0 {
+                    Picker("", selection: fast) {
+                        Text("Slow (1 s a cycle)").tag(0)
+                        Text("Fast (0.5 s a cycle)").tag(1)
+                    }
+                    .labelsHidden().frame(width: 170)
+                }
+            }
+            HStack {
+                Text(effect.wrappedValue == 2 ? "Colours" : "Colour").frame(width: 110, alignment: .leading)
+                ColorChoice(selection: c1, single: single, allowMode: false)
+                if effect.wrappedValue == 2 {
+                    Text("and")
+                    ColorChoice(selection: c2, single: single, allowMode: false)
+                }
+            }
+            Text("Triggered when").foregroundStyle(.secondary)
+            TriggerEditor(m: m, kind: 1, index: alarm)
+            HStack {
+                Button("Try on the stick") { x52_alarm_try(a); m.tick() }
+                    .disabled(m.pluginActive || !m.connected)
+                    .help("Shows this alarm on its light for a few seconds, whatever the simulator says")
+                if m.tried == alarm { Text("Showing on the stick now").foregroundStyle(.secondary) }
+            }
+        }
+        .padding(.leading, 28).padding(.vertical, 6)
+    }
+    private func write(name: String? = nil, led: Int? = nil, effect: Int? = nil, fast: Int? = nil, color: Int? = nil, color2: Int? = nil) {
+        let a = Int32(alarm)
+        x52_alarm_set(a, name ?? str(x52_alarm_name(a)), Int32(led ?? Int(x52_alarm_led(a))),
+                      Int32(effect ?? Int(x52_alarm_effect(a))), Int32(fast ?? Int(x52_alarm_fast(a))),
+                      Int32(color ?? Int(x52_alarm_color(a))), Int32(color2 ?? Int(x52_alarm_color2(a))))
+        m.tick()
+    }
+}
+
+struct AlarmsTab: View {
+    @ObservedObject var m: Model
+    var body: some View {
+        let count = Int(x52_alarm_count())
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Alarms have the highest priority: an alarm overrules the live lights (Live lights tab), and those overrule the plain colours (Lights tab). The first alarm in the list that is triggered decides its light. An alarm that is not triggered leaves the light to the next one, so a gear alarm can still show while the stall alarm above it is quiet.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Menu("Add from template") {
+                    ForEach(0..<Int(x52_alarm_preset_count()), id: \.self) { i in
+                        Button(str(x52_alarm_preset_name(Int32(i)))) {
+                            let n = Int(x52_alarm_add_preset(Int32(i)))
+                            if n >= 0 { m.alarmOpen.insert(n) }
+                            m.tick()
+                        }
+                    }
+                }
+                .frame(width: 150)
+                Button("Add blank alarm") {
+                    let n = Int(x52_alarm_add())
+                    if n >= 0 { m.alarmOpen.insert(n) }
+                    m.tick()
+                }
+                Button("Remove selected") {
+                    for i in m.alarmChecked.sorted(by: >) { x52_alarm_remove(Int32(i)) }
+                    m.alarmChecked = []
+                    m.alarmOpen = []
+                    m.tick()
+                }
+                .disabled(m.alarmChecked.isEmpty)
+                Button(m.alarmChecked.count == count && count > 0 ? "Select none" : "Select all") {
+                    m.alarmChecked = m.alarmChecked.count == count ? [] : Set(0..<count)
+                }
+                .disabled(count == 0)
+                Spacer()
+                Text(count == 1 ? "1 alarm" : "\(count) alarms").foregroundStyle(.secondary)
+            }
+            Divider()
+            if count == 0 {
+                Text("No alarms yet. Pick a template, for example the stall alarm, or add a blank one.").foregroundStyle(.secondary)
+            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(0..<count, id: \.self) { i in
+                        let open = m.alarmOpen.contains(i)
+                        HStack(spacing: 8) {
+                            Toggle("", isOn: Binding(get: { m.alarmChecked.contains(i) },
+                                                     set: { if $0 { m.alarmChecked.insert(i) } else { m.alarmChecked.remove(i) } }))
+                                .labelsHidden().toggleStyle(.checkbox)
+                            Button {
+                                if open { m.alarmOpen.remove(i) } else { m.alarmOpen.insert(i) }
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: open ? "chevron.down" : "chevron.right").frame(width: 12)
+                                    Text("\(i + 1).").foregroundStyle(.secondary).frame(width: 22, alignment: .trailing)
+                                    Text(str(x52_alarm_name(Int32(i)))).fontWeight(.medium).frame(width: 130, alignment: .leading).lineLimit(1)
+                                    Text(str(x52_led_title(x52_alarm_led(Int32(i))))).frame(width: 100, alignment: .leading).lineLimit(1)
+                                    Text("\(alarmEffectText(Int32(i))): \(triggerSummary(1, i))").foregroundStyle(.secondary)
+                                        .lineLimit(1).truncationMode(.middle)
+                                    Spacer()
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.vertical, 6)
+                        if open { AlarmRow(m: m, alarm: i) }
+                        Divider()
+                    }
+                }
+            }
+            Text("Blinking is done by the app or the plugin, 1 s a cycle (slow) or 0.5 s (fast). The same dataref can feed several alarms. Brightness stays as set on the Lights tab.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -505,6 +776,27 @@ struct TestTab: View {
                 Button("Back to normal") { x52_clear_text(); m.tick() }
             }
             .disabled(m.pluginActive || !m.connected)
+            Divider()
+            Text("Alarms: see how each one looks on the stick").foregroundStyle(.secondary)
+            let alarms = Int(x52_alarm_count())
+            if alarms == 0 {
+                Text("No alarms yet. Add some on the Alarms tab.").foregroundStyle(.secondary)
+            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(0..<alarms, id: \.self) { i in
+                        HStack(spacing: 10) {
+                            Button("Try") { x52_alarm_try(Int32(i)); m.tick() }
+                                .disabled(m.pluginActive || !m.connected)
+                            Text(str(x52_alarm_name(Int32(i)))).fontWeight(.medium).frame(width: 140, alignment: .leading).lineLimit(1)
+                            Text("\(str(x52_led_title(x52_alarm_led(Int32(i))))), \(alarmEffectText(Int32(i)))")
+                                .foregroundStyle(.secondary)
+                            if m.tried == i { Text("showing for a few seconds").foregroundStyle(.secondary) }
+                        }
+                    }
+                }
+            }
+            .frame(maxHeight: 130)
             Spacer()
         }
         .onAppear { x52_test(1) }
@@ -537,8 +829,9 @@ struct SettingsView: View {
             TabView(selection: $m.tab) {
                 LightsTab(m: m).padding(14).tabItem { Text("Lights") }.tag(0)
                 LiveTab(m: m).padding(14).tabItem { Text("Live lights") }.tag(1)
-                ScreenTab(m: m).padding(14).tabItem { Text("Screen & clock") }.tag(2)
-                TestTab(m: m).padding(14).tabItem { Text("Test") }.tag(3)
+                AlarmsTab(m: m).padding(14).tabItem { Text("Alarms") }.tag(2)
+                ScreenTab(m: m).padding(14).tabItem { Text("Screen & clock") }.tag(3)
+                TestTab(m: m).padding(14).tabItem { Text("Test") }.tag(4)
             }
             HStack {
                 if m.xplane.isEmpty {

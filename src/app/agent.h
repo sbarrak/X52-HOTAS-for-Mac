@@ -28,7 +28,7 @@ public:
     void open(const std::string& dir, const std::string& key);   // loads the profile; no hardware yet
     void start();                                                // begins talking to the stick
     void stop();
-    void tick();                                                 // call about ten times a second
+    void tick();                                                 // call about twenty times a second (alarm blinking needs it)
 
     // Changes settings in the profile file: reads the file as it is now, applies `edit`,
     // writes it back. Button assignments made in X-Plane are therefore never lost. An
@@ -58,6 +58,11 @@ public:
     std::string liveStatus(const std::string& dataref);
     void updateLive(double t);                      // subscribe to / read what the live lights need
     void setSimPort(int port);                      // tests: talk to a made-up X-Plane
+
+    // Shows alarm `index` on its light for a few seconds whatever the simulator says, so its
+    // colours and blinking can be looked at (the Test tab). -1 stops it.
+    void tryAlarm(int index);
+    int triedAlarm() const;
 
     void previewMode(int mode, bool pinkie = false); // show this mode's lights for a few seconds
     void setTest(bool on);                          // report moving controls too
@@ -97,6 +102,8 @@ private:
     int preview_ = 0;
     bool previewPinkie_ = false;
     double previewUntil_ = 0;
+    int tryIndex_ = -1;
+    double tryUntil_ = 0;
     bool haveText_ = false;
     Lines text_;
     Lines screen_;

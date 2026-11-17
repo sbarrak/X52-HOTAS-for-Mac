@@ -1,3 +1,4 @@
+#include <map>
 #include "check.h"
 #include "../src/core/engine.h"
 #include "../src/core/keys.h"
@@ -840,7 +841,7 @@ TEST(clock_and_clutch_settings_survive_save_and_load) {
     CHECK(q.clock12h[1]);
     CHECK_EQ(q.dateFormat, 2);
     CHECK(q.com833);
-    CHECK_EQ(q.version, 2);
+    CHECK_EQ(q.version, 3);
 }
 
 TEST(out_of_range_clock_settings_are_pulled_into_range) {
@@ -864,7 +865,7 @@ TEST(profile_from_the_older_plugin_gains_the_wheel_bindings_once) {
     CHECK(!addWheelBindings(q));
     Profile again;
     CHECK(parse(serialize(q), again, &err));
-    CHECK_EQ(again.version, 2);
+    CHECK_EQ(again.version, 3);
 }
 
 TEST(removing_a_wheel_binding_from_a_current_profile_is_respected) {
@@ -898,14 +899,22 @@ TEST(light_rules_survive_save_and_load) {
     gear.value = -1.5;
     gear.thenColor = kRuleMode;
     gear.elseColor = (int)Color::Off;
-    LightRule second = brake;   // a second rule for the same light is fine
+    LightRule second = brake;
+    second.led = LedD;
+    second.negate = true;
     second.dataref = "sim/y";
+    second.join = Join::Or;
+    second.second.dataref = "sim/z[1]";
+    second.second.op = Compare::NotEqual;
+    second.second.value = 3;
+    second.second.negate = true;
     LightRule blank;            // added but no dataref typed yet
     blank.led = LedA;
     p.rules = {brake, gear, second, blank};
     std::string text = serialize(p);
     CHECK(text.find("rule e > 0.5 red green sim/cockpit2/controls/parking_brake_ratio") != std::string::npos);
     CHECK(text.find("rule a > 0.5 red green -") != std::string::npos);
+    CHECK(text.find("rule d > 0.5 red green not sim/y or not != 3 sim/z[1]") != std::string::npos);
     Profile q;
     std::string err;
     CHECK(parse(text, q, &err));
@@ -916,7 +925,7 @@ TEST(light_rules_survive_save_and_load) {
     CHECK(q.rules[3] == blank);
 }
 
-TEST(the_last_rule_with_a_colour_wins_for_a_light) {
+TEST(the_first_rule_with_a_colour_wins_for_a_light) {
     LightRule brake = rulePreset(0).rule;   // red above 0.5 else green
     brake.led = LedE;
     LightRule gear;
@@ -933,10 +942,12 @@ TEST(the_last_rule_with_a_colour_wins_for_a_light) {
         return true;
     };
     Color mode = Color::Off;
-    CHECK(liveColor({brake, gear}, LedE, mode, read) == Color::Red);     // gear up: only the brake speaks
+    CHECK(liveColor({brake, gear}, LedE, mode, read) == Color::Red);     // brake is first and has a colour
     gearV = 1;
-    CHECK(liveColor({brake, gear}, LedE, mode, read) == Color::Amber);   // gear rule is later, so it wins
-    CHECK(liveColor({gear, brake}, LedE, mode, read) == Color::Red);     // order matters
+    CHECK(liveColor({brake, gear}, LedE, mode, read) == Color::Red);     // brake still wins: it is first
+    CHECK(liveColor({gear, brake}, LedE, mode, read) == Color::Amber);   // order matters
+    gearV = 0;
+    CHECK(liveColor({gear, brake}, LedE, mode, read) == Color::Red);     // gear has nothing to say, brake speaks
     CHECK(liveColor({brake, gear}, LedA, mode, read) == Color::Off);     // other lights untouched
     DatarefReader none = [](const std::string&, double&) { return false; };
     CHECK(liveColor({brake, gear}, LedE, Color::Amber, none) == Color::Amber);   // unreadable: mode colour
@@ -993,3 +1004,176 @@ TEST(every_comparison_works) {
 }
 
 int main() { return runAllTests(); }
+
+
+// ---- alarms, second conditions, ordering
+
+namespace {
+DatarefReader values(std::map<std::string, double> m) {
+    return [m](const std::string& r, double& v) {
+        auto it = m.find(r);
+        if (it == m.end()) return false;
+        v = it->second;
+        return true;
+    };
+}
+Alarm alarmOn(const char* ref, int led, Color c, Effect e = Effect::Steady) {
+    Alarm a;
+    a.name = ref;
+    a.dataref = ref;
+    a.op = Compare::Greater;
+    a.value = 0;
+    a.led = led;
+    a.color = (int)c;
+    a.effect = e;
+    return a;
+}
+}  // namespace
+
+TEST(two_conditions_join_with_and_or_and_not) {
+    Trigger t;
+    t.dataref = "a";
+    t.op = Compare::Greater;
+    t.value = 0;
+    CHECK(evaluate(t, values({{"a", 1}})) == TriggerState::True);
+    CHECK(evaluate(t, values({{"a", 0}})) == TriggerState::False);
+    CHECK(evaluate(t, values({})) == TriggerState::Unknown);
+    t.negate = true;
+    CHECK(evaluate(t, values({{"a", 1}})) == TriggerState::False);
+    t.negate = false;
+    t.join = Join::And;
+    t.second.dataref = "b";
+    t.second.op = Compare::Greater;
+    t.second.value = 0;
+    CHECK(evaluate(t, values({{"a", 1}, {"b", 1}})) == TriggerState::True);
+    CHECK(evaluate(t, values({{"a", 1}, {"b", 0}})) == TriggerState::False);
+    CHECK(evaluate(t, values({{"a", 1}})) == TriggerState::Unknown);   // b cannot be read
+    t.join = Join::Or;
+    CHECK(evaluate(t, values({{"a", 1}, {"b", 0}})) == TriggerState::True);
+    CHECK(evaluate(t, values({{"a", 0}, {"b", 0}})) == TriggerState::False);
+    t.second.negate = true;   // a or not b
+    CHECK(evaluate(t, values({{"a", 0}, {"b", 0}})) == TriggerState::True);
+    t.join = Join::None;      // a second condition without a join is ignored
+    CHECK(evaluate(t, values({{"a", 0}, {"b", 0}})) == TriggerState::False);
+}
+
+TEST(an_alarm_that_is_not_triggered_leaves_the_light_to_the_next_one) {
+    std::vector<Alarm> alarms = {alarmOn("stall", LedPov, Color::Red), alarmOn("gear", LedPov, Color::Amber)};
+    CHECK_EQ(activeAlarm(alarms, LedPov, values({{"stall", 1}, {"gear", 1}})), 0);   // both: the first wins
+    CHECK_EQ(activeAlarm(alarms, LedPov, values({{"stall", 0}, {"gear", 1}})), 1);   // not stalling: gear speaks
+    CHECK_EQ(activeAlarm(alarms, LedPov, values({{"stall", 0}, {"gear", 0}})), -1);
+    CHECK_EQ(activeAlarm(alarms, LedPov, values({{"gear", 1}})), 1);                 // stall unreadable: skipped
+    CHECK_EQ(activeAlarm(alarms, LedA, values({{"stall", 1}})), -1);                 // other light
+}
+
+TEST(alarms_beat_live_rules_which_beat_the_mode_colour) {
+    LightRule rule;
+    rule.led = LedPov;
+    rule.dataref = "brake";
+    rule.thenColor = (int)Color::Green;
+    rule.elseColor = (int)Color::Off;
+    rule.op = Compare::Greater;
+    rule.value = 0;
+    std::vector<Alarm> alarms = {alarmOn("stall", LedPov, Color::Red)};
+    CHECK(shownColor(alarms, {rule}, LedPov, Color::Amber, 0, values({{"stall", 1}, {"brake", 1}})) == Color::Red);
+    CHECK(shownColor(alarms, {rule}, LedPov, Color::Amber, 0, values({{"stall", 0}, {"brake", 1}})) == Color::Green);
+    CHECK(shownColor(alarms, {rule}, LedPov, Color::Amber, 0, values({})) == Color::Amber);
+    CHECK(shownColor({}, {}, LedPov, Color::Amber, 0, values({})) == Color::Amber);
+}
+
+TEST(blinking_alarms_follow_their_speed) {
+    Alarm a = alarmOn("x", LedA, Color::Red, Effect::Blink);
+    a.fast = false;
+    CHECK(alarmColorAt(a, 0.0) == Color::Red);
+    CHECK(alarmColorAt(a, 0.49) == Color::Red);
+    CHECK(alarmColorAt(a, 0.51) == Color::Off);
+    CHECK(alarmColorAt(a, 1.2) == Color::Red);
+    a.fast = true;
+    CHECK(alarmColorAt(a, 0.1) == Color::Red);
+    CHECK(alarmColorAt(a, 0.3) == Color::Off);
+    CHECK(alarmColorAt(a, 0.6) == Color::Red);
+    a.effect = Effect::Alternate;
+    a.color2 = (int)Color::Amber;
+    CHECK(alarmColorAt(a, 0.1) == Color::Red);
+    CHECK(alarmColorAt(a, 0.3) == Color::Amber);
+    a.effect = Effect::Steady;
+    CHECK(alarmColorAt(a, 0.3) == Color::Red);
+    Alarm fire = alarmOn("x", LedFire, Color::Red, Effect::Blink);   // single-colour lights are on or off
+    CHECK(alarmColorAt(fire, 0.1) == Color::Green);
+    CHECK(alarmColorAt(fire, 0.6) == Color::Off);
+}
+
+TEST(alarms_survive_save_and_load) {
+    Profile p;
+    Alarm a = alarmPreset(0).alarm;
+    Alarm b = alarmOn("gear", LedPov, Color::Amber, Effect::Alternate);
+    b.name = "Gear and \"fast\"";
+    b.fast = true;
+    b.negate = true;
+    b.join = Join::And;
+    b.second.dataref = "sim/q[2]";
+    b.second.op = Compare::LessEq;
+    b.second.value = 1.5;
+    Alarm blank;
+    p.alarms = {a, b, blank};
+    std::string text = serialize(p);
+    CHECK(text.find("alarm pov blink fast red amber \"Stall\" > 0 sim/cockpit2/annunciators/stall_warning") != std::string::npos);
+    Profile q;
+    std::string err;
+    CHECK(parse(text, q, &err));
+    CHECK_EQ(q.alarms.size(), (size_t)3);
+    CHECK(q.alarms[0] == a);
+    b.name = "Gear and 'fast'";   // quotes cannot be stored in a name
+    CHECK(q.alarms[1] == b);
+    CHECK(q.alarms[2] == blank);
+}
+
+TEST(an_alarm_with_a_mistake_is_rejected_with_its_line) {
+    Profile q;
+    std::string err;
+    CHECK(!parse("alarm pov blink fast red amber Stall > 0 x\n", q, &err));          // no quotes
+    CHECK(err.find("line 1") == 0);
+    CHECK(!parse("alarm zz blink fast red amber \"S\" > 0 x\n", q, &err));
+    CHECK(!parse("alarm pov wobble fast red amber \"S\" > 0 x\n", q, &err));
+    CHECK(!parse("alarm pov blink quick red amber \"S\" > 0 x\n", q, &err));
+    CHECK(!parse("alarm pov blink fast mode amber \"S\" > 0 x\n", q, &err));
+    CHECK(!parse("alarm pov blink fast red amber \"S\" >> 0 x\n", q, &err));
+    CHECK(!parse("alarm pov blink fast red amber \"S\" > 0 x maybe > 1 y\n", q, &err));
+}
+
+TEST(rules_from_before_version_3_are_reversed_once_so_they_behave_the_same) {
+    // Old files: the last rule for a light won. Reversed, the first one wins, which is the same light.
+    Profile q;
+    std::string err;
+    CHECK(parse("x52pro-profile 2\nrule e > 0 red off first\nrule e > 0 amber mode second\n", q, &err));
+    CHECK_EQ(q.rules.size(), (size_t)2);
+    CHECK_EQ(q.rules[0].dataref, std::string("second"));
+    CHECK_EQ(q.rules[1].dataref, std::string("first"));
+    CHECK(liveColor(q.rules, LedE, Color::Green, values({{"first", 1}, {"second", 1}})) == Color::Amber);   // as before
+    Profile n;
+    CHECK(parse("x52pro-profile 3\nrule e > 0 red off first\nrule e > 0 amber mode second\n", n, &err));
+    CHECK_EQ(n.rules[0].dataref, std::string("first"));   // a current file keeps its order
+}
+
+TEST(one_rule_per_light_is_checked_and_a_free_light_is_found) {
+    std::vector<LightRule> rules(2);
+    rules[0].led = LedE;
+    rules[1].led = LedA;
+    CHECK_EQ(ruleUsingLed(rules, LedE, 1), 0);
+    CHECK_EQ(ruleUsingLed(rules, LedE, 0), -1);   // the rule itself does not count
+    CHECK_EQ(ruleUsingLed(rules, LedB, 0), -1);
+    CHECK_EQ(firstFreeLed(rules), (int)LedFire);
+    rules.assign(kLedCount, LightRule());
+    for (int l = 0; l < kLedCount; ++l) rules[l].led = l;
+    CHECK_EQ(firstFreeLed(rules), -1);
+}
+
+TEST(the_alarm_templates_are_complete) {
+    CHECK(alarmPresetCount() >= 5);
+    for (int i = 0; i < alarmPresetCount(); ++i) {
+        const Alarm& a = alarmPreset(i).alarm;
+        CHECK(a.active());
+        CHECK(!a.name.empty());
+        CHECK(a.dataref.compare(0, 4, "sim/") == 0);
+    }
+}

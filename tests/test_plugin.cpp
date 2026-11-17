@@ -371,7 +371,7 @@ TEST(a_profile_from_the_older_plugin_gets_the_wheel_bindings) {
     }
     gApp->reload();
     CHECK(has(slurp(defaultFile()), "cmd:x52pro/mfd_select"));
-    CHECK(has(slurp(defaultFile()), "x52pro-profile 2"));
+    CHECK(has(slurp(defaultFile()), "x52pro-profile 3"));
     CHECK(has(slurp(defaultFile()), std::string("cmd:") + kGear));
 }
 
@@ -380,18 +380,18 @@ TEST(live_lights_tab_adds_opens_edits_and_removes_rules) {
     CHECK(sim().sees("No live lights yet. Press Add rule."));
     CHECK(sim().clickText("Add rule", 0, true));
     CHECK_EQ(gApp->profile.rules.size(), (size_t)1);
-    CHECK(sim().sees("Button E"));                      // the new rule's header
+    CHECK(sim().sees("Fire button"));                   // the new rule takes the first free light
     CHECK(sim().clickText("Parking brake: red on, green off", 0, true));   // it opened when added
-    CHECK(has(slurp(defaultFile()), "rule e > 0.5 red green sim/cockpit2/controls/parking_brake_ratio"));
+    CHECK(has(slurp(defaultFile()), "rule fire > 0.5 red green sim/cockpit2/controls/parking_brake_ratio"));
     CHECK(sim().clickText(">", 0, true));               // the comparison button opens a list
     CHECK(sim().sees("!="));
     CHECK(sim().clickText(">=", 0, true));
-    CHECK(has(slurp(defaultFile()), "rule e >= 0.5 red green"));
+    CHECK(has(slurp(defaultFile()), "rule fire >= 0.5 red green"));
     CHECK(!sim().sees("!="));                           // and it closed again
     CHECK(sim().clickText("Add rule", 0, true));        // a second rule, the first stays
     CHECK_EQ(gApp->profile.rules.size(), (size_t)2);
-    CHECK(has(slurp(defaultFile()), "rule e >= 0.5 red green sim/cockpit2/controls/parking_brake_ratio"));
-    CHECK(has(slurp(defaultFile()), "rule e > 0.5 red green -"));
+    CHECK(has(slurp(defaultFile()), "rule fire >= 0.5 red green sim/cockpit2/controls/parking_brake_ratio"));
+    CHECK(has(slurp(defaultFile()), "rule a > 0.5 red green -"));   // the second rule took the next free light
     CHECK(sim().clickText("[  ]", 0, true));            // tick the first rule
     CHECK(sim().clickText("Remove selected", 0, true));
     CHECK_EQ(gApp->profile.rules.size(), (size_t)1);
