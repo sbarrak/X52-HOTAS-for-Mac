@@ -19,8 +19,8 @@ const char* const kColorNames[4] = {"off", "green", "amber", "red"};
 const char* const kButtonNames[kMaxButton + 1] = {
     "",
     "Trigger", "Fire", "A", "B", "C", "Pinkie", "D", "E",
-    "T1", "T2", "T3", "T4", "T5", "T6",
-    "Trigger 2nd stage", "Mouse button", "Scroll down", "Scroll up", "Scroll click",
+    "Toggle 1 up", "Toggle 1 down", "Toggle 2 up", "Toggle 2 down", "Toggle 3 up", "Toggle 3 down",
+    "Trigger 2nd stage", "Mouse button", "Scroll wheel fwd", "Scroll wheel back", "Scroll wheel click",
     "Stick hat up", "Stick hat right", "Stick hat down", "Stick hat left",
     "Throttle hat up", "Throttle hat right", "Throttle hat down", "Throttle hat left",
     "Mode 1", "Mode 2", "Mode 3", "Clutch (i)",
@@ -163,7 +163,22 @@ Color shownColor(const std::vector<Alarm>& alarms, const std::vector<LightRule>&
     return liveColor(rules, led, modeColor, read);
 }
 
-std::vector<std::string> datarefsUsed(const std::vector<Alarm>& alarms, const std::vector<LightRule>& rules) {
+int followBrightness(const BrightnessLink& b, int fixed, const DatarefReader& read) {
+    double v = 0;
+    if (!b.active() || !read || !read(b.dataref, v)) return fixed;
+    int lo = clampInt(b.outLow, 0, 127), hi = clampInt(b.outHigh, 0, 127);
+    double span = b.inHigh - b.inLow;
+    double f = span == 0 ? (v >= b.inHigh ? 1.0 : 0.0) : (v - b.inLow) / span;
+    f = std::max(0.0, std::min(1.0, f));
+    return clampInt((int)std::lround(lo + (hi - lo) * f), 0, 127);
+}
+
+bool masterOn(const Trigger& t, const DatarefReader& read) {
+    return !t.active() || evaluate(t, read) != TriggerState::False;
+}
+
+std::vector<std::string> datarefsUsed(const std::vector<Alarm>& alarms, const std::vector<LightRule>& rules,
+                                      const std::vector<Trigger>& masters) {
     std::vector<std::string> out;
     auto add = [&out](const Trigger& t) {
         for (const std::string& r : {t.dataref, t.hasSecond() ? t.second.dataref : std::string()})
@@ -171,6 +186,7 @@ std::vector<std::string> datarefsUsed(const std::vector<Alarm>& alarms, const st
     };
     for (const Alarm& a : alarms) add(a);
     for (const LightRule& r : rules) add(r);
+    for (const Trigger& t : masters) add(t);
     return out;
 }
 
@@ -301,6 +317,29 @@ bool addWheelBindings(Profile& p) {
     return added;
 }
 
+bool datarefStepValue(const Step& s, bool haveCurrent, double current, double& out) {
+    switch (s.op) {
+        case DatarefOp::Set: out = s.value; return true;
+        case DatarefOp::Toggle:
+            out = haveCurrent && std::fabs(current - s.value) <= std::fabs(current - s.value2) ? s.value2 : s.value;
+            return true;
+        case DatarefOp::Add:
+            if (!haveCurrent) return false;
+            out = current + s.value;
+            if (s.lo < s.hi) out = std::max(s.lo, std::min(s.hi, out));
+            return true;
+    }
+    return false;
+}
+
+namespace {
+std::string numberText(double v) {
+    std::ostringstream o;
+    o << v;
+    return o.str();
+}
+}  // namespace
+
 std::string actionToText(const Action& a) {
     std::string s;
     for (size_t i = 0; i < a.size(); ++i) {
@@ -309,10 +348,59 @@ std::string actionToText(const Action& a) {
             case StepKind::Command: s += "cmd:" + a[i].text; break;
             case StepKind::Key: s += "key:" + a[i].text; break;
             case StepKind::Wait: s += "wait:" + std::to_string(a[i].ms); break;
+            case StepKind::Dataref: {
+                const Step& st = a[i];
+                if (st.op == DatarefOp::Set) s += "set:" + st.text + "=" + numberText(st.value);
+                else if (st.op == DatarefOp::Toggle) s += "toggle:" + st.text + "=" + numberText(st.value) + "," + numberText(st.value2);
+                else {
+                    s += "add:" + st.text + "=" + numberText(st.value);
+                    if (st.lo < st.hi) s += "," + numberText(st.lo) + "," + numberText(st.hi);
+                }
+                break;
+            }
         }
     }
     return s;
 }
+
+namespace {
+// "<dataref>=<n>[,<n>[,<n>]]" for set / toggle / add; toggle may leave the numbers out (0 and 1).
+bool datarefStepFromText(const std::string& kind, const std::string& arg, Step& st) {
+    size_t eq = arg.find('=');
+    std::string ref = trim(eq == std::string::npos ? arg : arg.substr(0, eq));
+    if (ref.find_first_of(" \t") != std::string::npos) return false;
+    std::vector<double> nums;
+    if (eq != std::string::npos) {
+        std::stringstream ns(arg.substr(eq + 1));
+        std::string item;
+        while (std::getline(ns, item, ',')) {
+            item = trim(item);
+            char* end = nullptr;
+            double v = strtod(item.c_str(), &end);
+            if (item.empty() || *end) return false;
+            nums.push_back(v);
+        }
+    }
+    st.kind = StepKind::Dataref;
+    st.text = ref;
+    if (kind == "set") {
+        if (nums.size() != 1) return false;
+        st.op = DatarefOp::Set;
+        st.value = nums[0];
+    } else if (kind == "toggle") {
+        if (!nums.empty() && nums.size() != 2) return false;
+        st.op = DatarefOp::Toggle;
+        if (nums.size() == 2) { st.value = nums[0]; st.value2 = nums[1]; }
+        else { st.value = 0; st.value2 = 1; }
+    } else {
+        if (nums.size() != 1 && nums.size() != 3) return false;
+        st.op = DatarefOp::Add;
+        st.value = nums[0];
+        if (nums.size() == 3) { st.lo = nums[1]; st.hi = nums[2]; }
+    }
+    return true;
+}
+}  // namespace
 
 bool actionFromText(const std::string& text, Action& out, std::string* error) {
     out.clear();
@@ -325,14 +413,18 @@ bool actionFromText(const std::string& text, Action& out, std::string* error) {
         std::string kind = colon == std::string::npos ? part : part.substr(0, colon);
         std::string arg = colon == std::string::npos ? "" : trim(part.substr(colon + 1));
         Step st;
-        if (kind == "cmd" && !arg.empty()) {
+        // An empty command, key or dataref is a step still being filled in (the windows add it blank
+        // and save at once); it is written and read back so it survives a reload.
+        if (kind == "cmd") {
             st.kind = StepKind::Command;
             st.text = arg;
-        } else if (kind == "key" && !arg.empty()) {
+        } else if (kind == "key") {
             st.kind = StepKind::Key;
             st.text = arg;
         } else if (kind == "wait" && toInt(arg, st.ms) && st.ms >= 0) {
             st.kind = StepKind::Wait;
+        } else if ((kind == "set" || kind == "toggle" || kind == "add") && datarefStepFromText(kind, arg, st)) {
+            // parsed
         } else {
             if (error) *error = "cannot understand step '" + part + "'";
             out.clear();
@@ -408,9 +500,27 @@ std::string serialize(const Profile& p) {
           << (a.negate ? "not " : "") << compareName(a.op) << " " << numText(a.value) << " "
           << (a.dataref.empty() ? "-" : a.dataref) << secondText(a) << "\n";
     }
+    o << serializePages(p.pages);
+    o << "# master <screen|lights> [not] <op> <number> <dataref> [and|or [not] <op> <number> <dataref>]\n";
+    o << "#   the screen (or every light) is on only while this is true, e.g. avionics power. No master line: always on.\n";
+    for (int w = 0; w < 2; ++w) {
+        const Trigger& t = w ? p.masterLights : p.masterScreen;
+        if (!t.active()) continue;
+        o << "master " << (w ? "lights " : "screen ") << (t.negate ? "not " : "") << compareName(t.op) << " "
+          << numText(t.value) << " " << t.dataref << secondText(t) << "\n";
+    }
+    o << "# brightness <screen|lights> <value at dim> <value at bright> <dim 0..127> <bright 0..127> <dataref>\n";
+    o << "#   the brightness follows the dataref between those two points. No line: the fixed brightness above.\n";
+    for (int w = 0; w < 2; ++w) {
+        const BrightnessLink& b = w ? p.brightLights : p.brightScreen;
+        if (!b.active()) continue;
+        o << "brightness " << (w ? "lights " : "screen ") << numText(b.inLow) << " " << numText(b.inHigh) << " "
+          << b.outLow << " " << b.outHigh << " " << b.dataref << "\n";
+    }
     o << "# bind <button> <any|1..6> <press|hold> \"label\" step ; step ...\n";
     o << "#   layers 1-3 = mode 1-3, 4-6 = mode 1-3 with the pinkie held\n";
     o << "#   steps: cmd:<x-plane command>   key:<combo e.g. shift+f1>   wait:<milliseconds>\n";
+    o << "#          set:<dataref>=<value>   toggle:<dataref>=<a>,<b>   add:<dataref>=<amount>[,<min>,<max>]\n";
     std::vector<const Binding*> sorted;
     for (const Binding& b : p.bindings) sorted.push_back(&b);
     std::stable_sort(sorted.begin(), sorted.end(), [](const Binding* a, const Binding* b) {
@@ -535,6 +645,39 @@ bool parseRule(const std::string& rest, Profile& p, std::string& err) {
     return true;
 }
 
+bool parseMaster(const std::string& rest, Profile& p, std::string& err) {
+    std::stringstream ss(rest);
+    std::string which;
+    ss >> which;
+    if (which != "screen" && which != "lights") { err = "master is for 'screen' or 'lights'"; return false; }
+    Trigger t;
+    if (!parseCondition(ss, t, err)) return false;
+    if (!parseSecond(ss, t, err)) return false;
+    (which == "screen" ? p.masterScreen : p.masterLights) = t;
+    return true;
+}
+
+bool parseBrightness(const std::string& rest, Profile& p, std::string& err) {
+    std::stringstream ss(rest);
+    std::string which, a, b, c, d, ref;
+    if (!(ss >> which >> a >> b >> c >> d >> ref)) {
+        err = "brightness needs: screen|lights low high dim bright dataref";
+        return false;
+    }
+    if (which != "screen" && which != "lights") { err = "brightness is for 'screen' or 'lights'"; return false; }
+    char *e1 = nullptr, *e2 = nullptr;
+    BrightnessLink l;
+    l.inLow = strtod(a.c_str(), &e1);
+    l.inHigh = strtod(b.c_str(), &e2);
+    int lo = 0, hi = 0;
+    if (*e1 || *e2 || !toInt(c, lo) || !toInt(d, hi)) { err = "brightness values must be numbers"; return false; }
+    l.outLow = clampInt(lo, 0, 127);
+    l.outHigh = clampInt(hi, 0, 127);
+    l.dataref = ref == "-" ? "" : ref;
+    (which == "screen" ? p.brightScreen : p.brightLights) = l;
+    return true;
+}
+
 bool parseAlarm(const std::string& rest, Profile& p, std::string& err) {
     std::stringstream ss(rest);
     std::string sLed, sEffect, sSpeed, sC1, sC2;
@@ -633,6 +776,22 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
         std::string err;
         if (line.compare(0, 5, "rule ") == 0) {
             if (!parseRule(line.substr(5), p, err)) return fail(err);
+            continue;
+        }
+        if (line.compare(0, 5, "page ") == 0) {
+            if (!parsePageLine(line.substr(5), p.pages, err)) return fail(err);
+            continue;
+        }
+        if (line.compare(0, 4, "row ") == 0) {
+            if (!parseRowLine(line.substr(4), p.pages, err)) return fail(err);
+            continue;
+        }
+        if (line.compare(0, 11, "brightness ") == 0) {
+            if (!parseBrightness(line.substr(11), p, err)) return fail(err);
+            continue;
+        }
+        if (line.compare(0, 7, "master ") == 0) {
+            if (!parseMaster(line.substr(7), p, err)) return fail(err);
             continue;
         }
         if (line.compare(0, 6, "alarm ") == 0) {

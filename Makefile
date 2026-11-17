@@ -13,7 +13,7 @@ ARCH    = -arch arm64 -mmacosx-version-min=12.0
 CXX     = clang++
 CXXFLAGS = -std=c++17 -O2 -Wall -Wextra $(ARCH) -fvisibility=hidden
 
-CORE   = src/core/profile.cpp src/core/mfd.cpp src/core/pages.cpp src/core/keys.cpp src/core/engine.cpp
+CORE   = src/core/profile.cpp src/core/mfd.cpp src/core/pages.cpp src/core/keys.cpp src/core/engine.cpp src/core/catalog.cpp src/core/xpjoy.cpp src/core/pagetree.cpp src/core/pageview.cpp
 MAC    = src/mac/x52device.cpp src/mac/x52input.cpp src/mac/keysend.cpp src/mac/xplane.cpp src/mac/simlink.cpp
 PLUGIN = src/plugin/plugin.cpp src/plugin/ui.cpp src/plugin/store.cpp
 AGENT  = src/app/agent.cpp src/plugin/store.cpp
@@ -41,9 +41,9 @@ build/test_plugin: tests/test_plugin.cpp tests/fake_xplm.cpp tests/fake_xplm.h t
 	$(CXX) $(CXXFLAGS) $(XPDEFS) $(XPINC) -DX52_NO_GL -o $@ tests/test_plugin.cpp tests/fake_xplm.cpp \
 		$(PLUGIN) $(CORE) $(MAC) $(FRAMEWORKS)
 
-build/test_agent: tests/test_agent.cpp tests/check.h $(AGENT) $(CORE) $(MAC) $(HEADERS)
+build/test_agent: tests/test_agent.cpp tests/check.h $(AGENT) src/app/bridge.cpp $(CORE) $(MAC) $(HEADERS)
 	@mkdir -p build
-	$(CXX) $(CXXFLAGS) -o $@ tests/test_agent.cpp $(AGENT) $(CORE) $(MAC) $(FRAMEWORKS)
+	$(CXX) $(CXXFLAGS) -o $@ tests/test_agent.cpp $(AGENT) src/app/bridge.cpp $(CORE) $(MAC) $(FRAMEWORKS)
 
 build/test_xplane: tests/test_xplane.cpp tests/check.h src/mac/xplane.cpp src/mac/xplane.h
 	@mkdir -p build

@@ -313,6 +313,10 @@ std::string summary(const Binding* b) {
     if (!b->press.empty()) {
         const Step& s = b->press[0];
         std::string t = s.kind == StepKind::Wait ? "wait" : s.text;
+        if (s.kind == StepKind::Dataref) {
+            size_t sl = t.rfind('/');
+            if (sl != std::string::npos) t = t.substr(sl + 1);
+        }
         size_t slash = t.rfind('/');
         if (s.kind == StepKind::Command && slash != std::string::npos) t = t.substr(slash + 1);
         return b->press.size() > 1 ? t + " +" + std::to_string(b->press.size() - 1) : t;
@@ -458,7 +462,8 @@ void drawSteps(RowCursor& rc, const Rect& panel, bool hold) {
         rc.x = panel.l;
         Rect tag = rc.take(46);
         fill(tag, cTag);
-        const char* tname = s.kind == StepKind::Command ? "CMD" : s.kind == StepKind::Key ? "KEY" : "WAIT";
+        const char* tname = s.kind == StepKind::Command ? "CMD" : s.kind == StepKind::Key ? "KEY"
+                          : s.kind == StepKind::Dataref ? "DATA" : "WAIT";
         text(tag.l + (tag.w() - textW(tname)) / 2, tag, tname, kDim);
 
         int rightButtons = 2 * (26 + kGap);
@@ -468,6 +473,57 @@ void drawSteps(RowCursor& rc, const Rect& panel, bool hold) {
             fill(c, cField);
             text(c.l + 6, c, fit(s.text, c.w() - 12));
             click(c, [hold, i] { openPicker(hold, i); });
+        } else if (s.kind == StepKind::Dataref) {
+            Rect c = rc.take(std::max(80, contentW - 78 - 70 - 2 * kGap));
+            bool known = datarefReport(s.text).compare(0, 9, "Not found") != 0;
+            field(
+                c, 2000 + (hold ? 500 : 0) + i,
+                [hold, i] {
+                    const Action& aa = hold ? shownBinding().hold : shownBinding().press;
+                    return i < (int)aa.size() ? aa[i].text : std::string();
+                },
+                [hold, i](const std::string& v) {
+                    std::string t;
+                    for (char ch : v) if (!isspace((unsigned char)ch)) t += ch;
+                    mutate([&](Binding& bb) {
+                        Action& aa = actionOf(bb, hold);
+                        if (i < (int)aa.size()) aa[i].text = t;
+                    });
+                },
+                "dataref, e.g. sim/cockpit/..., or name[3]", known ? kWhite : kAmber);
+            const char* opNames[3] = {"Set", "Toggle", "Add"};
+            button(rc.take(78), opNames[(int)s.op], [hold, i] {
+                mutate([&](Binding& bb) {
+                    Action& aa = actionOf(bb, hold);
+                    if (i < (int)aa.size()) aa[i].op = (DatarefOp)(((int)aa[i].op + 1) % 3);
+                });
+            });
+            Rect v = rc.take(70);
+            if (s.op == DatarefOp::Toggle) {
+                char buf[48];
+                snprintf(buf, sizeof buf, "%g / %g", s.value, s.value2);
+                text(v.l + 4, v, fit(buf, v.w() - 8), kDim);
+            } else {
+                field(
+                    v, 3000 + (hold ? 500 : 0) + i,
+                    [hold, i] {
+                        const Action& aa = hold ? shownBinding().hold : shownBinding().press;
+                        if (i >= (int)aa.size()) return std::string();
+                        char buf[48];
+                        snprintf(buf, sizeof buf, "%g", aa[i].value);
+                        return std::string(buf);
+                    },
+                    [hold, i](const std::string& txt) {
+                        char* end = nullptr;
+                        double val = strtod(txt.c_str(), &end);
+                        if (txt.empty() || *end) return;   // not a number yet: keep the old value
+                        mutate([&](Binding& bb) {
+                            Action& aa = actionOf(bb, hold);
+                            if (i < (int)aa.size()) aa[i].value = val;
+                        });
+                    },
+                    s.op == DatarefOp::Add ? "amount" : "value");
+            }
         } else if (s.kind == StepKind::Key) {
             Rect c = rc.take(std::max(80, contentW - 80 - kGap));
             KeyCombo k;
@@ -530,11 +586,18 @@ void drawSteps(RowCursor& rc, const Rect& panel, bool hold) {
     }
 
     rc.x = panel.l;
-    button(rc.take(104), "+ Command", [hold] { openPicker(hold, -1); });
-    button(rc.take(104), "+ Keystroke", [hold] {
+    button(rc.take(100), "+ Command", [hold] { openPicker(hold, -1); });
+    button(rc.take(100), "+ Keystroke", [hold] {
         mutate([&](Binding& bb) { actionOf(bb, hold).push_back({StepKind::Key, "", 0}); });
     });
-    button(rc.take(104), "+ Wait", [hold] {
+    button(rc.take(100), "+ Dataref", [hold] {
+        mutate([&](Binding& bb) {
+            Step st;
+            st.kind = StepKind::Dataref;
+            actionOf(bb, hold).push_back(st);
+        });
+    });
+    button(rc.take(100), "+ Wait", [hold] {
         mutate([&](Binding& bb) { actionOf(bb, hold).push_back({StepKind::Wait, "", 200}); });
     });
     rc.t -= kRow + kPad;
@@ -1023,10 +1086,11 @@ void drawSettingsTab(const Rect& area) {
     rc.x = area.l;
     lab = rc.take(150);
     text(lab.l, lab, "Page on the stick's screen");
-    button(rc.take(26), "<", [] { gApp->setPage((gApp->page + kPageCount - 1) % kPageCount); });
+    button(rc.take(26), "<", [] { gApp->stepPage(-1); });
     v = rc.take(130);
-    text(v.l + (v.w() - textW(pageName(a.page))) / 2, v, pageName(a.page));
-    button(rc.take(26), ">", [] { gApp->setPage((gApp->page + 1) % kPageCount); });
+    std::string pageLabel = fit(a.pageTitle(a.page), v.w() - 8);
+    text(v.l + (v.w() - textW(pageLabel)) / 2, v, pageLabel);
+    button(rc.take(26), ">", [] { gApp->stepPage(1); });
     rc.t -= kRow + kGap;
 
     rc.x = area.l;

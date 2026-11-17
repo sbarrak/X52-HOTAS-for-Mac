@@ -128,6 +128,44 @@ int pageItemCount(int page) {
     }
 }
 
+namespace {
+int percentOf(int v) { return (v * 100 + 63) / 127; }
+int valueOf(int pct) { return std::max(0, std::min(127, (pct * 127 + 50) / 100)); }
+std::string brightnessLine(const char* label, int v, bool linked, bool onCursor, bool editing) {
+    std::string right = linked ? "dataref" : std::string(onCursor ? (editing ? ">>" : ">") : "") + std::to_string(percentOf(v)) + "%";
+    std::string l = label;
+    return l + std::string(l.size() + right.size() < (size_t)kMfdCols ? kMfdCols - l.size() - right.size() : 1, ' ') + right;
+}
+}  // namespace
+
+Lines formatBrightnessPage(int screen, int lights, bool screenLinked, bool lightsLinked, const PageCursor& c) {
+    Lines out;
+    out.l[0] = "BRIGHTNESS";
+    out.l[1] = brightnessLine("Screen", screen, screenLinked, c.item == 0, c.editing);
+    out.l[2] = brightnessLine("Lights", lights, lightsLinked, c.item == 1, c.editing);
+    return out;
+}
+
+bool brightnessInput(PageCursor& c, Wheel w, int& screen, int& lights, bool screenLinked, bool lightsLinked) {
+    c.item = std::max(0, std::min(1, c.item));
+    bool linked = c.item == 0 ? screenLinked : lightsLinked;
+    if (w == Wheel::Select) {
+        c.editing = !c.editing && !linked;
+        return false;
+    }
+    if (!c.editing) {
+        c.item = std::max(0, std::min(1, c.item + (w == Wheel::Down ? 1 : -1)));
+        return false;
+    }
+    int& v = c.item == 0 ? screen : lights;
+    int pct = percentOf(v) + (w == Wheel::Up ? 5 : -5);
+    pct = std::max(c.item == 0 ? 10 : 0, std::min(100, pct));
+    int nv = valueOf(pct);
+    bool changed = nv != v;
+    v = nv;
+    return changed;
+}
+
 Lines formatSimPage(int page, const SimData& d, const PageCursor& cur) {
     Lines p;
     int count = pageItemCount(page);

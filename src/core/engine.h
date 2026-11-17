@@ -17,6 +17,7 @@ struct Host {
     virtual void keyUp(const std::string& combo) = 0;
     virtual void showLabel(const std::string& text) = 0;
     virtual void layerChanged(int mode, bool shift) = 0;
+    virtual void datarefStep(const Step&) {}   // a Dataref step ran: write the dataref
 };
 
 class Engine {

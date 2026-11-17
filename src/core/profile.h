@@ -5,20 +5,36 @@
 #include <string>
 #include <vector>
 
+#include "pagetree.h"
+
 namespace x52 {
 
 constexpr int kMaxButton = 39;   // X52 Pro reports HID buttons 1..39
 constexpr int kLayerAny = 0;     // 1..3 = mode 1..3, 4..6 = mode 1..3 + pinkie held
 constexpr int kLayerCount = 7;
 
-enum class StepKind { Command, Key, Wait };
+enum class StepKind { Command, Key, Wait, Dataref };
+
+// What a Dataref step does to its dataref. Set: write `value`. Toggle: switch between `value` and
+// `value2` (to `value2` when the dataref is nearer `value`, otherwise to `value`). Add: add `value`,
+// kept between `lo` and `hi` when lo < hi.
+enum class DatarefOp { Set, Toggle, Add };
 
 struct Step {
     StepKind kind = StepKind::Command;
-    std::string text;   // X-Plane command name, or key combo such as "shift+f1"
+    std::string text;   // X-Plane command name, key combo such as "shift+f1", or dataref ("name" or "name[3]")
     int ms = 0;         // Wait only
-    bool operator==(const Step& o) const { return kind == o.kind && text == o.text && ms == o.ms; }
+    DatarefOp op = DatarefOp::Set;   // Dataref only, with the four numbers below
+    double value = 0, value2 = 1, lo = 0, hi = 0;
+    bool operator==(const Step& o) const {
+        return kind == o.kind && text == o.text && ms == o.ms && op == o.op && value == o.value &&
+               value2 == o.value2 && lo == o.lo && hi == o.hi;
+    }
 };
+
+// The value a Dataref step writes, given the dataref's current value. False when there is nothing
+// to write (Add needs to know the current value).
+bool datarefStepValue(const Step& s, bool haveCurrent, double current, double& out);
 typedef std::vector<Step> Action;
 
 struct Binding {
@@ -134,8 +150,27 @@ int activeAlarm(const std::vector<Alarm>& alarms, int led, const DatarefReader& 
 Color shownColor(const std::vector<Alarm>& alarms, const std::vector<LightRule>& rules, int led, Color modeColor,
                  double t, const DatarefReader& read);
 
-// Every dataref the rules and alarms read, without repeats (what a live link has to ask the sim for).
-std::vector<std::string> datarefsUsed(const std::vector<Alarm>& alarms, const std::vector<LightRule>& rules);
+// Brightness that follows a dataref: the value runs from inLow to inHigh and the brightness from
+// outLow to outHigh (0..127), clamped. No dataref chosen, or one that cannot be read, keeps the
+// fixed brightness of the profile.
+struct BrightnessLink {
+    std::string dataref;
+    double inLow = 0, inHigh = 1;
+    int outLow = 10, outHigh = 127;
+    bool active() const { return !dataref.empty(); }
+    bool operator==(const BrightnessLink& o) const {
+        return dataref == o.dataref && inLow == o.inLow && inHigh == o.inHigh && outLow == o.outLow && outHigh == o.outHigh;
+    }
+};
+int followBrightness(const BrightnessLink& b, int fixed, const DatarefReader& read);
+
+// A master switch keeps the screen (or the lights) on only while its trigger is true. No trigger
+// chosen, or a dataref that cannot be read, leaves it on, so a typo never blanks the stick.
+bool masterOn(const Trigger& t, const DatarefReader& read);
+
+// Every dataref the rules, alarms and master switches read, without repeats (what a live link has to ask the sim for).
+std::vector<std::string> datarefsUsed(const std::vector<Alarm>& alarms, const std::vector<LightRule>& rules,
+                                      const std::vector<Trigger>& masters = std::vector<Trigger>());
 
 struct AlarmPreset {
     const char* name;
@@ -168,6 +203,11 @@ struct Profile {
     Color ledAt(int mode, bool pinkie, int led) const { return pinkie ? ledsPinkie[mode - 1][led] : leds[mode - 1][led]; }
     std::vector<LightRule> rules;   // conditional lights, the same in every mode; one rule per light, the first wins
     std::vector<Alarm> alarms;      // alarms, in priority order: the first triggered one wins
+    PageTree pages;                 // screen pages written by the user (the radio pages are built in; none: just those)
+    Trigger masterScreen;           // the screen is on only while this is true (no dataref chosen: always on)
+    Trigger masterLights;           // the same for every light
+    BrightnessLink brightScreen;    // screen brightness follows a dataref (none chosen: mfdBrightness)
+    BrightnessLink brightLights;    // the same for the lights (ledBrightness)
     int version = 3;          // file format the profile was read from; 1 = older file (wheel bindings added on reading); below 3 the rules were reversed on reading (first rule wins now)
     bool clutchLatched = false;   // clutch toggles safe mode instead of holding it
     int clockOffset[2] = {0, 0};  // clock 2 and 3: minutes from GMT

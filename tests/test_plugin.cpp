@@ -76,7 +76,10 @@ TEST(page_wheel_command_changes_the_screen_page) {
     XPLMCommandOnce(XPLMFindCommand("x52pro/mfd_page_prev"));
     CHECK_EQ(gApp->page, (int)PageComNav1);
     XPLMCommandOnce(XPLMFindCommand("x52pro/mfd_page_prev"));
-    CHECK_EQ(gApp->page, (int)PageButtons);   // the Buttons page is last, so previous wraps to it
+    CHECK_EQ(gApp->page, (int)PageBrightness);   // the Brightness page is last, so previous wraps to it
+    XPLMCommandOnce(XPLMFindCommand("x52pro/mfd_page_prev"));
+    CHECK_EQ(gApp->page, (int)PageButtons);      // and the Buttons page comes just before it
+    gApp->setPage(PageComNav1);
 }
 
 TEST(clicking_a_button_row_selects_it) {
@@ -424,19 +427,44 @@ TEST(live_light_follows_a_dataref_and_falls_back_to_the_mode_colour) {
     brakeRule.led = LedE;
     gApp->profile.rules.push_back(brakeRule);
     Color out[kLedCount];
-    gApp->lightColors(out, 100.0);   // the sim does not know the dataref yet
+    const double base = gApp->now() + 1000;   // pretend times well after anything the real clock looked up earlier
+    gApp->lightColors(out, base);   // the sim does not know the dataref yet
     CHECK(out[LedE] == gApp->profile.leds[gApp->engine.mode() - 1][LedE]);
     sim().datarefs[brake] = 1.0;
-    gApp->lightColors(out, 200.0);   // found on the next look (not before 5 s)
+    gApp->lightColors(out, base + 100);   // found on the next look (not before 5 s)
     CHECK(out[LedE] == Color::Red);
     sim().datarefs[brake] = 0.0;
-    gApp->lightColors(out, 200.1);
+    gApp->lightColors(out, base + 100.1);
     CHECK(out[LedE] == Color::Green);
     gApp->testMode = true;           // test mode shows plain mode colours
-    gApp->lightColors(out, 200.2);
+    gApp->lightColors(out, base + 100.2);
     CHECK(out[LedE] == gApp->profile.leds[gApp->engine.mode() - 1][LedE]);
     gApp->testMode = false;
     gApp->profile.rules.clear();
+}
+
+TEST(master_switches_blank_the_screen_while_their_dataref_is_false) {
+    const std::string power = "sim/cockpit2/switches/avionics_power_on";
+    gApp->profile.masterScreen = Trigger();
+    gApp->profile.masterScreen.dataref = power;
+    gApp->profile.masterScreen.op = Compare::Greater;
+    gApp->profile.masterScreen.value = 0.5;
+    gApp->page = PageButtons;
+    gApp->nextDeviceUpdate = 0;
+    sim().datarefs[power] = 1.0;
+    sim().frame();                       // finds the dataref
+    gApp->nextDeviceUpdate = 0;
+    sim().frame();
+    CHECK(!gApp->screen.l[0].empty());   // power on: the page shows
+    sim().datarefs[power] = 0.0;
+    gApp->nextDeviceUpdate = 0;
+    sim().frame();
+    CHECK(gApp->screen.l[0].empty() && gApp->screen.l[1].empty() && gApp->screen.l[2].empty());
+    sim().datarefs[power] = 1.0;
+    gApp->nextDeviceUpdate = 0;
+    sim().frame();
+    CHECK(!gApp->screen.l[0].empty());   // and back
+    gApp->profile.masterScreen = Trigger();
 }
 
 TEST(text_fields_have_a_cursor_selection_and_clipboard) {
@@ -497,6 +525,163 @@ TEST(a_deleted_aircraft_profile_can_be_brought_back) {
     CHECK(gApp->usingAircraftProfile);
     CHECK(has(slurp(aircraftFile()), "name = Cessna_172SP"));
     CHECK(!sim().sees("Undo delete"));
+}
+
+TEST(a_button_can_write_set_toggle_and_add_to_datarefs) {
+    const std::string gear = "sim/test/switch", knob = "sim/test/knob", locked = "sim/test/readonly_thing";
+    sim().datarefs[gear] = 0;
+    sim().datarefs[knob] = 0.5;
+    sim().datarefs[locked] = 3;
+    Action a;
+    CHECK(actionFromText("set:" + gear + "=1", a, nullptr));
+    gApp->profile.edit(20, kLayerAny).press = a;
+    CHECK(actionFromText("toggle:" + gear, a, nullptr));
+    gApp->profile.edit(21, kLayerAny).press = a;
+    CHECK(actionFromText("add:" + knob + "=0.25,0,1", a, nullptr));
+    gApp->profile.edit(22, kLayerAny).press = a;
+    CHECK(actionFromText("set:" + locked + "=9", a, nullptr));
+    gApp->profile.edit(23, kLayerAny).press = a;
+    gApp->profileChanged();
+    press(20, true);
+    press(20, false);
+    CHECK_EQ(sim().datarefs[gear], 1.0);
+    press(21, true);
+    press(21, false);
+    CHECK_EQ(sim().datarefs[gear], 0.0);   // toggled off
+    press(21, true);
+    press(21, false);
+    CHECK_EQ(sim().datarefs[gear], 1.0);   // and on again
+    press(22, true);
+    press(22, false);
+    CHECK_EQ(sim().datarefs[knob], 0.75);
+    press(22, true);
+    press(22, false);
+    press(22, true);
+    press(22, false);
+    CHECK_EQ(sim().datarefs[knob], 1.0);   // kept at the top of its range
+    press(23, true);
+    press(23, false);
+    CHECK_EQ(sim().datarefs[locked], 3.0); // read-only: untouched, and the window says so
+    CHECK(has(gApp->notice, "does not let a plugin change"));
+    for (int b = 20; b <= 23; ++b) gApp->profile.edit(b, kLayerAny).press.clear();
+    gApp->profile.prune();
+    gApp->profileChanged();
+}
+
+TEST(the_plugin_learns_which_x_plane_slot_a_stick_button_is) {
+    sim().datarefs["sim/joystick/joystick_button_values"] = 0;
+    sim().joyValues.assign(200, 0);
+    press(20, true);                       // the stick reports button 20, X-Plane has not noticed yet
+    CHECK(gApp->learner.map().count(20) == 0);
+    sim().joyValues[33] = 1;               // X-Plane shows its slot 33 pressed
+    sim().frame();
+    CHECK_EQ(gApp->learner.map()[20], 33);
+    press(20, false);
+    sim().joyValues[33] = 0;
+    std::string file = slurp(sim().root + "/Output/preferences/X52Pro/xplane-map.txt");
+    CHECK(has(file, "20 33"));
+    sim().frame();
+    CHECK_EQ(gApp->learner.map()[20], 33);  // releasing teaches nothing new
+    press(28, true);                        // the mode dial is a switch: not learned
+    sim().joyValues[40] = 1;
+    sim().frame();
+    CHECK(gApp->learner.map().count(28) == 0);
+    sim().joyValues.assign(200, 0);
+    press(28, false);
+    gApp->learner.map().clear();
+}
+
+TEST(the_plugin_saves_the_aircraft_description_for_the_app) {
+    sim().datarefs["sim/aircraft/view/acf_descrip"] = 0;
+    sim().acfDescrip = "Cessna Citation X";
+    gApp->loadForAircraft("Cessna_CitationX");
+    CHECK(has(slurp(sim().root + "/Output/preferences/X52Pro/xplane-aircraft.txt"), "Cessna Citation X"));
+    gApp->loadForAircraft("Cessna_172SP");
+}
+
+TEST(the_brightness_page_changes_and_saves_the_screen_and_light_brightness) {
+    gApp->profile.pages = PageTree();
+    gApp->profile.brightScreen = BrightnessLink();
+    gApp->profile.brightLights = BrightnessLink();
+    gApp->profile.mfdBrightness = 127;
+    gApp->profile.ledBrightness = 127;
+    gApp->setPage(PageBrightness);
+    gApp->nextDeviceUpdate = 0;
+    sim().frame();
+    CHECK_EQ(gApp->screen.l[0], std::string("BRIGHTNESS"));
+    CHECK_EQ(gApp->screen.l[1], std::string("Screen     >100%"));       // the cursor starts on the screen
+    press(39, true);                                                   // press: start changing
+    press(39, false);
+    press(38, true);                                                   // turn down: 5 % less
+    press(38, false);
+    CHECK_EQ(gApp->profile.mfdBrightness, 121);
+    gApp->nextDeviceUpdate = 0;
+    sim().frame();
+    CHECK_EQ(gApp->screen.l[1], std::string("Screen     >>95%"));
+    CHECK(has(slurp(gApp->store.pathFor(gApp->profileKey())), "mfd_brightness = 121"));   // saved at once
+    press(39, true);                                                   // press: finish
+    press(39, false);
+    press(38, true);                                                   // turn down: the cursor moves to the lights
+    press(38, false);
+    CHECK_EQ(gApp->profile.mfdBrightness, 121);                        // turning alone changed nothing
+    press(39, true);
+    press(39, false);
+    for (int i = 0; i < 30; ++i) {
+        press(38, true);
+        press(38, false);
+    }
+    CHECK_EQ(gApp->profile.ledBrightness, 0);                          // the lights can go fully dark
+    gApp->profile.mfdBrightness = 127;
+    gApp->profile.ledBrightness = 127;
+    gApp->profileChanged();
+    gApp->setPage(PageComNav1);
+}
+
+TEST(user_pages_join_the_left_wheel_before_the_buttons_page_and_the_right_wheel_moves_inside_them) {
+    sim().datarefs["sim/fuel/left"] = 245;
+    PageTree t;
+    std::string err;
+    CHECK(parsePageLine("fuel \"Fuel\"", t, err) && parseRowLine("fuel text \"FUEL\"", t, err) &&
+          parseRowLine("fuel value \"Left\" \"%.0f kg\" sim/fuel/left", t, err) &&
+          parseRowLine("fuel link \"More\" more", t, err) && parsePageLine("more \"More\" in fuel", t, err) &&
+          parseRowLine("more text \"DEEPER\"", t, err));
+    gApp->profile.pages = t;
+    gApp->setPage(PageVorHdg);
+    gApp->stepPage(1);
+    CHECK_EQ(gApp->page, (int)kPageCount);                    // the user's page comes right after the radio pages
+    CHECK_EQ(gApp->pageTitle(gApp->page), std::string("Fuel"));
+    gApp->nextDeviceUpdate = 0;
+    sim().frame();
+    gApp->nextDeviceUpdate = 0;
+    sim().frame();
+    CHECK_EQ(gApp->screen.l[0], std::string(">FUEL"));
+    CHECK_EQ(gApp->screen.l[1], std::string(" Left     245 kg"));
+    gApp->stepPage(1);
+    CHECK_EQ(gApp->page, (int)PageButtons);                   // the Buttons page follows the user's pages
+    gApp->stepPage(1);
+    CHECK_EQ(gApp->page, (int)PageBrightness);                // and the Brightness page is last
+    gApp->stepPage(1);
+    CHECK_EQ(gApp->page, (int)PageComNav1);
+    gApp->stepPage(-1);
+    gApp->stepPage(-1);
+    gApp->stepPage(-1);
+    CHECK_EQ(gApp->page, (int)kPageCount);
+    press(38, true);                                          // right wheel down, down, then select the link
+    press(38, false);
+    press(38, true);
+    press(38, false);
+    press(39, true);
+    press(39, false);
+    sim().frame();
+    CHECK_EQ(gApp->screen.l[0], std::string(">< Back"));
+    CHECK_EQ(gApp->screen.l[1], std::string(" DEEPER"));
+    gApp->stepPage(1);                                        // leaving the page forgets where it was
+    gApp->stepPage(-1);
+    CHECK(gApp->nav.stack.empty());
+    gApp->profile.pages = PageTree();                         // pages removed while one is shown: back to the radio page
+    gApp->nextDeviceUpdate = 0;
+    sim().frame();
+    CHECK_EQ(gApp->page, (int)PageComNav1);
 }
 
 TEST(plugin_shuts_down_cleanly) {

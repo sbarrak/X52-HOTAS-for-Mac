@@ -81,6 +81,70 @@ const char* x52_trg_status(int kind, int index, int which);   // what the datare
 
 // Settings by name: led_brightness, mfd_brightness (0..127), clock2_offset,
 // clock3_offset (minutes from GMT), clock1_12h..clock3_12h, date_format, clutch_latched.
+// Master switches: the screen (which 0) or the lights (which 1) are on only while their trigger is true.
+// They use the trigger calls above with kind 2 and the index 0 (screen) or 1 (lights); no dataref means always on.
+void x52_master_try(int which);                // switches it off on the stick for a few seconds
+int x52_master_tried(void);                    // the one being shown off, or -1
+
+// Brightness that follows a dataref: which 0 screen, 1 lights. The value runs from in_low to in_high and the
+// brightness from out_low to out_high (0..127). No dataref: the fixed brightness slider applies.
+const char* x52_bright_ref(int which);
+double x52_bright_in_low(int which);
+double x52_bright_in_high(int which);
+int x52_bright_out_low(int which);
+int x52_bright_out_high(int which);
+void x52_bright_set(int which, const char* dataref, double in_low, double in_high, int out_low, int out_high);
+const char* x52_bright_status(int which);      // what the dataref is doing right now
+void x52_bright_try(int which, int level);     // 0 dim end, 1 bright end, for a few seconds
+int x52_bright_tried(void);                    // -1 none
+
+// ---- Button assignments, edited from the app. button 1..39, layer 0 any mode, 1..3 mode, 4..6 mode + pinkie.
+// hold 0 is "when pressed", hold 1 "when held". Step kinds: 0 command, 1 keystroke, 2 wait, 3 dataref.
+// Dataref ops: 0 set, 1 toggle, 2 add. Numbers (which): 0 value, 1 second value (toggle), 2 minimum, 3 maximum (add).
+const char* x52_button_name(int button);
+const char* x52_layer_name(int layer);
+int x52_button_reserved(int button);           // mode dial, pinkie and clutch cannot be programmed
+const char* x52_bind_summary(int button, int layer);   // what the button does there, "" when nothing is assigned
+int x52_bind_exists(int button, int layer);
+void x52_bind_clear(int button, int layer);
+const char* x52_bind_label(int button, int layer, int hold);
+void x52_bind_set_label(int button, int layer, int hold, const char* label);
+int x52_step_count(int button, int layer, int hold);
+int x52_step_kind(int button, int layer, int hold, int step);
+const char* x52_step_text(int button, int layer, int hold, int step);
+int x52_step_ms(int button, int layer, int hold, int step);
+int x52_step_op(int button, int layer, int hold, int step);
+double x52_step_num(int button, int layer, int hold, int step, int which);
+int x52_step_add(int button, int layer, int hold, int kind);   // the new step's number, -1 if refused
+void x52_step_remove(int button, int layer, int hold, int step);
+void x52_step_move(int button, int layer, int hold, int step, int direction);   // -1 up, 1 down
+void x52_step_set(int button, int layer, int hold, int step, const char* text, int ms, int op,
+                  double value, double value2, double lo, double hi);
+
+// The buttons this profile programs, in button order, one line each: "number<TAB>name<TAB>layers<TAB>slot<TAB>assigned".
+// Layers are the layers' names joined by ", ". These are the ones to set to Do nothing in X-Plane's Settings >
+// Joystick. slot is X-Plane's own number for the button (-1 until the plugin has seen it pressed in X-Plane),
+// assigned is the command X-Plane has on it according to its joystick settings file ("" when not known),
+// "sim/none/none" meaning Do nothing. slot is the number X-Plane's Joystick screen shows ("Btn 2"); -1 unknown. Read-only: nothing is ever changed in X-Plane's files.
+const char* x52_bound_buttons(void);
+const char* x52_assignment_source(void);       // which of X-Plane's joystick files the assignments were read from
+
+// Import what X-Plane has on the stick's buttons into a NEW profile (never over an existing one, and nothing in
+// X-Plane is changed). X-Plane's joystick profiles, one name per line, the one for the aircraft last loaded first;
+// the last line is X-Plane's current settings.
+const char* x52_xplane_profiles(void);
+const char* x52_import_suggest(const char* xplane_profile);   // a free name for the new profile
+// Creates the profile (buttons with a command in X-Plane become "Any mode" assignments) and switches to it.
+// Returns how many buttons were imported, or -1 with the reason in x52_import_message().
+int x52_import_profile(const char* xplane_profile, const char* new_name);
+const char* x52_import_message(void);
+
+// X-Plane's own lists, read from Resources/plugins/Commands.txt (kind 0) and DataRefs.txt (kind 1) of the
+// X-Plane folder in use, so they can be searched without X-Plane running. Result: one line per match,
+// "name<TAB>info<TAB>1 or 0 (writable)", best match first.
+int x52_catalog_size(int kind);
+const char* x52_catalog_search(int kind, const char* query, int max);
+
 int x52_get(const char* name);
 void x52_set(const char* name, int value);
 

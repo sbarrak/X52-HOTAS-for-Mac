@@ -33,6 +33,14 @@ final class Model: ObservableObject {
     @Published var alarmOpen: Set<Int> = []
     @Published var alarmChecked: Set<Int> = []
     @Published var tried = -1           // the alarm being shown on the stick for a look
+    @Published var brightTried = -1     // the screen (0) or lights (1) shown at an end of their brightness link
+    @Published var importNote = ""      // result of "Import what X-Plane has"
+    @Published var importOpen = false   // the import panel is showing
+    @Published var importFrom = ""      // the X-Plane joystick profile chosen to import from
+    @Published var importName = ""      // name for the new profile
+    @Published var btn = 1              // button selected on the Buttons tab
+    @Published var btnLayer = 0         // 0 any mode, 1..3 mode, 4..6 mode + pinkie
+    @Published var masterTried = -1     // the master switch being shown off on the stick for a look
     @Published var pluginState = 0      // 0 not installed, 1 out of date, 2 up to date
     @Published var pluginMessage = ""
     @Published var loginItem = false
@@ -87,6 +95,8 @@ final class Model: ObservableObject {
         set(\.revision, Int(x52_revision()))
         set(\.liveStatus, statusMap())
         set(\.tried, Int(x52_alarm_tried()))
+        set(\.masterTried, Int(x52_master_tried()))
+        set(\.brightTried, Int(x52_bright_tried()))
         slow += 1
         if slow % 40 == 1 {
             set(\.profiles, str(x52_profiles()).split(separator: "\n").map(String.init))
@@ -97,9 +107,14 @@ final class Model: ObservableObject {
 
     // What X-Plane makes of the datarefs of the rows opened on the Live lights or Alarms tab.
     private func statusMap() -> [Int: String] {
+        var d: [Int: String] = [:]
+        if tab == 5 {
+            for i in 0..<2 { for w in 0..<2 { d[statusKey(2, i, w)] = str(x52_trg_status(2, Int32(i), Int32(w))) } }
+            for i in 0..<2 { d[statusKey(3, i, 0)] = str(x52_bright_status(Int32(i))) }
+            return d
+        }
         guard tab == 1 || tab == 2 else { return [:] }
         let kind = tab == 1 ? 0 : 1
-        var d: [Int: String] = [:]
         for i in (kind == 0 ? liveOpen : alarmOpen) {
             for w in 0..<2 { d[statusKey(kind, i, w)] = str(x52_trg_status(Int32(kind), Int32(i), Int32(w))) }
         }
@@ -260,7 +275,7 @@ struct LightsTab: View {
             .padding(.top, 4)
             Divider()
             BrightnessRow(m: m, title: "Light brightness", name: "led_brightness")
-            Text("The mode dial on the stick picks the column, and holding the pinkie switch picks the Pinkie set. When you change a light in another mode, the stick shows that mode for a few seconds.")
+            Text("The mode dial on the stick picks the column, and holding the pinkie switch picks the Pinkie set. Changing the lights of another mode does not change what the stick shows now; it shows them when you turn the dial to that mode.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if !m.isPro {
                 Text("This stick is a standard X52: button colours need the X52 Pro.").foregroundStyle(.orange)
@@ -274,7 +289,7 @@ struct LightsTab: View {
 let ruleOps = [">", ">=", "<", "<=", "==", "!="]
 let joinNames = ["Only this test", "AND", "OR"]
 
-// kind 0 is a live light rule, kind 1 an alarm
+// kind 0 is a live light rule, kind 1 an alarm, kind 2 a master switch (index 0 screen, 1 lights)
 func statusKey(_ kind: Int, _ index: Int, _ which: Int) -> Int { kind * 100000 + index * 10 + which }
 
 func numberText(_ v: Double) -> String { String(format: "%g", v) }
@@ -737,6 +752,417 @@ struct ScreenTab: View {
     }
 }
 
+// MARK: - Buttons
+
+// A text field for an X-Plane command (kind 0) or dataref (kind 1) that suggests matches from X-Plane's own
+// lists (Commands.txt / DataRefs.txt) while you type.
+struct CatalogField: View {
+    let kind: Int
+    let placeholder: String
+    @Binding var text: String
+    @FocusState private var focused: Bool
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            TextField(placeholder, text: $text).textFieldStyle(.roundedBorder).focused($focused)
+            if focused && !text.isEmpty {
+                let rows = matches()
+                if !rows.isEmpty && !(rows.count == 1 && rows[0][0] == text) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(0..<rows.count, id: \.self) { i in
+                            Button { text = rows[i][0]; focused = false } label: {
+                                HStack(spacing: 8) {
+                                    Text(rows[i][0]).lineLimit(1).truncationMode(.middle)
+                                    Text(rows[i][1] + (rows[i][2] == "0" ? "  (read-only)" : ""))
+                                        .foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(.vertical, 3).padding(.horizontal, 6)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.12)))
+                }
+            }
+        }
+    }
+    private func matches() -> [[String]] {
+        str(x52_catalog_search(Int32(kind), text, 8)).split(separator: "\n").map {
+            $0.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+        }.filter { $0.count >= 3 }
+    }
+}
+
+let stepTags = ["CMD", "KEY", "WAIT", "DATA"]
+let datarefOps = ["Set", "Toggle", "Add"]
+
+struct StepRow: View {
+    @ObservedObject var m: Model
+    let hold: Int
+    let index: Int
+    var body: some View {
+        let b = Int32(m.btn), l = Int32(m.btnLayer), h = Int32(hold), i = Int32(index)
+        let kind = Int(x52_step_kind(b, l, h, i))
+        let text = Binding<String>(get: { str(x52_step_text(b, l, h, i)) }, set: { write(text: $0) })
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .top, spacing: 8) {
+                Text(stepTags[kind]).font(.caption).frame(width: 44, height: 22)
+                    .background(RoundedRectangle(cornerRadius: 4).fill(Color.secondary.opacity(0.2)))
+                Group {
+                    if kind == 0 {
+                        CatalogField(kind: 0, placeholder: "command, e.g. sim/flight_controls/gear_toggle", text: text)
+                    } else if kind == 1 {
+                        TextField("key, e.g. shift+f1", text: text).textFieldStyle(.roundedBorder)
+                    } else if kind == 2 {
+                        HStack {
+                            TextField("", value: Binding<Int>(get: { Int(x52_step_ms(b, l, h, i)) }, set: { write(ms: $0) }),
+                                      format: .number).textFieldStyle(.roundedBorder).frame(width: 80)
+                            Text("ms")
+                            Spacer()
+                        }
+                    } else {
+                        CatalogField(kind: 1, placeholder: "dataref, e.g. sim/cockpit2/switches/..., or name[3]", text: text)
+                    }
+                }
+                Button { x52_step_move(b, l, h, i, -1); m.tick() } label: { Image(systemName: "chevron.up") }
+                    .disabled(index == 0)
+                Button { x52_step_move(b, l, h, i, 1); m.tick() } label: { Image(systemName: "chevron.down") }
+                    .disabled(index >= Int(x52_step_count(b, l, h)) - 1)
+                Button { x52_step_remove(b, l, h, i); m.tick() } label: { Image(systemName: "xmark") }
+            }
+            if kind == 3 {
+                let op = Binding<Int>(get: { Int(x52_step_op(b, l, h, i)) }, set: { write(op: $0) })
+                let n = { (which: Int) in Binding<Double>(get: { x52_step_num(b, l, h, i, Int32(which)) }, set: { write(num: which, $0) }) }
+                HStack(spacing: 8) {
+                    FixedSegments(selection: op, names: datarefOps, width: 70)
+                    if op.wrappedValue == 0 {
+                        Text("to"); TextField("", value: n(0), format: .number).textFieldStyle(.roundedBorder).frame(width: 80)
+                    } else if op.wrappedValue == 1 {
+                        Text("between"); TextField("", value: n(0), format: .number).textFieldStyle(.roundedBorder).frame(width: 70)
+                        Text("and"); TextField("", value: n(1), format: .number).textFieldStyle(.roundedBorder).frame(width: 70)
+                    } else {
+                        Text("by"); TextField("", value: n(0), format: .number).textFieldStyle(.roundedBorder).frame(width: 70)
+                        Text("keep between"); TextField("", value: n(2), format: .number).textFieldStyle(.roundedBorder).frame(width: 60)
+                        Text("and"); TextField("", value: n(3), format: .number).textFieldStyle(.roundedBorder).frame(width: 60)
+                    }
+                    Spacer()
+                }
+                .padding(.leading, 52)
+            }
+        }
+    }
+    private func write(text: String? = nil, ms: Int? = nil, op: Int? = nil, num: Int? = nil, _ v: Double = 0) {
+        let b = Int32(m.btn), l = Int32(m.btnLayer), h = Int32(hold), i = Int32(index)
+        var nums = (0..<4).map { x52_step_num(b, l, h, i, Int32($0)) }
+        if let n = num { nums[n] = v }
+        x52_step_set(b, l, h, i, text ?? str(x52_step_text(b, l, h, i)), Int32(ms ?? Int(x52_step_ms(b, l, h, i))),
+                     Int32(op ?? Int(x52_step_op(b, l, h, i))), nums[0], nums[1], nums[2], nums[3])
+        m.tick()
+    }
+}
+
+struct StepList: View {
+    @ObservedObject var m: Model
+    let hold: Int
+    let title: String
+    var body: some View {
+        let b = Int32(m.btn), l = Int32(m.btnLayer), h = Int32(hold)
+        let label = Binding<String>(get: { str(x52_bind_label(b, l, h)) },
+                                    set: { x52_bind_set_label(b, l, h, String($0.prefix(16))); m.tick() })
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).foregroundStyle(.orange)
+            HStack {
+                Text("Name on screen").frame(width: 110, alignment: .leading)
+                TextField("up to 16 characters", text: label).textFieldStyle(.roundedBorder).frame(width: 220)
+            }
+            ForEach(0..<Int(x52_step_count(b, l, h)), id: \.self) { StepRow(m: m, hold: hold, index: $0) }
+            HStack {
+                Button("+ Command") { _ = x52_step_add(b, l, h, 0); m.tick() }
+                Button("+ Keystroke") { _ = x52_step_add(b, l, h, 1); m.tick() }
+                Button("+ Dataref") { _ = x52_step_add(b, l, h, 3); m.tick() }
+                Button("+ Wait") { _ = x52_step_add(b, l, h, 2); m.tick() }
+            }
+        }
+    }
+}
+
+// The buttons this profile programs: each needs to be set to Do nothing in X-Plane's Settings > Joystick.
+struct ClearList: View {
+    @ObservedObject var m: Model
+    var body: some View {
+        let rows = str(x52_bound_buttons()).split(separator: "\n").map {
+            $0.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+        }.filter { $0.count >= 5 }
+        let still = rows.filter { !$0[4].isEmpty && $0[4] != "sim/none/none" }.count
+        DisclosureGroup("Set to Do nothing in X-Plane: \(rows.count) button\(rows.count == 1 ? "" : "s")"
+                        + (still > 0 ? ", \(still) still set in X-Plane" : "")) {
+            VStack(alignment: .leading, spacing: 3) {
+                if rows.isEmpty {
+                    Text("No button is programmed here yet.").foregroundStyle(.secondary)
+                }
+                ForEach(0..<rows.count, id: \.self) { i in
+                    HStack(alignment: .top, spacing: 8) {
+                        Text(rows[i][0]).frame(width: 24, alignment: .trailing).foregroundStyle(.secondary)
+                        Text(rows[i][1]).frame(width: 90, alignment: .leading)
+                        Text(rows[i][2]).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                            .frame(width: 200, alignment: .leading)
+                        if rows[i][3] == "-1" {
+                            Text("X-Plane Btn: not known yet").foregroundStyle(.secondary)
+                                .help("With X-Plane running and the plugin loaded, press this button on the stick once; the plugin finds X-Plane's number for it.")
+                        } else if rows[i][4].isEmpty {
+                            Text("X-Plane Btn \(rows[i][3])").foregroundStyle(.secondary)
+                        } else if rows[i][4] == "sim/none/none" {
+                            Text("X-Plane Btn \(rows[i][3]): Do nothing, as it should be").foregroundStyle(.green)
+                        } else {
+                            Text("X-Plane Btn \(rows[i][3]): still \(rows[i][4])").foregroundStyle(.orange)
+                        }
+                    }
+                }
+                Text("In X-Plane: Settings > Joystick > Buttons, press each button on the stick and choose Do nothing. Otherwise X-Plane and the plugin both act on it. The number is the Btn number X-Plane shows for that button; the plugin learns it when you press the button with X-Plane running. Assignments are read from X-Plane's file \(str(x52_assignment_source())) (the one for the aircraft last loaded), which X-Plane saves when you leave its settings.")
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).padding(.top, 4)
+            }
+            .padding(.top, 4)
+        }
+    }
+}
+
+struct ButtonsTab: View {
+    @ObservedObject var m: Model
+    var body: some View {
+        let layer = Binding<Int>(get: { m.btnLayer }, set: { m.btnLayer = $0 })
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("To use the buttons here, start from an empty profile (the profile menu at the top), or import what X-Plane has on the stick's buttons into a new profile. Each button you program here must then be set to Do nothing in X-Plane's Settings > Joystick, or X-Plane and the plugin both act on it.")
+                    .font(.callout).fixedSize(horizontal: false, vertical: true)
+                if m.importOpen {
+                    let names = str(x52_xplane_profiles()).split(separator: "\n").map(String.init)
+                    HStack {
+                        Text("Import from").frame(width: 80, alignment: .leading)
+                        Picker("", selection: Binding(get: { m.importFrom }, set: {
+                            m.importFrom = $0
+                            m.importName = str(x52_import_suggest($0))
+                        })) {
+                            ForEach(names, id: \.self) { Text($0).tag($0) }
+                        }
+                        .labelsHidden().frame(width: 240)
+                    }
+                    HStack {
+                        Text("New profile").frame(width: 80, alignment: .leading)
+                        TextField("name", text: Binding(get: { m.importName }, set: { m.importName = $0 }))
+                            .textFieldStyle(.roundedBorder).frame(width: 240)
+                        Button("Create") {
+                            let n = Int(x52_import_profile(m.importFrom, m.importName))
+                            m.importNote = str(x52_import_message())
+                            if n >= 0 { m.importOpen = false }
+                            m.tick()
+                        }
+                        Button("Cancel") { m.importOpen = false; m.importNote = "" }
+                    }
+                    Text("A new profile is made; existing profiles are never changed.").font(.callout).foregroundStyle(.secondary)
+                } else {
+                    Button("Import what X-Plane has...") {
+                        let names = str(x52_xplane_profiles()).split(separator: "\n").map(String.init)
+                        m.importFrom = names.first ?? ""
+                        m.importName = str(x52_import_suggest(m.importFrom))
+                        m.importNote = ""
+                        m.importOpen = true
+                    }
+                }
+                if !m.importNote.isEmpty {
+                    Text(m.importNote).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(8).background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.1)))
+            HStack(spacing: 8) {
+                Text("Programming for").foregroundStyle(.secondary)
+                Picker("", selection: layer) {
+                    ForEach(0..<7, id: \.self) { Text(str(x52_layer_name(Int32($0)))).tag($0) }
+                }
+                .labelsHidden().frame(width: 190)
+                Spacer()
+            }
+            HStack(alignment: .top, spacing: 14) {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(1...39, id: \.self) { b in
+                            let sel = m.btn == b
+                            let res = x52_button_reserved(Int32(b)) != 0
+                            Button { m.btn = b } label: {
+                                HStack(spacing: 8) {
+                                    Text("\(b)").frame(width: 24, alignment: .trailing).foregroundStyle(.secondary)
+                                    Text(str(x52_button_name(Int32(b)))).lineLimit(1)
+                                    Spacer(minLength: 4)
+                                    Text(res ? "reserved" : str(x52_bind_summary(Int32(b), Int32(m.btnLayer))))
+                                        .foregroundStyle(res ? Color.secondary : Color.green).lineLimit(1).truncationMode(.tail)
+                                }
+                                .padding(.vertical, 4).padding(.horizontal, 6)
+                                .background(sel ? Color.accentColor.opacity(0.25) : Color.clear)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .frame(width: 250)
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.25)))
+                ScrollView {
+                    editor.padding(.trailing, 8)
+                }
+            }
+            ClearList(m: m)
+            Text("The numbers are the usual X52 button numbers (JOY1 to JOY39 in Windows lists): 9 and 10 are toggle 1 up and down, 11 and 12 toggle 2, 13 and 14 toggle 3, 15 the trigger's second stage, 16 the mouse button, 17 to 19 the scroll wheel, 20 to 23 the stick's hat, 24 to 27 the throttle's hat, 28 to 30 the mode dial, 31 the clutch.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text("Searches use X-Plane's own lists of commands and datarefs, so this works without X-Plane running. A button you program here must be set to Do nothing in X-Plane's Settings > Joystick.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+    @ViewBuilder private var editor: some View {
+        let b = Int32(m.btn), l = Int32(m.btnLayer)
+        VStack(alignment: .leading, spacing: 14) {
+            Text("\(m.btn)  \(str(x52_button_name(b)))  -  \(str(x52_layer_name(l)))").font(.headline)
+            if x52_button_reserved(b) != 0 {
+                Text("The mode dial, the pinkie switch and the clutch work as switches and cannot carry assignments.")
+                    .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            } else {
+                if x52_catalog_size(0) == 0 {
+                    Text("X-Plane's command list was not found (the X-Plane folder is shown at the bottom of the window). You can still type names by hand.")
+                        .foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                }
+                StepList(m: m, hold: 0, title: "When pressed")
+                Divider()
+                StepList(m: m, hold: 1, title: "When held longer than 0.4 s (optional)")
+                Divider()
+                Button("Clear this button in \(str(x52_layer_name(l)))") { x52_bind_clear(b, l); m.tick() }
+                    .disabled(x52_bind_exists(b, l) == 0)
+            }
+        }
+    }
+}
+
+// MARK: - Master switches
+
+struct MasterBlock: View {
+    @ObservedObject var m: Model
+    let which: Int          // 0 screen, 1 lights
+    let title: String
+    var body: some View {
+        let hasRef = !str(x52_trg_ref(2, Int32(which), 0)).isEmpty
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.headline)
+            Text(hasRef ? "On while: \(triggerSummary(2, which))" : "Always on (no dataref chosen).")
+                .foregroundStyle(.secondary)
+            TriggerEditor(m: m, kind: 2, index: which)
+            HStack {
+                Button("Use avionics power") {
+                    x52_trg_set(2, Int32(which), 0, "sim/cockpit2/switches/avionics_power_on", 4, 1, 0)
+                    x52_trg_set_join(2, Int32(which), 0)
+                    m.tick()
+                }
+                Button("Use battery") {
+                    x52_trg_set(2, Int32(which), 0, "sim/cockpit/electrical/battery_on", 4, 1, 0)
+                    x52_trg_set_join(2, Int32(which), 0)
+                    m.tick()
+                }
+                Button("Always on") {
+                    x52_trg_set(2, Int32(which), 0, "", 4, 1, 0)
+                    x52_trg_set_join(2, Int32(which), 0)
+                    m.tick()
+                }
+                Spacer()
+                Button("Try it off on the stick") { x52_master_try(Int32(which)); m.tick() }
+                    .disabled(m.pluginActive || !m.connected)
+                    .help("Switches it off on the stick for a few seconds, whatever the simulator says")
+                if m.masterTried == which { Text("Off for a few seconds").foregroundStyle(.secondary) }
+            }
+        }
+    }
+}
+
+struct BrightBlock: View {
+    @ObservedObject var m: Model
+    let which: Int
+    let title: String
+    var body: some View {
+        let w = Int32(which)
+        let ref = Binding<String>(get: { str(x52_bright_ref(w)) }, set: { write(ref: $0) })
+        let inLow = Binding<Double>(get: { x52_bright_in_low(w) }, set: { write(inLow: $0) })
+        let inHigh = Binding<Double>(get: { x52_bright_in_high(w) }, set: { write(inHigh: $0) })
+        let outLow = Binding<Double>(get: { Double(x52_bright_out_low(w)) }, set: { write(outLow: Int($0.rounded())) })
+        let outHigh = Binding<Double>(get: { Double(x52_bright_out_high(w)) }, set: { write(outHigh: Int($0.rounded())) })
+        let on = !ref.wrappedValue.isEmpty
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.headline)
+            HStack {
+                Text("Dataref").frame(width: 110, alignment: .leading)
+                TextField("empty: the fixed brightness slider applies", text: ref).textFieldStyle(.roundedBorder)
+            }
+            if let status = m.liveStatus[statusKey(3, which, 0)], !status.isEmpty {
+                Text(status).font(.callout).foregroundStyle(.secondary).padding(.leading, 118)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if on {
+                HStack {
+                    Text("Value range").frame(width: 110, alignment: .leading)
+                    TextField("", value: inLow, format: .number).textFieldStyle(.roundedBorder).frame(width: 80)
+                    Text("(dim)  to")
+                    TextField("", value: inHigh, format: .number).textFieldStyle(.roundedBorder).frame(width: 80)
+                    Text("(bright)")
+                }
+                HStack {
+                    Text("Dimmest").frame(width: 110, alignment: .leading)
+                    Slider(value: outLow, in: 0...127)
+                    Text("\(Int(outLow.wrappedValue) * 100 / 127) %").monospacedDigit().frame(width: 48, alignment: .trailing)
+                }
+                HStack {
+                    Text("Brightest").frame(width: 110, alignment: .leading)
+                    Slider(value: outHigh, in: 0...127)
+                    Text("\(Int(outHigh.wrappedValue) * 100 / 127) %").monospacedDigit().frame(width: 48, alignment: .trailing)
+                }
+            }
+            HStack {
+                Button("Use panel light dial") {
+                    x52_bright_set(w, "sim/cockpit2/electrical/instrument_brightness_ratio[0]", 0, 1, 10, 127)
+                    m.tick()
+                }
+                Button("Fixed brightness") { x52_bright_set(w, "", 0, 1, 10, 127); m.tick() }
+                Spacer()
+                Button("Try dim") { x52_bright_try(w, 0); m.tick() }.disabled(!on || m.pluginActive || !m.connected)
+                Button("Try bright") { x52_bright_try(w, 1); m.tick() }.disabled(!on || m.pluginActive || !m.connected)
+                if m.brightTried == which { Text("Showing for a few seconds").foregroundStyle(.secondary) }
+            }
+        }
+    }
+    private func write(ref: String? = nil, inLow: Double? = nil, inHigh: Double? = nil, outLow: Int? = nil, outHigh: Int? = nil) {
+        let w = Int32(which)
+        x52_bright_set(w, ref ?? str(x52_bright_ref(w)), inLow ?? x52_bright_in_low(w), inHigh ?? x52_bright_in_high(w),
+                       Int32(outLow ?? Int(x52_bright_out_low(w))), Int32(outHigh ?? Int(x52_bright_out_high(w))))
+        m.tick()
+    }
+}
+
+struct MasterTab: View {
+    @ObservedObject var m: Model
+    var body: some View {
+        ScrollView {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("A master switch keeps the screen, or every light, on only while a dataref has the value you choose, for example while the avionics are powered. When it is false the screen goes blank or the lights go dark. With no dataref chosen, or if X-Plane does not know it, it stays on.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            MasterBlock(m: m, which: 0, title: "Screen")
+            Divider()
+            MasterBlock(m: m, which: 1, title: "Lights")
+            Divider()
+            Text("Brightness can follow a dataref instead of the fixed sliders, for example the panel light dial: the value runs between the two points and the brightness between dimmest and brightest. With no dataref, or one X-Plane does not know, the slider on the Lights and Screen tabs applies.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            BrightBlock(m: m, which: 0, title: "Screen brightness")
+            Divider()
+            BrightBlock(m: m, which: 1, title: "Light brightness")
+        }
+        .padding(.trailing, 8)
+        }
+    }
+}
+
 // MARK: - Test
 
 struct TestTab: View {
@@ -806,6 +1232,9 @@ struct TestTab: View {
 
 // MARK: - Window
 
+let tabList: [(Int, String)] = [(6, "Buttons"), (0, "Lights"), (1, "Live lights"), (2, "Alarms"), (3, "Screen & clock"),
+                                (5, "Master & brightness"), (4, "Test")]
+
 struct SettingsView: View {
     @ObservedObject var m: Model
     var body: some View {
@@ -826,13 +1255,35 @@ struct SettingsView: View {
             if !m.error.isEmpty {
                 Text(m.error).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
             }
-            TabView(selection: $m.tab) {
-                LightsTab(m: m).padding(14).tabItem { Text("Lights") }.tag(0)
-                LiveTab(m: m).padding(14).tabItem { Text("Live lights") }.tag(1)
-                AlarmsTab(m: m).padding(14).tabItem { Text("Alarms") }.tag(2)
-                ScreenTab(m: m).padding(14).tabItem { Text("Screen & clock") }.tag(3)
-                TestTab(m: m).padding(14).tabItem { Text("Test") }.tag(4)
+            // A scrolling strip of tabs, so a narrow window never hides some behind a ">>" menu.
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(tabList, id: \.0) { entry in
+                        let on = m.tab == entry.0
+                        Button { m.tab = entry.0 } label: {
+                            Text(entry.1).lineLimit(1).padding(.horizontal, 12).frame(height: 26)
+                                .background(on ? Color.accentColor : Color.secondary.opacity(0.15))
+                                .foregroundStyle(on ? Color.white : Color.primary)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
+            Group {
+                switch m.tab {
+                case 6: ButtonsTab(m: m)
+                case 0: LightsTab(m: m)
+                case 1: LiveTab(m: m)
+                case 2: AlarmsTab(m: m)
+                case 3: ScreenTab(m: m)
+                case 5: MasterTab(m: m)
+                default: TestTab(m: m)
+                }
+            }
+            .padding(14).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.25)))
             HStack {
                 if m.xplane.isEmpty {
                     Text("X-Plane 12 was not found. Choose its folder to install the plugin.")
@@ -860,7 +1311,7 @@ struct SettingsView: View {
             }
         }
         .padding(16)
-        .frame(width: 720, height: 640)
+        .frame(width: 900, height: 720)
     }
 }
 

@@ -134,6 +134,69 @@ from highest: **alarms**, then **live lights**, then the plain **mode colours**.
 - Alarms are edited in the menu bar app, not in the X-Plane window. Brightness is not
   affected.
 
+## Your own screen pages
+
+The screen's radio pages are built in and stay as they are. You can add pages of your own, in a tree.
+A page has rows, and a row is plain text, a dataref value, or a link that opens another page. Write them
+in the profile file (`Plugins > X52 Pro > Reload profile from disk` afterwards, or save the file while X-Plane
+runs and it reloads within a second). Example, pasted before the `bind` lines:
+
+```
+page fly "Flight"
+row fly value "Alt" "%.0f ft" sim/cockpit2/gauges/indicators/altitude_ft_pilot
+row fly value "IAS" "%.0f kt" sim/cockpit2/gauges/indicators/airspeed_kts_pilot
+row fly link "Fuel" fuel
+page fuel "Fuel" in fly
+row fuel value "Total" "%.0f kg" sim/flightmodel/weight/m_fuel_total
+row fuel value "Tank 1" "%.0f kg" sim/cockpit2/fuel/fuel_quantity[0]
+```
+
+- A page without `in` is reached with the left wheel: after the radio pages, before the Buttons page. A page
+  with `in <page id>` is only opened by a link row. Page ids are letters, digits, `-` and `_`.
+- Rows: `text "words"`, `value "label" "format" dataref` (the format has one `%d`, `%f`, `%e` or `%g`, with an
+  optional width and decimals, for example `%.0f kg`; `name[3]` reads one item of a list) and `link "label" page-id`.
+- On the screen the cursor `>` is on one row (the right wheel moves it, up and down; the screen scrolls to
+  keep it in view). Pressing the wheel on a link opens its page; inside a sub-page the first row is `< Back`.
+  Leaving a page with the left wheel forgets where you were. A value that cannot be read shows `--`.
+- To get the default screen back, delete the `page` and `row` lines: with none, only the radio pages and the
+  Buttons page remain.
+- The Function, Start/Stop and Reset buttons under the screen are not used for going back, because the stick
+  itself uses them for its clocks and stopwatch.
+
+## Programming buttons outside X-Plane
+
+The **Buttons** tab of the menu bar app does what the X-Plane window's button editor does, without
+starting the simulator. Pick the mode (or mode + pinkie) at the top, click a button in the list,
+and add steps under **When pressed** and **When held**: **+ Command**, **+ Keystroke**,
+**+ Dataref** and **+ Wait**. While you type a command or dataref, the app suggests matches from
+X-Plane's own lists (`Resources/plugins/Commands.txt` and `DataRefs.txt`), so no sim is needed.
+Changes are saved at once; a running X-Plane applies them within a second.
+
+**Import what X-Plane has.** On the Buttons tab, **Import what X-Plane has...** asks which of X-Plane's joystick
+profiles to import (the one for the aircraft last loaded is first) and suggests a name for the new profile.
+It makes a new profile whose buttons carry X-Plane's commands as Any mode assignments, and switches to it.
+An existing profile is never overwritten or changed; if the name is taken, pick another. Or start from an
+empty profile instead. Either way, set each button you program to Do nothing in X-Plane's Settings > Joystick.
+
+The Buttons tab also lists the buttons you program under **Set to Do nothing in X-Plane**. Once you
+have pressed a button with X-Plane running, the plugin learns X-Plane's own number for it (saved in
+`xplane-map.txt` next to the profiles), and the list shows what X-Plane has on that button, read from
+X-Plane's joystick settings file: green when it is Do nothing, orange when it is still set. This is
+read-only; the plugin and the app never change X-Plane's joystick settings.
+
+## Master switch
+
+The **Master switch** tab of the menu bar app keeps the screen, and separately every light,
+on only while a dataref has the value you choose, for example while the avionics are powered
+(**Use avionics power** fills that in). When the test is false the screen goes blank or the
+lights go dark. With no dataref chosen, or one X-Plane does not know, it stays on.
+
+- **Try it off on the stick** switches it off for five seconds without X-Plane, so you can see
+  it working. It is also a normal condition, so AND / OR / NOT work as for alarms.
+- In the profile file: `master screen > 0.5 sim/cockpit2/switches/avionics_power_on` (or
+  `master lights ...`).
+- Test mode shows the screen and lights regardless.
+
 ## Use
 
 1. In X-Plane open **Plugins > X52 Pro > Program buttons...**
@@ -142,6 +205,12 @@ from highest: **alarms**, then **live lights**, then the plain **mode colours**.
    - **+ Command** – search X-Plane's commands by word ("gear", "flaps", ...). Commands
      from add-on aircraft can be typed in full (`author/aircraft/command`).
    - **+ Keystroke** – click **Record** and press the key, or type e.g. `shift+f1`.
+   - **+ Dataref** – write a value to a dataref: **Set** puts a number there, **Toggle**
+     flips between 0 and 1, **Add** adds an amount (use a negative number to subtract). The
+     dataref name turns red if X-Plane does not know it. In the profile file:
+     `set:sim/x=1`, `toggle:sim/x=0,1`, `add:sim/x=0.1,0,1` (the last two numbers keep the
+     result between a minimum and a maximum). Some datarefs are read-only and X-Plane
+     refuses to change them; the window then says so.
    - **+ Wait** – a pause between steps.
    - One command or key on its own follows the button (held while you hold it). Two or
      more steps run once as a macro.
@@ -154,8 +223,11 @@ hat always stay with X-Plane.
 
 Other things to know:
 
-- The **MFD page wheel** (left) flips the screen between Buttons, COM1/NAV1, COM2/NAV2,
-  ADF, DME, Transponder, Autopilot and OBS/Heading.
+- The **MFD page wheel** (left) flips the screen between COM1/NAV1, COM2/NAV2, ADF, DME,
+  Transponder, Autopilot and OBS/Heading, then your own pages, then Buttons, then Brightness (the last page).
+- The **Brightness page** sets the screen's and the lights' brightness from the stick: turn the right wheel to
+  pick Screen or Lights, press to change (`>>`), turn in 5 % steps, press again to finish. It is saved at once.
+  The screen never goes below 10 %. A brightness that follows a dataref shows `dataref` and is not changed here.
 - The **right wheel and its button** change what the page shows, as in the manual:
   turn to move the cursor, press to act. `[118.000]` is an active frequency: press to
   swap it with standby. `>` or `<` marks a part of a value: press (it becomes `>>` or

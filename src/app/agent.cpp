@@ -79,6 +79,16 @@ bool Agent::change(const std::function<void(Profile&)>& edit) {
     return true;
 }
 
+bool Agent::createProfile(const std::string& key, const Profile& p, std::string* error) {
+    if (key.empty() || key == "default" || store_.exists(key)) {
+        if (error) *error = "A profile called '" + key + "' already exists.";
+        return false;
+    }
+    if (!store_.save(key, p, error)) return false;
+    select(key);
+    return true;
+}
+
 void Agent::select(const std::string& key) {
     if (key.empty() || key == key_ || !store_.exists(key)) return;
     key_ = key;
@@ -146,7 +156,10 @@ std::string Agent::liveStatus(const std::string& ref) {
 
 // Live lights: ask X-Plane for what the rules need (the plugin does this itself when it runs).
 void Agent::updateLive(double t) {
-    std::vector<std::string> refs = datarefsUsed(profile_.alarms, profile_.rules);
+    std::vector<Trigger> masters = {profile_.masterScreen, profile_.masterLights};
+    std::vector<std::string> refs = datarefsUsed(profile_.alarms, profile_.rules, masters);
+    for (const BrightnessLink* b : {&profile_.brightScreen, &profile_.brightLights})
+        if (b->active() && std::find(refs.begin(), refs.end(), b->dataref) == refs.end()) refs.push_back(b->dataref);
     if (refs.empty()) {
         link_.reset();
         return;
@@ -162,6 +175,21 @@ void Agent::tryAlarm(int index) {
 }
 
 int Agent::triedAlarm() const { return tryIndex_ >= 0 && now() < tryUntil_ ? tryIndex_ : -1; }
+
+void Agent::tryBright(int which, int level) {
+    tryBright_ = which == 0 || which == 1 ? which : -1;
+    tryBrightLevel_ = level ? 1 : 0;
+    tryBrightUntil_ = now() + 5.0;
+}
+
+int Agent::triedBright() const { return tryBright_ >= 0 && now() < tryBrightUntil_ ? tryBright_ : -1; }
+
+void Agent::tryMaster(int which) {
+    tryMaster_ = which == 0 || which == 1 ? which : -1;
+    tryMasterUntil_ = now() + 5.0;
+}
+
+int Agent::triedMaster() const { return tryMaster_ >= 0 && now() < tryMasterUntil_ ? tryMaster_ : -1; }
 
 void Agent::previewMode(int mode, bool pinkie) {
     preview_ = mode >= 1 && mode <= 3 ? mode : 0;
@@ -241,6 +269,27 @@ void Agent::push(double t) {
     s.blink = engine_.clutch();
     s.mfdBrightness = profile_.mfdBrightness;
     s.ledBrightness = profile_.ledBrightness;
+    // Brightness and master switches (what X-Plane says over UDP, or the Try buttons).
+    SimLink* link = link_.get();
+    DatarefReader read;
+    if (link) read = [link, t](const std::string& ref, double& v) { return link->value(ref, t, v); };
+    s.mfdBrightness = followBrightness(profile_.brightScreen, s.mfdBrightness, read);
+    s.ledBrightness = followBrightness(profile_.brightLights, s.ledBrightness, read);
+    if (t < tryBrightUntil_ && tryBright_ >= 0) {
+        const BrightnessLink& b = tryBright_ ? profile_.brightLights : profile_.brightScreen;
+        (tryBright_ ? s.ledBrightness : s.mfdBrightness) = tryBrightLevel_ ? b.outHigh : b.outLow;
+    }
+    bool trying = t < tryMasterUntil_;
+    if ((trying && tryMaster_ == 0) || !masterOn(profile_.masterScreen, read)) {
+        for (int i = 0; i < kMfdLines; ++i) s.lines[i] = screen_.l[i] = "";
+        s.shift = false;
+        s.mfdBrightness = 0;
+    }
+    if ((trying && tryMaster_ == 1) || !masterOn(profile_.masterLights, read)) {
+        for (int l = 0; l < kLedCount; ++l) s.leds[l] = Color::Off;
+        s.ledBrightness = 0;
+        s.blink = false;
+    }
     time_t tt = time(nullptr);
     struct tm g;
     gmtime_r(&tt, &g);

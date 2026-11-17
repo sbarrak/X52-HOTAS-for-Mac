@@ -1,5 +1,10 @@
+#include <fstream>
 #include <map>
 #include "check.h"
+#include "../src/core/catalog.h"
+#include "../src/core/xpjoy.h"
+#include "../src/core/pagetree.h"
+#include "../src/core/pageview.h"
 #include "../src/core/engine.h"
 #include "../src/core/keys.h"
 #include "../src/core/mfd.h"
@@ -1055,6 +1060,348 @@ TEST(two_conditions_join_with_and_or_and_not) {
     CHECK(evaluate(t, values({{"a", 0}, {"b", 0}})) == TriggerState::True);
     t.join = Join::None;      // a second condition without a join is ignored
     CHECK(evaluate(t, values({{"a", 0}, {"b", 0}})) == TriggerState::False);
+}
+
+TEST(a_master_switch_is_off_only_while_its_condition_is_false) {
+    Trigger t;
+    CHECK(masterOn(t, values({})));                       // nothing chosen: always on
+    t.dataref = "avionics";
+    t.op = Compare::Greater;
+    t.value = 0.5;
+    CHECK(masterOn(t, values({{"avionics", 1}})));
+    CHECK(!masterOn(t, values({{"avionics", 0}})));
+    CHECK(masterOn(t, values({})));                       // unreadable: stays on, a typo never blanks the stick
+    t.join = Join::And;
+    t.second.dataref = "battery";
+    t.second.op = Compare::Greater;
+    t.second.value = 0.5;
+    CHECK(masterOn(t, values({{"avionics", 1}, {"battery", 1}})));
+    CHECK(!masterOn(t, values({{"avionics", 1}, {"battery", 0}})));
+}
+
+TEST(x_plane_command_and_dataref_lists_can_be_loaded_and_searched) {
+    const char* tmp = getenv("TMPDIR");
+    std::string dir = std::string(tmp ? tmp : "/tmp") + "/x52catalog";
+    std::string mk = "mkdir -p '" + dir + "'";
+    CHECK(system(mk.c_str()) == 0);
+    {
+        std::ofstream c(dir + "/Commands.txt");
+        c << "2 1210 Mon Nov  9 16:33:29 2026\n\nsim/flight_controls/landing_gear_toggle   Toggle landing gear\n"
+             "sim/lights/landing_lights_toggle   Landing lights toggle\n"
+             "sim/flight_controls/flaps_down   Flaps down a notch\n";
+        std::ofstream d(dir + "/DataRefs.txt");
+        d << "2 1210 Mon Nov  9 16:33:29 2026\n\nsim/cockpit2/switches/avionics_power_on\tint\ty\tboolean\tAvionics master\t\n"
+             "sim/flightmodel/position/elevation\tdouble\tn\tmeters\tElevation\t\n";
+    }
+    std::vector<CatalogEntry> cmds = loadCommandCatalog(dir + "/Commands.txt");
+    std::vector<CatalogEntry> refs = loadDatarefCatalog(dir + "/DataRefs.txt");
+    CHECK_EQ(cmds.size(), (size_t)3);                       // the header line and the blank line are skipped
+    CHECK_EQ(refs.size(), (size_t)2);
+    CHECK(refs[0].writable && !refs[1].writable);
+    CHECK(refs[0].info.find("int, boolean: Avionics master") == 0);
+    auto found = searchCatalog(cmds, "landing", 10);
+    CHECK_EQ(found.size(), (size_t)2);
+    found = searchCatalog(cmds, "TOGGLE gear", 10);          // every word, any case, name or description
+    CHECK_EQ(found.size(), (size_t)1);
+    CHECK_EQ(found[0]->name, std::string("sim/flight_controls/landing_gear_toggle"));
+    found = searchCatalog(cmds, "sim/flight_controls", 10);  // names that start with the query come first
+    CHECK_EQ(found.size(), (size_t)2);
+    CHECK_EQ(searchCatalog(cmds, "", 10).size(), (size_t)0);
+    CHECK_EQ(searchCatalog(cmds, "landing", 1).size(), (size_t)1);
+    CHECK_EQ(loadCommandCatalog(dir + "/missing.txt").size(), (size_t)0);
+}
+
+TEST(x_plane_joystick_slots_are_read_and_learned_from_presses) {
+    auto a = parseButtonAssignments("I\n10 Version\n_joy_BUTN_use10 sim/flight_controls/brakes_toggle_regular\n"
+                                    "_joy_BUTN_use11 sim/none/none\r\n_joy_BUTN_use9999 sim/x\n_joy_axis0 1\n");
+    CHECK_EQ(a.size(), (size_t)2);                            // the slot out of range and other lines are ignored
+    CHECK_EQ(a[10], std::string("sim/flight_controls/brakes_toggle_regular"));
+    CHECK_EQ(a[11], std::string("sim/none/none"));
+    std::map<int, int> m = {{3, 12}, {39, 150}};
+    CHECK(parseButtonMap(serializeButtonMap(m)) == m);
+    CHECK(parseButtonMap("# x\n0 5\n40 5\n7 -1\n7 9\n").size() == 1);
+
+    ButtonLearner l;
+    l.pressed(7, 10.0);
+    CHECK(l.pending(10.1));
+    CHECK(!l.update({}, 10.05));                              // nothing on yet: keep waiting
+    CHECK(l.update({14}, 10.1) && l.map()[7] == 14);          // exactly one slot turned on
+    CHECK(!l.pending(10.2));
+    l.pressed(8, 11.0);
+    CHECK(!l.update({14, 20, 21}, 11.05));                    // 14 is button 7's; 20 and 21 are ambiguous
+    CHECK(l.update({14, 20}, 11.1) && l.map()[8] == 20);      // now only 20 is left
+    l.pressed(8, 12.0);
+    CHECK(!l.update({20}, 12.1));                             // same answer again: nothing changed
+    l.pressed(9, 13.0);
+    CHECK(!l.update({30, 31}, 13.1));                         // ambiguous, and then too late
+    CHECK(!l.update({30}, 13.7) && l.map().count(9) == 0);
+}
+
+TEST(x_plane_numbers_buttons_after_the_hat_and_keeps_joystick_settings_per_aircraft) {
+    CHECK_EQ(xplaneButtonNumber(10), 2);        // slot 10 is what X-Plane's screen calls Btn 2
+    CHECK_EQ(xplaneButtonNumber(8), 0);
+    CHECK_EQ(xplaneButtonNumber(7), -1);        // a hat direction
+    CHECK_EQ(xplaneButtonNumber(168), 0);       // the next device starts again
+    CHECK_EQ(controlProfileKey("Cessna Citation X"), std::string("Cessna___Citation___X"));
+    std::string misc = "P acf_profile Boeing___737-800 A330\nP acf_profile Cessna___Citation___X Cesna___X\n";
+    CHECK_EQ(controlProfileFor(misc, "Cessna Citation X"), std::string("Cesna___X"));
+    CHECK_EQ(controlProfileFor(misc, "Unknown plane"), std::string(""));
+    CHECK_EQ(controlProfileFor(misc, ""), std::string(""));
+}
+
+TEST(the_brightness_page_shows_percent_and_follows_the_wheel) {
+    PageCursor c;
+    Lines p = formatBrightnessPage(127, 64, false, false, c);
+    CHECK_EQ(p.l[0], std::string("BRIGHTNESS"));
+    CHECK_EQ(p.l[1], std::string("Screen     >100%"));
+    CHECK_EQ(p.l[2], std::string("Lights       50%"));
+    int screen = 127, lights = 64;
+    CHECK(!brightnessInput(c, Wheel::Down, screen, lights, false, false));   // turning alone moves the cursor
+    CHECK_EQ(c.item, 1);
+    CHECK(!brightnessInput(c, Wheel::Select, screen, lights, false, false));
+    CHECK(c.editing);
+    CHECK(brightnessInput(c, Wheel::Up, screen, lights, false, false));
+    CHECK_EQ(lights, 70);
+    CHECK_EQ(formatBrightnessPage(screen, lights, false, false, c).l[2], std::string("Lights     >>55%"));
+    for (int i = 0; i < 30; ++i) brightnessInput(c, Wheel::Up, screen, lights, false, false);
+    CHECK_EQ(lights, 127);                                                   // stops at 100 %
+    CHECK(!brightnessInput(c, Wheel::Up, screen, lights, false, false));
+    brightnessInput(c, Wheel::Select, screen, lights, false, false);
+    c.item = 0;
+    brightnessInput(c, Wheel::Select, screen, lights, false, false);
+    for (int i = 0; i < 30; ++i) brightnessInput(c, Wheel::Down, screen, lights, false, false);
+    CHECK_EQ(formatBrightnessPage(screen, lights, false, false, c).l[1], std::string("Screen     >>10%"));   // never fully off
+    PageCursor l;
+    l.item = 0;
+    CHECK(!brightnessInput(l, Wheel::Select, screen, lights, true, false));  // a linked brightness is not changed here
+    CHECK(!l.editing);
+    CHECK_EQ(formatBrightnessPage(screen, lights, true, false, l).l[1], std::string("Screen   dataref"));
+}
+
+TEST(the_slots_of_buttons_never_pressed_follow_from_the_ones_that_were) {
+    std::map<int, int> none = completeButtonMap({});
+    CHECK_EQ(none.size(), (size_t)39);
+    CHECK_EQ(none[1], 8);                                        // the stick's first button is slot 8, right after the hat
+    CHECK_EQ(none[39], 46);
+    std::map<int, int> got = completeButtonMap({{3, 10}, {4, 11}, {35, 42}, {36, 43}});
+    CHECK_EQ(got[10], 17);                                       // slot = button + 7, as learned
+    std::map<int, int> odd = completeButtonMap({{3, 13}, {4, 14}, {5, 99}});   // one that disagrees is outvoted ...
+    CHECK_EQ(odd[10], 17 + 3);
+    CHECK_EQ(odd[5], 99);                                        // ... but what was learned always wins for its own button
+}
+
+static PageTree samplePages() {
+    PageTree t;
+    std::string err;
+    bool ok = parsePageLine("fuel \"Fuel\"", t, err) &&
+              parseRowLine("fuel text \"FUEL\"", t, err) &&
+              parseRowLine("fuel value \"Left\" \"%.0f kg\" sim/fuel/left", t, err) &&
+              parseRowLine("fuel value \"Right\" \"%.1f\" sim/fuel/right[1]", t, err) &&
+              parseRowLine("fuel link \"Details\" fueldetail", t, err) &&
+              parsePageLine("fueldetail \"Fuel details\" in fuel", t, err) &&
+              parseRowLine("fueldetail value \"Flow\" \"%d\" sim/fuel/flow", t, err) &&
+              parsePageLine("empty \"Nothing here\"", t, err);
+    if (!ok) fprintf(stderr, "samplePages: %s\n", err.c_str());
+    return t;
+}
+
+TEST(user_pages_are_saved_in_the_profile_and_read_back) {
+    Profile p = defaultProfile();
+    p.pages = samplePages();
+    CHECK_EQ(p.pages.pages.size(), (size_t)3);
+    std::string text = serialize(p);
+    CHECK(text.find("page fuel \"Fuel\"\n") != std::string::npos);
+    CHECK(text.find("page fueldetail \"Fuel details\" in fuel\n") != std::string::npos);
+    CHECK(text.find("row fuel value \"Left\" \"%.0f kg\" sim/fuel/left\n") != std::string::npos);
+    Profile q;
+    std::string err;
+    CHECK(parse(text, q, &err));
+    CHECK(q.pages == p.pages);
+    CHECK_EQ(q.pages.topLevel().size(), (size_t)2);              // fuel and empty; the detail page is only reached by a link
+    CHECK(serialize(defaultProfile()).find("\npage ") == std::string::npos);   // no pages: nothing written
+    PageTree t;
+    CHECK(!parseRowLine("nowhere text \"x\"", t, err));          // a row needs its page defined above
+    CHECK(!parsePageLine("bad id \"x\"", t, err));
+    CHECK(parsePageLine("a \"A\"", t, err));
+    CHECK(!parsePageLine("a \"again\"", t, err));
+    CHECK(!parsePageLine("b \"B\" within a", t, err));
+    CHECK(!parseRowLine("a value \"x\" \"%g\"", t, err));       // a value row needs its dataref too
+}
+
+TEST(value_formats_show_one_number_safely) {
+    CHECK_EQ(formatPageValue("%.0f kg", 245.6), std::string("246 kg"));
+    CHECK_EQ(formatPageValue("%d", 3.4), std::string("3"));
+    CHECK_EQ(formatPageValue("%5.1f%%", 12.34), std::string(" 12.3%"));
+    CHECK_EQ(formatPageValue("%g", 0.5), std::string("0.5"));
+    CHECK_EQ(formatPageValue("%s", 1), std::string("1"));          // not allowed: the number, plainly
+    CHECK_EQ(formatPageValue("%n", 1), std::string("1"));
+    CHECK_EQ(formatPageValue("%d %d", 7), std::string("7"));       // only one conversion
+    CHECK_EQ(formatPageValue("no number", 7), std::string("no number"));
+}
+
+TEST(user_pages_show_rows_with_a_cursor_and_open_sub_pages) {
+    PageTree t = samplePages();
+    PageNav nav;
+    DatarefReader read = [](const std::string& r, double& v) {
+        if (r == "sim/fuel/left") { v = 245.4; return true; }
+        if (r == "sim/fuel/flow") { v = 12; return true; }
+        return false;                                         // the right tank cannot be read
+    };
+    Lines p = formatUserPage(t, "fuel", nav, read);
+    CHECK_EQ(p.l[0], std::string(">FUEL"));                    // the cursor starts on the first row
+    CHECK_EQ(p.l[1], std::string(" Left     245 kg"));        // the value is right-aligned in 16 columns
+    CHECK_EQ(p.l[2], std::string(" Right        --"));      // unreadable: --
+    pageTreeInput(t, "fuel", nav, Wheel::Down);
+    pageTreeInput(t, "fuel", nav, Wheel::Down);
+    pageTreeInput(t, "fuel", nav, Wheel::Down);                // the Details link is the fourth row
+    p = formatUserPage(t, "fuel", nav, read);
+    CHECK_EQ(p.l[0], std::string(" Left     245 kg"));        // the window scrolled to keep the cursor in view
+    CHECK_EQ(p.l[1], std::string(" Right        --"));
+    CHECK_EQ(p.l[2], std::string(">Details       >"));
+    pageTreeInput(t, "fuel", nav, Wheel::Select);              // opens the sub-page
+    p = formatUserPage(t, "fuel", nav, read);
+    CHECK_EQ(p.l[0], std::string(">< Back"));
+    CHECK_EQ(p.l[1], std::string(" Flow         12"));
+    pageTreeInput(t, "fuel", nav, Wheel::Down);
+    pageTreeInput(t, "fuel", nav, Wheel::Select);              // a value row does nothing
+    CHECK_EQ(nav.stack.size(), (size_t)1);
+    pageTreeInput(t, "fuel", nav, Wheel::Up);
+    pageTreeInput(t, "fuel", nav, Wheel::Select);              // Back
+    CHECK(nav.stack.empty());
+    p = formatUserPage(t, "fuel", nav, read);
+    CHECK_EQ(p.l[2], std::string(">Details       >"));       // back where it was, cursor on the link
+    nav.reset();
+    p = formatUserPage(t, "empty", nav, read);
+    CHECK_EQ(p.l[0], std::string("Nothing here"));            // a page without rows names itself
+    CHECK_EQ(formatUserPage(t, "missing", nav, read).l[0], std::string(""));
+    PageTree loop;
+    std::string err;
+    CHECK(parsePageLine("a \"A\"", loop, err) && parseRowLine("a link \"Again\" a", loop, err));
+    PageNav n2;
+    for (int i = 0; i < 20; ++i) pageTreeInput(loop, "a", n2, Wheel::Select);   // a page linking to itself cannot trap the wheel
+    CHECK(n2.stack.size() <= 8);
+}
+
+TEST(dataref_steps_are_written_and_read_as_text) {
+    Action a;
+    std::string err;
+    CHECK(actionFromText("set:sim/a=1 ; toggle:sim/b ; toggle:sim/c=2,5 ; add:sim/d=-0.5 ; add:sim/e[3]=1,0,10 ; wait:100", a, &err));
+    CHECK_EQ(a.size(), (size_t)6);
+    CHECK(a[0].kind == StepKind::Dataref && a[0].op == DatarefOp::Set && a[0].text == "sim/a" && a[0].value == 1);
+    CHECK(a[1].op == DatarefOp::Toggle && a[1].value == 0 && a[1].value2 == 1);
+    CHECK(a[2].op == DatarefOp::Toggle && a[2].value == 2 && a[2].value2 == 5);
+    CHECK(a[3].op == DatarefOp::Add && a[3].value == -0.5 && a[3].lo == a[3].hi);
+    CHECK(a[4].text == "sim/e[3]" && a[4].lo == 0 && a[4].hi == 10);
+    Action b;
+    CHECK(actionFromText(actionToText(a), b, &err));
+    CHECK(a == b);                                          // survives a round trip
+    CHECK(!actionFromText("set:sim/a", b, &err));           // set needs a value
+    CHECK(!actionFromText("set:sim/a=x", b, &err));
+    CHECK(!actionFromText("add:sim/a=1,2", b, &err));       // add takes 1 or 3 numbers
+    CHECK(!actionFromText("toggle:sim/a=1", b, &err));
+    CHECK(actionFromText("cmd: ; key: ; set:=0 ; toggle: ; add:=1", b, &err));   // blank steps still being filled in
+    CHECK_EQ(b.size(), (size_t)5);
+    Action c;
+    CHECK(actionFromText(actionToText(b), c, &err) && b == c);
+    double out = 0;
+    Step t;
+    t.kind = StepKind::Dataref;
+    t.op = DatarefOp::Toggle;
+    CHECK(datarefStepValue(t, true, 0, out) && out == 1);
+    CHECK(datarefStepValue(t, true, 1, out) && out == 0);
+    CHECK(datarefStepValue(t, false, 0, out) && out == 0);  // unknown: goes to the first value
+    t.op = DatarefOp::Add;
+    t.value = 2;
+    CHECK(!datarefStepValue(t, false, 0, out));             // cannot add to what it cannot read
+    t.lo = 0;
+    t.hi = 5;
+    CHECK(datarefStepValue(t, true, 4, out) && out == 5);
+}
+
+TEST(a_dataref_step_runs_once_on_press_and_inside_macros) {
+    struct DataHost : Rec {
+        std::vector<std::string> sets;
+        void datarefStep(const Step& s) override { sets.push_back(s.text); }
+    } h;
+    Profile p = defaultProfile();
+    Action a;
+    CHECK(actionFromText("set:sim/a=1", a, nullptr));
+    p.edit(10, kLayerAny).press = a;
+    CHECK(actionFromText("cmd:sim/x ; set:sim/b=2", a, nullptr));
+    p.edit(11, kLayerAny).press = a;
+    Engine e(h);
+    e.setProfile(p);
+    e.buttonEvent(10, true, 0);
+    CHECK_EQ(h.sets.size(), (size_t)1);        // once, on press
+    e.buttonEvent(10, false, 0.1);
+    CHECK_EQ(h.sets.size(), (size_t)1);        // nothing on release
+    e.buttonEvent(11, true, 1);
+    e.buttonEvent(11, false, 1.1);
+    CHECK_EQ(h.sets.size(), (size_t)2);
+    CHECK_EQ(h.str(), std::string("once:sim/x "));
+}
+
+TEST(brightness_follows_a_dataref_between_two_points) {
+    BrightnessLink b;
+    CHECK_EQ(followBrightness(b, 99, values({{"dial", 1}})), 99);   // none chosen: the fixed value
+    b.dataref = "dial";
+    b.inLow = 0;
+    b.inHigh = 1;
+    b.outLow = 10;
+    b.outHigh = 110;
+    CHECK_EQ(followBrightness(b, 99, values({{"dial", 0}})), 10);
+    CHECK_EQ(followBrightness(b, 99, values({{"dial", 1}})), 110);
+    CHECK_EQ(followBrightness(b, 99, values({{"dial", 0.5}})), 60);
+    CHECK_EQ(followBrightness(b, 99, values({{"dial", 7}})), 110);   // beyond the range: clamped
+    CHECK_EQ(followBrightness(b, 99, values({{"dial", -3}})), 10);
+    CHECK_EQ(followBrightness(b, 99, values({})), 99);               // unreadable: the fixed value
+    b.inLow = 1;
+    b.inHigh = 0;                                                    // reversed range works too
+    CHECK_EQ(followBrightness(b, 99, values({{"dial", 1}})), 10);
+}
+
+TEST(brightness_links_are_saved_in_the_profile_and_read_back) {
+    Profile p = defaultProfile();
+    p.brightScreen.dataref = "sim/cockpit2/electrical/instrument_brightness_ratio[0]";
+    p.brightScreen.inLow = 0.1;
+    p.brightScreen.inHigh = 0.9;
+    p.brightScreen.outLow = 5;
+    p.brightScreen.outHigh = 100;
+    std::string text = serialize(p);
+    CHECK(text.find("brightness screen 0.1 0.9 5 100 sim/cockpit2/electrical/instrument_brightness_ratio[0]") != std::string::npos);
+    Profile q;
+    std::string err;
+    CHECK(parse(text, q, &err));
+    CHECK(q.brightScreen == p.brightScreen);
+    CHECK(!q.brightLights.active());
+    CHECK(q.mfdBrightness == p.mfdBrightness);                       // the fixed slider is untouched
+    CHECK(!parse("x52pro-profile 3\nbrightness lights a b 1 2 x\n", q, &err));
+}
+
+TEST(master_switches_are_saved_in_the_profile_and_read_back) {
+    Profile p = defaultProfile();
+    p.masterScreen.dataref = "sim/cockpit2/switches/avionics_power_on";
+    p.masterScreen.op = Compare::Equal;
+    p.masterScreen.value = 1;
+    p.masterLights.dataref = "sim/battery";
+    p.masterLights.negate = true;
+    p.masterLights.op = Compare::Less;
+    p.masterLights.value = 1;
+    p.masterLights.join = Join::Or;
+    p.masterLights.second.dataref = "sim/gen";
+    p.masterLights.second.op = Compare::Greater;
+    p.masterLights.second.value = 0;
+    std::string text = serialize(p);
+    CHECK(text.find("master screen == 1 sim/cockpit2/switches/avionics_power_on") != std::string::npos);
+    Profile q;
+    std::string err;
+    CHECK(parse(text, q, &err));
+    CHECK(q.masterScreen == p.masterScreen);
+    CHECK(q.masterLights == p.masterLights);
+    Profile none = defaultProfile();
+    CHECK(serialize(none).find("\nmaster ") == std::string::npos);   // none chosen: no line written
+    CHECK(!parse("x52pro-profile 3\nmaster toes > 1 x\n", q, &err));
+    CHECK(datarefsUsed({}, {}, {p.masterScreen, p.masterLights}).size() == 3);
 }
 
 TEST(an_alarm_that_is_not_triggered_leaves_the_light_to_the_next_one) {
