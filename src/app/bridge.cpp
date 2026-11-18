@@ -14,6 +14,7 @@
 #include <sstream>
 
 #include "../core/catalog.h"
+#include "../core/pageview.h"
 #include "../core/xpjoy.h"
 #include "../mac/xplane.h"
 #include "agent.h"
@@ -61,6 +62,9 @@ bool* flag(Profile& p, const std::string& n) {
     if (n == "clutch_latched") return &p.clutchLatched;
     if (n == "dial_accel") return &p.dial.on;
     if (n == "axis_override") return &p.axes.overrideXPlane;
+    if (n == "slider_flaps") return &p.axes.sliderFlaps;
+    if (n == "throttle_plugin") return &p.axes.pluginThrottle;
+    if (n == "slider_invert") return &p.axes.slider.invert;
     for (int u : {0x30, 0x31, 0x35, 0x32})
         if (n == std::string("axis_") + axisTarget(0x01, u)->name + "_invert") return &axisCurve(p.axes, u).invert;
     return nullptr;
@@ -801,4 +805,384 @@ void x52_text(const char* l0, const char* l1, const char* l2) {
 }
 void x52_clear_text(void) {
     if (agent) agent->clearText();
+}
+
+// ---- the user's own screen pages
+
+namespace {
+const UserPage* pageAt(int i) {
+    return agent && i >= 0 && i < (int)agent->profile().pages.pages.size() ? &agent->profile().pages.pages[i] : nullptr;
+}
+const PageRow* rowAt(int page, int row) {
+    const UserPage* p = pageAt(page);
+    return p && row >= 0 && row < (int)p->rows.size() ? &p->rows[row] : nullptr;
+}
+// Text that fits the file's quoted words: no double quotes or line breaks, not too long.
+std::string pageText(const char* t, size_t max) {
+    std::string s = t ? t : "";
+    for (char& c : s) {
+        if (c == '"') c = '\'';
+        if (c == '\n' || c == '\r' || c == '\t') c = ' ';
+    }
+    if (s.size() > max) s.resize(max);
+    return s;
+}
+std::string noBlanks(const char* t) {
+    std::string s;
+    for (const char* c = t ? t : ""; *c; ++c)
+        if (!isspace((unsigned char)*c) && *c != '"') s += *c;
+    return s;
+}
+// A free page id made from a title: "Fuel & weight" -> "fuel-weight", then "fuel-weight-2", ...
+std::string idFor(const PageTree& t, const std::string& title) {
+    std::string base;
+    for (char c : title) {
+        if (isalnum((unsigned char)c)) base += (char)tolower((unsigned char)c);
+        else if (!base.empty() && base.back() != '-') base += '-';
+    }
+    while (!base.empty() && base.back() == '-') base.pop_back();
+    if (base.size() > 24) base.resize(24);
+    while (!base.empty() && base.back() == '-') base.pop_back();
+    if (base.empty()) base = "page";
+    std::string id = base;
+    for (int n = 2; t.find(id) >= 0; ++n) id = base + "-" + std::to_string(n);
+    return id;
+}
+// True when `id` is `ancestor` or sits (at any depth) inside it.
+bool within(const PageTree& t, std::string id, const std::string& ancestor) {
+    for (int guard = 0; guard <= (int)t.pages.size() && !id.empty(); ++guard) {
+        if (id == ancestor) return true;
+        int i = t.find(id);
+        if (i < 0) return false;
+        id = t.pages[i].parent;
+    }
+    return false;
+}
+// Edits the page with this id in the file as it is now (its number may differ there).
+void editPage(const std::string& id, const std::function<void(PageTree&, UserPage&)>& fn) {
+    if (!agent || id.empty()) return;
+    agent->change([&](Profile& p) {
+        int i = p.pages.find(id);
+        if (i >= 0) fn(p.pages, p.pages.pages[i]);
+    });
+}
+std::string idOf(int page) { const UserPage* p = pageAt(page); return p ? p->id : ""; }
+}  // namespace
+
+int x52_page_count(void) { return agent ? (int)agent->profile().pages.pages.size() : 0; }
+const char* x52_page_id(int i) {
+    static std::string s;
+    s = idOf(i);
+    return s.c_str();
+}
+const char* x52_page_title(int i) {
+    static std::string s;
+    const UserPage* p = pageAt(i);
+    s = p ? p->title : "";
+    return s.c_str();
+}
+const char* x52_page_parent(int i) {
+    static std::string s;
+    const UserPage* p = pageAt(i);
+    s = p ? p->parent : "";
+    return s.c_str();
+}
+
+const char* x52_pages_outline(void) {
+    static std::string s;
+    s.clear();
+    if (!agent) return s.c_str();
+    const PageTree& t = agent->profile().pages;
+    std::vector<bool> shown(t.pages.size(), false);
+    std::function<void(int, int)> walk = [&](int i, int depth) {
+        if (shown[i] || depth > 8) return;
+        shown[i] = true;
+        s += std::to_string(i) + "\t" + std::to_string(depth) + "\n";
+        for (size_t k = 0; k < t.pages.size(); ++k)
+            if (t.pages[k].parent == t.pages[i].id) walk((int)k, depth + 1);
+    };
+    for (int i : t.topLevel()) walk(i, 0);
+    for (size_t i = 0; i < t.pages.size(); ++i)
+        if (!shown[i]) walk((int)i, 0);   // its parent is missing (or a loop in a hand-written file)
+    return s.c_str();
+}
+
+int x52_page_add(const char* title, const char* parent) {
+    if (!agent) return -1;
+    std::string t = pageText(title, 40), par = noBlanks(parent);
+    std::string id;
+    agent->change([&](Profile& p) {
+        UserPage pg;
+        pg.title = t;
+        pg.id = idFor(p.pages, t);
+        pg.parent = p.pages.find(par) >= 0 ? par : "";
+        id = pg.id;
+        p.pages.pages.push_back(pg);
+    });
+    return agent->profile().pages.find(id);
+}
+
+void x52_page_remove(int i) {
+    std::string id = idOf(i);
+    if (id.empty()) return;
+    agent->change([&](Profile& p) {
+        PageTree& t = p.pages;
+        std::vector<std::string> gone;
+        for (const UserPage& pg : t.pages)
+            if (within(t, pg.id, id)) gone.push_back(pg.id);
+        auto isGone = [&](const std::string& x) { return std::find(gone.begin(), gone.end(), x) != gone.end(); };
+        t.pages.erase(std::remove_if(t.pages.begin(), t.pages.end(), [&](const UserPage& pg) { return isGone(pg.id); }),
+                      t.pages.end());
+        for (UserPage& pg : t.pages)
+            for (PageRow& r : pg.rows)
+                if (r.kind == RowKind::Link && isGone(r.target)) r.target.clear();
+        for (std::vector<std::string>* v : {&p.wheelOrder, &p.wheelHidden})
+            v->erase(std::remove_if(v->begin(), v->end(), [&](const std::string& tok) { return tok.size() > 1 && tok[0] == '@' && isGone(tok.substr(1)); }),
+                     v->end());
+    });
+}
+
+void x52_page_move(int i, int dir) {
+    std::string id = idOf(i);
+    if (id.empty() || (dir != -1 && dir != 1)) return;
+    agent->change([&](Profile& p) {
+        std::vector<UserPage>& v = p.pages.pages;
+        int a = p.pages.find(id);
+        if (a < 0) return;
+        for (int b = a + dir; b >= 0 && b < (int)v.size(); b += dir)
+            if (v[b].parent == v[a].parent) {
+                std::swap(v[a], v[b]);
+                return;
+            }
+    });
+}
+
+int x52_page_set(int i, const char* title, const char* parent) {
+    std::string id = idOf(i);
+    if (id.empty()) return 0;
+    std::string t = pageText(title, 40), par = noBlanks(parent);
+    const PageTree& now = agent->profile().pages;
+    if (!par.empty() && (now.find(par) < 0 || within(now, par, id))) return 0;
+    editPage(id, [&](PageTree& tree, UserPage& pg) {
+        pg.title = t;
+        if (par.empty() || (tree.find(par) >= 0 && !within(tree, par, id))) pg.parent = par;
+    });
+    return 1;
+}
+
+int x52_row_count(int i) { const UserPage* p = pageAt(i); return p ? (int)p->rows.size() : 0; }
+int x52_row_kind(int i, int r) { const PageRow* x = rowAt(i, r); return x ? (int)x->kind : 0; }
+const char* x52_row_text(int i, int r) {
+    static std::string s;
+    const PageRow* x = rowAt(i, r);
+    s = x ? x->text : "";
+    return s.c_str();
+}
+const char* x52_row_format(int i, int r) {
+    static std::string s;
+    const PageRow* x = rowAt(i, r);
+    s = x ? x->format : "";
+    return s.c_str();
+}
+const char* x52_row_dataref(int i, int r) {
+    static std::string s;
+    const PageRow* x = rowAt(i, r);
+    s = x ? x->dataref : "";
+    return s.c_str();
+}
+const char* x52_row_target(int i, int r) {
+    static std::string s;
+    const PageRow* x = rowAt(i, r);
+    s = x ? x->target : "";
+    return s.c_str();
+}
+
+int x52_row_add(int i, int kind) {
+    std::string id = idOf(i);
+    if (id.empty() || kind < 0 || kind > 2) return -1;
+    editPage(id, [&](PageTree&, UserPage& pg) {
+        PageRow r;
+        r.kind = (RowKind)kind;
+        pg.rows.push_back(r);
+    });
+    return x52_row_count(agent->profile().pages.find(id)) - 1;
+}
+void x52_row_remove(int i, int r) {
+    editPage(idOf(i), [&](PageTree&, UserPage& pg) {
+        if (r >= 0 && r < (int)pg.rows.size()) pg.rows.erase(pg.rows.begin() + r);
+    });
+}
+void x52_row_move(int i, int r, int dir) {
+    editPage(idOf(i), [&](PageTree&, UserPage& pg) {
+        int j = r + (dir < 0 ? -1 : 1);
+        if (r >= 0 && j >= 0 && r < (int)pg.rows.size() && j < (int)pg.rows.size()) std::swap(pg.rows[r], pg.rows[j]);
+    });
+}
+void x52_row_set(int i, int r, int kind, const char* text, const char* format, const char* dataref, const char* target) {
+    if (kind < 0 || kind > 2) return;
+    std::string t = pageText(text, 40), f = pageText(format, 24), d = noBlanks(dataref), g = noBlanks(target);
+    editPage(idOf(i), [&](PageTree& tree, UserPage& pg) {
+        if (r < 0 || r >= (int)pg.rows.size()) return;
+        PageRow& x = pg.rows[r];
+        x.kind = (RowKind)kind;
+        x.text = t;
+        x.format = f;
+        x.dataref = d;
+        x.target = tree.find(g) >= 0 ? g : "";
+    });
+}
+
+void x52_pages_restore_default(void) {
+    if (agent)
+        agent->change([](Profile& p) {
+            p.pages = PageTree();
+            p.wheelOrder.clear();
+            p.wheelHidden.clear();
+        });
+}
+
+namespace {
+// The stick's three lines for a page, opened the way the wheels would reach it (through its parents).
+Lines previewLines(int i, bool* live) {
+    Lines out;
+    const UserPage* pg = pageAt(i);
+    if (!pg) return out;
+    const PageTree& t = agent->profile().pages;
+    std::vector<std::string> chain{pg->id};
+    for (int guard = 0; guard < 8; ++guard) {
+        int k = t.find(chain.back());
+        if (k < 0 || t.pages[k].parent.empty() || t.find(t.pages[k].parent) < 0) break;
+        chain.push_back(t.pages[k].parent);
+    }
+    PageNav nav;
+    for (size_t k = chain.size() - 1; k-- > 0;) {   // every page below the top one, outermost first
+        nav.stack.push_back(chain[k]);
+        nav.cursors.push_back(0);
+    }
+    bool anyLive = false;
+    out = formatUserPage(t, chain.back(), nav, [&](const std::string& ref, double& v) {
+        if (agent->peek(ref, v)) {
+            anyLive = true;
+            return true;
+        }
+        v = 1234.5;
+        return true;
+    });
+    if (live) *live = anyLive;
+    return out;
+}
+}  // namespace
+
+const char* x52_page_preview(int i, int line) {
+    static std::string s;
+    s = line >= 0 && line < kMfdLines ? previewLines(i, nullptr).l[line] : "";
+    return s.c_str();
+}
+int x52_page_preview_live(int i) {
+    bool live = false;
+    previewLines(i, &live);
+    return live ? 1 : 0;
+}
+void x52_pages_watch(int on) {
+    if (agent) agent->watchPages(on != 0);
+}
+const char* x52_pages_source(void) {
+    static std::string s;
+    s = agent ? serializePages(agent->profile().pages) : "";
+    return s.c_str();
+}
+const char* x52_format_example(const char* format, double value) {
+    static std::string s;
+    s = formatPageValue(format ? format : "", value);
+    return s.c_str();
+}
+
+// ---- the left wheel's order
+
+const char* x52_wheel_entries(void) {
+    static std::string s;
+    s.clear();
+    if (!agent) return s.c_str();
+    const Profile& p = agent->profile();
+    for (const WheelEntry& e : wheelEntries(p)) {
+        bool builtin = e.page < kPageCount;
+        std::string title = builtin ? pageName(e.page) : "";
+        if (!builtin) {
+            int i = p.pages.find(e.token.substr(1));
+            title = i >= 0 ? p.pages.pages[i].title : e.token;
+        }
+        s += e.token + "\t" + title + "\t" + (e.hidden ? "1" : "0") + "\t" + (builtin ? "1" : "0") + "\n";
+    }
+    return s.c_str();
+}
+
+void x52_wheel_move(const char* token, int dir) {
+    std::string tok = token ? token : "";
+    if (!agent || tok.empty() || (dir != -1 && dir != 1)) return;
+    agent->change([&](Profile& p) {
+        std::vector<std::string> order;
+        for (const WheelEntry& e : wheelEntries(p)) order.push_back(e.token);
+        auto it = std::find(order.begin(), order.end(), tok);
+        if (it == order.end()) return;
+        int a = (int)(it - order.begin()), b = a + dir;
+        if (b < 0 || b >= (int)order.size()) return;
+        std::swap(order[a], order[b]);
+        p.wheelOrder = order;
+    });
+}
+
+void x52_wheel_hide(const char* token, int hidden) {
+    std::string tok = token ? token : "";
+    if (!agent || tok.empty()) return;
+    agent->change([&](Profile& p) {
+        std::vector<std::string>& h = p.wheelHidden;
+        h.erase(std::remove(h.begin(), h.end(), tok), h.end());
+        if (hidden) h.push_back(tok);
+    });
+}
+
+const char* x52_builtin_preview(const char* token, int line) {
+    static std::string s;
+    s.clear();
+    std::string tok = token ? token : "";
+    int page = -1;
+    for (int b = 0; b < kPageCount; ++b)
+        if (tok == builtinPageKey(b)) page = b;
+    if (!agent || page < 0 || line < 0 || line >= kMfdLines) return s.c_str();
+    const Profile& p = agent->profile();
+    Lines l;
+    if (page == PageButtons) l = formatButtonsPage(p.name, "", 1, false);
+    else if (page == PageBrightness)
+        l = formatBrightnessPage(p.mfdBrightness, p.ledBrightness, p.brightScreen.active(), p.brightLights.active(), PageCursor());
+    else l = formatSimPage(page, SimData(), PageCursor());
+    s = l.l[line];
+    return s.c_str();
+}
+
+// ---- ready-made (standard) profiles: changes go to a copy
+
+int x52_standard(void) { return agent && agent->standard() ? 1 : 0; }
+int x52_profile_standard(const char* key) {
+    if (!agent || !key) return 0;
+    Store s;
+    s.dir = agent->dir();
+    return s.isStandard(key) ? 1 : 0;
+}
+int x52_copy_needed(void) { return agent && agent->copyNeeded() ? 1 : 0; }
+void x52_copy_ask(void) {
+    if (agent) agent->askCopy();
+}
+const char* x52_copy_suggest(void) {
+    static std::string s;
+    s = agent ? agent->suggestCopyName() : "";
+    return s.c_str();
+}
+const char* x52_copy_save(const char* name) {
+    static std::string s;
+    s.clear();
+    if (agent && !agent->saveCopy(name ? name : "", &s) && s.empty()) s = "Could not save the new profile.";
+    return s.c_str();
+}
+void x52_copy_cancel(void) {
+    if (agent) agent->cancelCopy();
 }

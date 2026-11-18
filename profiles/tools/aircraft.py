@@ -126,9 +126,12 @@ def layout(f):
         any_[A] = ("Tow release", S("flight_controls/glider_tow_release"))
     else:
         any_[A] = ("Landing light", S("lights/landing_lights_toggle"))
-    if f["flaps"]:
-        any_[B] = ("Flaps up", S("flight_controls/flaps_up"))
-        any_[C] = ("Flaps down", S("flight_controls/flaps_down"))
+    # The flaps are on the slider (slider_flaps). B and C: autopilot aircraft get them per mode (below).
+    if f["ap"]:
+        pass
+    elif k == "fighter":
+        any_[B] = ("Speedbrake in", S("flight_controls/speed_brakes_up_one"))
+        any_[C] = ("Speedbrake out", S("flight_controls/speed_brakes_down_one"))
     elif k == "glider":
         any_[B] = ("Airbrakes in", S("flight_controls/speed_brakes_up_one"))
         any_[C] = ("Airbrakes out", S("flight_controls/speed_brakes_down_one"))
@@ -138,6 +141,16 @@ def layout(f):
     elif k == "heli":
         any_[B] = ("Searchlight", S("lights/spot_lights_toggle"))
         any_[C] = ("Taxi light", S("lights/taxi_lights_toggle"))
+    elif k in ("piston", "ultralight"):
+        any_[B] = ("Magnetos both", S("magnetos/magnetos_both_1"))
+        any_[C] = ("Starter (hold)", S("starters/engage_starter_1"))
+    if f["ap"]:
+        L[1][B] = ("AP on", S("autopilot/servos_on"))
+        L[1][C] = ("AP off", S("autopilot/servos_off_any"))
+        L[2][B] = ("AP approach", S("autopilot/approach"))
+        L[2][C] = ("TOGA", S("autopilot/take_off_go_around")) if f["at"] else ("AP off", S("autopilot/servos_off_any"))
+        L[3][B] = ("AP ALT hold", S("autopilot/altitude_hold"))
+        L[3][C] = ("AP VS", S("autopilot/vertical_speed"))
     if k != "ultralight":
         if k == "heli":
             any_[SHAT_U] = ("Cyclic trim fwd", S("flight_controls/pitch_trim_down"))
@@ -355,18 +368,32 @@ def rules(f):
     if f["kind"] == "fighter":
         r.append(("fire", "fire > 0.5 green off sim/cockpit2/weapons/master_arm", "Fire: lit while master arm is on"))
     else:
-        r.append(("fire", "fire > 0.5 green off sim/cockpit2/controls/parking_brake_ratio", "Fire: lit while the parking brake is set"))
+        r.append(("fire", "fire > 0.5 green off sim/flightmodel/controls/parkbrake", "Fire: lit while the parking brake is set"))
     if f["gear"]:
         r.append(("a", "a > 0.99 green off sim/flightmodel2/gear/deploy_ratio[0]", "A: green when the gear is down and locked, off when up"))
     elif f["kind"] != "glider":
         r.append(("a", "a > 0.5 green mode sim/cockpit2/switches/landing_lights_on", "A: green while the landing light is on"))
     if f["flaps"]:
-        r.append(("b", "b > 0.01 amber green sim/cockpit2/controls/flap_ratio", "B: amber while flaps are out, green when up"))
+        r.append(("b", "b > 0.01 amber green sim/cockpit2/controls/flap_handle_deploy_ratio", "B: amber while flaps are out, green when up"))
     elif f["kind"] == "glider":
         r.append(("b", "b > 0.01 amber green sim/cockpit2/controls/speedbrake_ratio", "B: amber while airbrakes are out"))
-    if f["ap"]:
-        r.append(("throttle", "throttle > 0 green off sim/cockpit2/autopilot/servos_on", "Throttle: lit while the autopilot is on"))
+    # The throttle light has no rule: it shows its mode colour (green) in every profile.
     return r
+
+
+def axes(f):
+    """Flight axes stay with X-Plane (its own Joystick settings drive the throttle, levers and autothrottle); the
+    plugin's override can still be switched on per profile in the app. The slider on the throttle sets the flaps,
+    at the aircraft's detents, in every aircraft that has flaps (slider pushed away = flaps deployed)."""
+    # X-Plane's own axis assignment did not reach the controls (seen live in the Citation X: the stick and the
+    # throttle moved in X-Plane's joystick values, the yoke and throttle stayed at 0), so the plugin drives the
+    # stick and twist everywhere, and the throttle in every aircraft but the helicopters (their lever is the collective).
+    return ["axis_override = 1", "throttle_plugin = %d" % (0 if f["kind"] == "heli" else 1),
+            "axis_roll = 5 0 0", "axis_pitch = 5 0 0", "axis_yaw = 5 0 0", "axis_throttle = 5 0 1",
+            "slider_flaps = %d" % (1 if f["flaps"] else 0),
+            # Invert flaps off: the X52 slider pushed away from you deploys the flaps, towards you retracts them
+            # (confirmed by the user in the Citation X cockpit).
+            "slider_invert = 0"]
 
 
 def alarms(f):

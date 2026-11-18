@@ -34,7 +34,17 @@ public:
     // Changes settings in the profile file: reads the file as it is now, applies `edit`,
     // writes it back. Button assignments made in X-Plane are therefore never lost. An
     // unreadable file is left alone (false, see error()).
+    // On a ready-made (standard) profile nothing is saved: the edit waits (copyNeeded()) until saveCopy() puts it,
+    // and any after it, into a new profile, or cancelCopy() drops them.
     bool change(const std::function<void(Profile&)>& edit);
+    bool copyNeeded() const { return copyAsked_; }
+    void askCopy() { copyAsked_ = true; ++revision_; }        // "Save as new profile" without a change waiting
+    // A new profile `name` made from this one with the waiting edits applied, switched to. False (see error) when the
+    // name is taken or empty. A copy of a standard profile stands in for it from then on (see Store::notePicked).
+    bool saveCopy(const std::string& name, std::string* error);
+    void cancelCopy();
+    bool standard() const { return profile_.standard; }
+    std::string suggestCopyName() const;
     void select(const std::string& key);
     // Writes a new profile file and switches to it. Never replaces a profile that exists (false, see error).
     bool createProfile(const std::string& key, const Profile& p, std::string* error);
@@ -69,6 +79,10 @@ public:
     // One line on what a live rule's dataref is doing, for the settings window.
     std::string liveStatus(const std::string& dataref);
     void updateLive(double t);                      // subscribe to / read what the live lights need
+    // While the pages editor is open, also ask X-Plane for the datarefs of the user pages' value rows, so the
+    // preview shows live numbers. peek: the latest value X-Plane sent for a dataref, false when none.
+    void watchPages(bool on) { watchPages_ = on; }
+    bool peek(const std::string& dataref, double& out) const;
     void setSimPort(int port);                      // tests: talk to a made-up X-Plane
 
     // Shows alarm `index` on its light for a few seconds whatever the simulator says, so its
@@ -131,6 +145,9 @@ private:
     double tryMasterUntil_ = 0;
     int tryIndex_ = -1;
     double tryUntil_ = 0;
+    bool watchPages_ = false;
+    std::vector<std::function<void(Profile&)>> pending_;   // edits to a standard profile, waiting for a name
+    bool copyAsked_ = false;
     bool haveText_ = false;
     Lines text_;
     Lines screen_;

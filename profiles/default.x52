@@ -1,6 +1,8 @@
 x52pro-profile 3
 # X52 Pro button profile. Written by the X52 Pro plugin; safe to edit by hand.
 name = default
+# standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)
+standard = 1
 pinkie_shift = 1
 shift_button = 6
 mode_buttons = 28 29 30

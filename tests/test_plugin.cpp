@@ -366,6 +366,7 @@ TEST(with_the_override_on_the_plugin_writes_shaped_axes_and_hands_them_back_when
     for (const char* n : {roll, pitch, "sim/joystick/yoke_heading_ratio", ovr, thr, ovrThr}) d[n] = 0.0;
     gApp->profile.axes = AxisSettings();
     gApp->profile.axes.overrideXPlane = true;
+    gApp->profile.axes.pluginThrottle = true;
     gApp->profile.axes.roll.deadzone = 10;
     gApp->profile.axes.pitch.invert = true;
     gApp->profile.axes.pitch.deadzone = 0;
@@ -385,12 +386,88 @@ TEST(with_the_override_on_the_plugin_writes_shaped_axes_and_hands_them_back_when
     CHECK_EQ((int)d[ovrThr], 1);
 
     gApp->profile.axes.overrideXPlane = false;
+    gApp->profile.axes.pluginThrottle = false;
     sim().frame();
     CHECK_EQ((int)d[ovr], 0);
     CHECK_EQ((int)d[ovrThr], 0);
     d[roll] = 0.25;   // X-Plane's own reading is left alone again
     sim().frame();
     CHECK(nearTo(d[roll], 0.25));
+}
+
+TEST(the_throttle_moves_the_cockpit_levers_too_and_the_slider_sets_the_flaps_at_their_detents) {
+    auto& d = sim().datarefs;
+    const char* handle = "sim/cockpit2/engine/actuators/throttle_ratio";
+    const char* flaps = "sim/cockpit2/controls/flap_handle_request_ratio";
+    const char* detents = "sim/aircraft/controls/acf_flap_detents";
+    for (const char* n : {"sim/flightmodel/engine/ENGN_thro_use", handle, "sim/operation/override/override_throttles", flaps})
+        d[n] = 0.0;
+    d[detents] = 4;
+    gApp->flapWritten = -1;
+    gApp->profile.axes = AxisSettings();
+    gApp->profile.axes.pluginThrottle = true;
+    gApp->profile.axes.throttle.invert = true;                // the X52 lever reads 0 at full power
+    gApp->profile.axes.throttle.deadzone = 0;
+    gApp->input.pushAxis({0x01, 0x32, 200, 0, 255});
+    sim().frame();
+    gApp->input.pushAxis({0x01, 0x32, 0, 0, 255});           // full forward
+    sim().frame();
+    CHECK(nearTo(d["sim/flightmodel/engine/ENGN_thro_use"], 1.0));
+    CHECK(nearTo(d[handle], 1.0));                            // the levers in the cockpit follow
+
+    gApp->profile.axes.sliderFlaps = true;
+    gApp->input.pushAxis({0x01, 0x36, 0, 0, 255});            // where the slider rests (towards you): nothing yet
+    sim().frame();
+    CHECK(nearTo(d[flaps], 0.0));
+    gApp->input.pushAxis({0x01, 0x36, 140, 0, 255});          // a bit past half way: the nearest of 4 stops
+    sim().frame();
+    CHECK(nearTo(d[flaps], 0.5));
+    d[flaps] = 0.25;                                          // a flap button in between is left alone...
+    sim().frame();
+    CHECK(nearTo(d[flaps], 0.25));
+    gApp->input.pushAxis({0x01, 0x36, 255, 0, 255});          // ...until the slider reaches another stop: fully away
+    sim().frame();
+    CHECK(nearTo(d[flaps], 1.0));
+    gApp->input.pushAxis({0x01, 0x36, 5, 0, 255});            // back towards you: flaps up
+    sim().frame();
+    CHECK(nearTo(d[flaps], 0.0));
+    gApp->profile.axes.slider.invert = true;                  // Invert flaps: towards you is deployed
+    gApp->input.pushAxis({0x01, 0x36, 0, 0, 255});
+    sim().frame();
+    CHECK(nearTo(d[flaps], 1.0));
+    gApp->profile.axes = AxisSettings();
+    sim().frame();
+}
+
+TEST(the_plugin_can_drive_the_throttle_alone_and_leave_the_stick_to_x_plane) {
+    auto& d = sim().datarefs;
+    const char* thr = "sim/flightmodel/engine/ENGN_thro_use";
+    const char* handle = "sim/cockpit2/engine/actuators/throttle_ratio";
+    const char* roll = "sim/joystick/yoke_roll_ratio";
+    for (const char* n : {thr, handle, roll, "sim/operation/override/override_throttles", "sim/operation/override/override_joystick"}) d[n] = 0.0;
+    gApp->releaseAxes();
+    gApp->profile.axes = AxisSettings();
+    gApp->profile.axes.pluginThrottle = true;
+    gApp->profile.axes.throttle.invert = true;
+    gApp->profile.axes.throttle.deadzone = 5;
+    gApp->input.pushAxis({0x01, 0x32, 255, 0, 255});          // lever back: idle
+    gApp->input.pushAxis({0x01, 0x30, 1023, 0, 1023});
+    sim().frame();
+    gApp->input.pushAxis({0x01, 0x32, 0, 0, 255});            // full forward
+    gApp->input.pushAxis({0x01, 0x30, 900, 0, 1023});
+    d[roll] = 0.3;                                            // X-Plane's own stick reading
+    sim().frame();
+    CHECK(nearTo(d[thr], 1.0));
+    CHECK(nearTo(d[handle], 1.0));
+    CHECK_EQ((int)d["sim/operation/override/override_throttles"], 1);
+    CHECK_EQ((int)d["sim/operation/override/override_joystick"], 0);   // the stick stays X-Plane's
+    CHECK(nearTo(d[roll], 0.3));
+    gApp->input.pushAxis({0x01, 0x32, 128, 0, 255});          // half way
+    sim().frame();
+    CHECK(d[thr] > 0.4 && d[thr] < 0.6);
+    gApp->profile.axes = AxisSettings();
+    sim().frame();
+    CHECK_EQ((int)d["sim/operation/override/override_throttles"], 0);   // handed back
 }
 
 TEST(the_window_can_tell_which_axis_is_moving) {
@@ -506,7 +583,7 @@ TEST(live_lights_tab_adds_opens_edits_and_removes_rules) {
     CHECK_EQ(gApp->profile.rules.size(), (size_t)1);
     CHECK(sim().sees("Fire button"));                   // the new rule takes the first free light
     CHECK(sim().clickText("Parking brake: red on, green off", 0, true));   // it opened when added
-    CHECK(has(slurp(defaultFile()), "rule fire > 0.5 red green sim/cockpit2/controls/parking_brake_ratio"));
+    CHECK(has(slurp(defaultFile()), "rule fire > 0.5 red green sim/flightmodel/controls/parkbrake"));
     CHECK(sim().clickText(">", 0, true));               // the comparison button opens a list
     CHECK(sim().sees("!="));
     CHECK(sim().clickText(">=", 0, true));
@@ -514,12 +591,12 @@ TEST(live_lights_tab_adds_opens_edits_and_removes_rules) {
     CHECK(!sim().sees("!="));                           // and it closed again
     CHECK(sim().clickText("Add rule", 0, true));        // a second rule, the first stays
     CHECK_EQ(gApp->profile.rules.size(), (size_t)2);
-    CHECK(has(slurp(defaultFile()), "rule fire >= 0.5 red green sim/cockpit2/controls/parking_brake_ratio"));
+    CHECK(has(slurp(defaultFile()), "rule fire >= 0.5 red green sim/flightmodel/controls/parkbrake"));
     CHECK(has(slurp(defaultFile()), "rule a > 0.5 red green -"));   // the second rule took the next free light
     CHECK(sim().clickText("[  ]", 0, true));            // tick the first rule
     CHECK(sim().clickText("Remove selected", 0, true));
     CHECK_EQ(gApp->profile.rules.size(), (size_t)1);
-    CHECK(!has(slurp(defaultFile()), "parking_brake_ratio"));
+    CHECK(!has(slurp(defaultFile()), "controls/parkbrake"));
     CHECK(sim().clickText("Select all", 0, true));
     CHECK(sim().clickText("Remove selected", 0, true));
     CHECK(gApp->profile.rules.empty());
@@ -540,7 +617,7 @@ TEST(pinkie_held_has_its_own_light_colours) {
 }
 
 TEST(live_light_follows_a_dataref_and_falls_back_to_the_mode_colour) {
-    const std::string brake = "sim/cockpit2/controls/parking_brake_ratio";
+    const std::string brake = "sim/flightmodel/controls/parkbrake";
     gApp->profile.rules.clear();
     LightRule brakeRule = rulePreset(0).rule;
     brakeRule.led = LedE;
@@ -824,6 +901,76 @@ TEST(user_pages_join_the_left_wheel_before_the_buttons_page_and_the_right_wheel_
     gApp->nextDeviceUpdate = 0;
     sim().frame();
     CHECK_EQ(gApp->page, (int)PageComNav1);
+}
+
+TEST(the_left_wheel_follows_the_profiles_order_and_skips_hidden_pages) {
+    PageTree t;
+    std::string err;
+    CHECK(parsePageLine("r \"Radio\"", t, err) && parseRowLine("r text \"MINE\"", t, err));
+    gApp->profile.pages = t;
+    gApp->profile.wheelOrder = {"@r", "com1"};
+    gApp->profile.wheelHidden = {"adf", "dme", "xpdr", "ap", "vorhdg"};
+    gApp->setPage(PageAdf);                                   // a hidden page is left at once
+    gApp->nextDeviceUpdate = 0;
+    sim().frame();
+    CHECK_EQ(gApp->page, (int)kPageCount);
+    CHECK_EQ(gApp->screen.l[0], std::string(">MINE"));
+    gApp->stepPage(1);
+    CHECK_EQ(gApp->page, (int)PageComNav1);
+    gApp->stepPage(1);
+    CHECK_EQ(gApp->page, (int)PageComNav2);                   // not named: after the named ones
+    gApp->stepPage(1);
+    CHECK_EQ(gApp->page, (int)PageButtons);
+    gApp->stepPage(1);
+    CHECK_EQ(gApp->page, (int)PageBrightness);
+    gApp->stepPage(1);
+    CHECK_EQ(gApp->page, (int)kPageCount);                    // and round again
+    gApp->profile.wheelOrder.clear();
+    gApp->profile.wheelHidden.clear();
+    gApp->profile.pages = PageTree();
+}
+
+TEST(a_ready_made_profile_is_never_written_and_my_copy_takes_its_place) {
+    std::string dir = sim().root + "/Output/preferences/X52Pro";
+    std::string file = dir + "/aircraft-Baron_58.x52";
+    {
+        Profile p = defaultProfile();
+        p.name = "Baron_58";
+        p.standard = true;
+        std::ofstream f(file);
+        f << serialize(p);
+    }
+    std::string before = slurp(file);
+    gApp->loadForAircraft("Baron_58");
+    CHECK(gApp->profile.standard);
+    gApp->profile.mfdBrightness = 40;                         // e.g. the Brightness page on the stick
+    gApp->profileChanged();
+    CHECK_EQ(slurp(file), before);                            // works now, never saved
+    CHECK(has(gApp->notice, "this flight only"));
+    std::string err;
+    CHECK(!gApp->store.save("aircraft-Baron_58", gApp->profile, &err));   // the store refuses too
+
+    std::string copy = gApp->saveCopy();                      // keep it: a copy, used from now on
+    CHECK_EQ(copy, std::string("Baron_58 mine"));
+    CHECK_EQ(gApp->profileKey(), copy);
+    CHECK(!gApp->profile.standard);
+    CHECK_EQ(gApp->profile.mfdBrightness, 40);
+    CHECK_EQ(gApp->profile.basedOn, std::string("aircraft-Baron_58"));
+    CHECK(has(slurp(dir + "/profile-choices.txt"), "aircraft-Baron_58\tBaron_58 mine\n"));
+    gApp->loadForAircraft("Cessna_172SP");
+    gApp->loadForAircraft("Baron_58");                        // next flight: still my copy
+    CHECK_EQ(gApp->profileKey(), copy);
+    gApp->chooseProfile("aircraft-Baron_58");                 // picking the ready-made one goes back to it
+    gApp->chooseProfile("");
+    CHECK_EQ(gApp->profileKey(), std::string("aircraft-Baron_58"));
+    gApp->chooseProfile(copy);                                // and my copy again
+    gApp->chooseProfile("");
+    CHECK_EQ(gApp->profileKey(), copy);
+    gApp->dropAircraftProfile();                              // deleting my copy: the ready-made one is back
+    CHECK_EQ(gApp->profileKey(), std::string("aircraft-Baron_58"));
+    gApp->dropAircraftProfile();                              // the ready-made one itself is never deleted
+    CHECK_EQ(slurp(file), before);
+    gApp->loadForAircraft("Cessna_172SP");
 }
 
 TEST(plugin_shuts_down_cleanly) {

@@ -413,3 +413,159 @@ TEST(the_pov_1_hat_switch_is_listed_as_held_while_it_is_pushed) {
     CHECK(ag.held().find("POV 1 (hat switch): down-right") != std::string::npos);
     ag.stop();
 }
+
+TEST(user_pages_are_edited_from_the_app_and_saved) {
+    std::string xp = freshDir("pages_xp");
+    mkdir((xp + "/Output").c_str(), 0755);
+    mkdir((xp + "/Output/preferences").c_str(), 0755);
+    x52_start(xp.c_str(), "", "default");
+    x52_pages_restore_default();
+    CHECK_EQ(x52_page_count(), 0);
+
+    int fuel = x52_page_add("Fuel & weight", "");
+    CHECK_EQ(fuel, 0);
+    CHECK_EQ(std::string(x52_page_id(fuel)), std::string("fuel-weight"));
+    int fuel2 = x52_page_add("Fuel & \"weight\"", "");                    // same id once more: made unique
+    CHECK_EQ(std::string(x52_page_id(fuel2)), std::string("fuel-weight-2"));
+    CHECK_EQ(std::string(x52_page_title(fuel2)), std::string("Fuel & 'weight'"));
+    CHECK_EQ(std::string(x52_page_id(x52_page_add("", ""))), std::string("page"));
+    int tanks = x52_page_add("Tanks", "fuel-weight");                       // a sub-page
+    CHECK_EQ(std::string(x52_page_parent(tanks)), std::string("fuel-weight"));
+    int left = x52_page_add("Left tank", "tanks");                          // a sub-page of the sub-page
+    CHECK_EQ(std::string(x52_pages_outline()), std::string("0\t0\n3\t1\n4\t2\n1\t0\n2\t0\n"));
+
+    // A page cannot go inside itself or one of its own sub-pages, nor inside a page that does not exist.
+    CHECK_EQ(x52_page_set(fuel, "Fuel", "left-tank"), 0);
+    CHECK_EQ(x52_page_set(fuel, "Fuel", "nowhere"), 0);
+    CHECK_EQ(std::string(x52_page_title(fuel)), std::string("Fuel & weight"));
+    CHECK_EQ(x52_page_set(fuel, "Fuel", ""), 1);
+    CHECK_EQ(std::string(x52_page_title(fuel)), std::string("Fuel"));
+    CHECK_EQ(std::string(x52_page_id(fuel)), std::string("fuel-weight"));  // the id stays: links keep working
+
+    // Rows: blank ones, still being filled in, survive the save and reload of every change.
+    CHECK_EQ(x52_row_add(fuel, 1), 0);
+    CHECK_EQ(x52_row_add(fuel, 2), 1);
+    CHECK_EQ(x52_row_add(fuel, 0), 2);
+    CHECK_EQ(x52_row_count(fuel), 3);
+    CHECK_EQ(x52_row_kind(fuel, 1), 2);
+    x52_row_set(fuel, 0, 1, "Fuel", "%.0f kg", " sim/flightmodel/weight/m_fuel_total ", "");
+    CHECK_EQ(std::string(x52_row_dataref(fuel, 0)), std::string("sim/flightmodel/weight/m_fuel_total"));
+    x52_row_set(fuel, 1, 2, "Tanks", "", "", "tanks");
+    x52_row_set(fuel, 2, 2, "Nowhere", "", "", "no-such-page");             // a link only to a page that exists
+    CHECK_EQ(std::string(x52_row_target(fuel, 2)), std::string(""));
+    x52_row_set(fuel, 2, 0, "Hello", "", "", "");
+    x52_row_move(fuel, 2, -1);
+    CHECK_EQ(std::string(x52_row_text(fuel, 1)), std::string("Hello"));
+    CHECK_EQ(std::string(x52_row_target(fuel, 2)), std::string("tanks"));
+    x52_row_add(left, 1);                                                   // a blank value row on the sub-sub-page
+
+    // The preview is what the stick shows; without X-Plane a made-up number stands in.
+    CHECK_EQ(std::string(x52_page_preview(fuel, 0)), std::string(">Fuel    1234 kg"));
+    CHECK_EQ(std::string(x52_page_preview(fuel, 2)), std::string(" Tanks         >"));
+    CHECK_EQ(x52_page_preview_live(fuel), 0);
+    CHECK_EQ(std::string(x52_page_preview(tanks, 0)), std::string(">< Back"));   // opened through its parent
+    CHECK_EQ(std::string(x52_format_example("%.1f kts", 12.34)), std::string("12.3 kts"));
+
+    // Moving: top-level pages pass each other, skipping sub-pages.
+    x52_page_move(fuel2, -1);
+    CHECK_EQ(std::string(x52_page_id(0)), std::string("fuel-weight-2"));
+    CHECK_EQ(std::string(x52_page_id(1)), std::string("fuel-weight"));
+
+    // What is saved reads back as the same tree.
+    std::string file = slurp(xp + "/Output/preferences/X52Pro/default.x52");
+    CHECK(has(file, "page tanks \"Tanks\" in fuel-weight\n"));
+    CHECK(has(file, "row fuel-weight value \"Fuel\" \"%.0f kg\" sim/flightmodel/weight/m_fuel_total\n"));
+    CHECK(has(file, "row left-tank value \"\" \"%g\" -\n"));
+    Profile back;
+    std::string err;
+    CHECK(parse(file, back, &err));
+    CHECK_EQ(back.pages.pages.size(), (size_t)5);
+    CHECK_EQ(serializePages(back.pages), std::string(x52_pages_source()));
+
+    // Removing a page takes its sub-pages with it and clears the links that opened them.
+    x52_page_remove(x52_page_count() > 0 ? 3 : -1);                       // "tanks" (and "left-tank" inside it)
+    CHECK_EQ(x52_page_count(), 3);
+    CHECK_EQ(std::string(x52_row_target(1, 2)), std::string(""));
+    CHECK_EQ(x52_row_kind(1, 2), 2);                                        // the row stays, pointing nowhere
+    CHECK(!has(slurp(xp + "/Output/preferences/X52Pro/default.x52"), "tanks"));
+
+    x52_pages_restore_default();
+    CHECK_EQ(x52_page_count(), 0);
+    CHECK(!has(slurp(xp + "/Output/preferences/X52Pro/default.x52"), "\npage "));
+    x52_stop();
+}
+
+TEST(the_left_wheels_order_is_edited_from_the_app_and_saved) {
+    std::string xp = freshDir("wheel_xp");
+    mkdir((xp + "/Output").c_str(), 0755);
+    mkdir((xp + "/Output/preferences").c_str(), 0755);
+    x52_start(xp.c_str(), "", "default");
+    x52_pages_restore_default();
+    std::string file = xp + "/Output/preferences/X52Pro/default.x52";
+    int r = x52_page_add("Radio", "");
+    std::string entries = x52_wheel_entries();
+    CHECK(entries.compare(0, 20, "com1\tCOM1 / NAV1\t0\t1") == 0);
+    CHECK(has(entries, "@radio\tRadio\t0\t0\n"));
+    CHECK(!has(slurp(file), "wheel_"));                       // the usual order is not written down
+    x52_wheel_move("@radio", -1);                             // before VOR / HDG
+    x52_wheel_hide("adf", 1);
+    CHECK(has(x52_wheel_entries(), "adf\tADF\t1\t1\n"));
+    CHECK(has(x52_wheel_entries(), "@radio\tRadio\t0\t0\nvorhdg\t"));
+    CHECK(has(slurp(file), "wheel_hidden = adf\n"));
+    CHECK(has(slurp(file), "wheel_order = com1 com2 adf dme xpdr ap @radio vorhdg buttons brightness\n"));
+    x52_wheel_hide("adf", 0);
+    CHECK(!has(slurp(file), "wheel_hidden"));
+    CHECK(std::string(x52_builtin_preview("com1", 0)).size() > 0);
+    CHECK_EQ(std::string(x52_builtin_preview("nonsense", 0)), std::string(""));
+    x52_page_remove(r);                                       // its place in the order goes with it
+    CHECK(!has(slurp(file), "@radio"));
+    x52_wheel_hide("dme", 1);
+    x52_pages_restore_default();                              // everything back: order and hidden pages too
+    CHECK(!has(slurp(file), "wheel_"));
+    x52_stop();
+}
+
+TEST(a_change_to_a_ready_made_profile_is_saved_as_a_new_profile) {
+    std::string dir = freshDir("standard");
+    {
+        Profile p = defaultProfile();
+        p.name = "Cirrus SR22";
+        p.standard = true;
+        Store s;
+        s.dir = dir;
+        std::ofstream f(dir + "/aircraft-Cirrus SR22.x52");
+        f << serialize(p);
+    }
+    std::string before = slurp(dir + "/aircraft-Cirrus SR22.x52");
+    Agent a;
+    a.open(dir, "aircraft-Cirrus SR22");
+    CHECK(a.standard());
+    CHECK(!a.change([](Profile& p) { p.mfdBrightness = 50; }));   // waits for a name
+    CHECK(!a.change([](Profile& p) { p.ledBrightness = 60; }));
+    CHECK(a.copyNeeded());
+    CHECK_EQ(slurp(dir + "/aircraft-Cirrus SR22.x52"), before);
+    CHECK_EQ(a.suggestCopyName(), std::string("Cirrus SR22 mine"));
+    std::string err;
+    CHECK(!a.saveCopy("  ", &err));
+    CHECK(has(err, "Type a name"));
+    CHECK(!a.saveCopy("aircraft-Cirrus SR22", &err));          // taken
+    CHECK(!a.saveCopy("Mine/bad", &err));                      // not a file name
+    CHECK(a.saveCopy("My SR22", &err));
+    CHECK_EQ(a.key(), std::string("My SR22"));
+    CHECK(!a.copyNeeded());
+    CHECK(!a.standard());
+    CHECK_EQ(a.profile().mfdBrightness, 50);                   // both waiting changes are in the copy
+    CHECK_EQ(a.profile().ledBrightness, 60);
+    CHECK_EQ(a.profile().name, std::string("My SR22"));
+    CHECK(has(slurp(dir + "/My SR22.x52"), "based_on = aircraft-Cirrus SR22\n"));
+    CHECK(!has(slurp(dir + "/My SR22.x52"), "standard"));
+    CHECK(has(slurp(dir + "/profile-choices.txt"), "aircraft-Cirrus SR22\tMy SR22\n"));   // X-Plane uses it now
+    CHECK(a.change([](Profile& p) { p.mfdBrightness = 70; }));  // my own profile saves as usual
+    CHECK_EQ(slurp(dir + "/aircraft-Cirrus SR22.x52"), before);
+    a.select("aircraft-Cirrus SR22");                          // back to the ready-made one
+    CHECK(!has(slurp(dir + "/profile-choices.txt"), "My SR22"));
+    CHECK(!a.change([](Profile& p) { p.mfdBrightness = 1; }));
+    a.cancelCopy();                                            // the change is dropped
+    CHECK(!a.copyNeeded());
+    CHECK_EQ(slurp(dir + "/aircraft-Cirrus SR22.x52"), before);
+}

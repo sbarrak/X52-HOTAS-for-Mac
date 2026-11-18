@@ -201,9 +201,9 @@ LightRule mk(const char* ref, Compare op, double v, Color t, Color e) {
     return r;
 }
 const RulePreset kPresets[] = {
-    {"Parking brake: red on, green off", mk("sim/cockpit2/controls/parking_brake_ratio", Compare::Greater, 0.5, Color::Red, Color::Green)},
+    {"Parking brake: red on, green off", mk("sim/flightmodel/controls/parkbrake", Compare::Greater, 0.5, Color::Red, Color::Green)},
     {"Gear handle down: green, up: off", mk("sim/cockpit/switches/gear_handle_status", Compare::Equal, 1, Color::Green, Color::Off)},
-    {"Flaps out: amber", mk("sim/cockpit2/controls/flap_ratio", Compare::Greater, 0.05, Color::Amber, Color::Off)},
+    {"Flaps out: amber", mk("sim/cockpit2/controls/flap_handle_deploy_ratio", Compare::Greater, 0.05, Color::Amber, Color::Off)},
     {"Speedbrake out: amber", mk("sim/cockpit2/controls/speedbrake_ratio", Compare::Greater, 0.05, Color::Amber, Color::Off)},
     {"Autopilot engaged: green", mk("sim/cockpit2/autopilot/servos_on", Compare::Equal, 1, Color::Green, Color::Off)},
     {"Landing lights on: amber", mk("sim/cockpit/electrical/landing_lights_on", Compare::Equal, 1, Color::Amber, Color::Off)},
@@ -454,6 +454,8 @@ std::string serialize(const Profile& p) {
     o << "x52pro-profile 3\n";
     o << "# X52 Pro button profile. Written by the X52 Pro plugin; safe to edit by hand.\n";
     o << "name = " << cleanLabel(p.name) << "\n";
+    if (p.standard) o << "# standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)\nstandard = 1\n";
+    if (!p.basedOn.empty()) o << "based_on = " << p.basedOn << "\n";
     o << "pinkie_shift = " << (p.pinkieShift ? 1 : 0) << "\n";
     o << "shift_button = " << p.shiftButton << "\n";
     o << "mode_buttons = " << p.modeButtons[0] << " " << p.modeButtons[1] << " " << p.modeButtons[2] << "\n";
@@ -471,6 +473,8 @@ std::string serialize(const Profile& p) {
     o << "date_format = " << p.dateFormat << "\n";
     o << "com_833 = " << (p.com833 ? 1 : 0) << "\n";
     o << "axis_override = " << (p.axes.overrideXPlane ? 1 : 0) << "\n";
+    o << "# axis_override = 1: the plugin drives the stick and twist. throttle_plugin = 1: it drives the throttle (engine power and levers)\n";
+    o << "throttle_plugin = " << (p.axes.pluginThrottle ? 1 : 0) << "\n";
     o << "# axis_<name> = dead zone %, expo %, inverted (1/0)\n";
     for (int u : {0x30, 0x31, 0x35, 0x32}) {
         const AxisCurve& c = axisCurve(p.axes, u);
@@ -480,6 +484,9 @@ std::string serialize(const Profile& p) {
     o << "steady_lower = " << p.axes.lowerRotary.deadzone << "\n";
     o << "steady_upper = " << p.axes.upperRotary.deadzone << "\n";
     o << "steady_slider = " << p.axes.slider.deadzone << "\n";
+    o << "# slider_flaps = 1: the slider on the throttle sets the flaps, at the aircraft's detents (high reading = deployed; slider_invert = 1 swaps)\n";
+    o << "slider_flaps = " << (p.axes.sliderFlaps ? 1 : 0) << "\n";
+    o << "slider_invert = " << (p.axes.slider.invert ? 1 : 0) << "\n";
     o << "dial_accel = " << (p.dial.on ? 1 : 0) << "\n";
     o << "dial_slow_ms = " << p.dial.slowMs << "\n";
     o << "dial_fast_ms = " << p.dial.fastMs << "\n";
@@ -515,6 +522,13 @@ std::string serialize(const Profile& p) {
           << (a.dataref.empty() ? "-" : a.dataref) << secondText(a) << "\n";
     }
     o << serializePages(p.pages);
+    auto words = [](const std::vector<std::string>& v) {
+        std::string s;
+        for (const std::string& w : v) s += " " + w;
+        return s;
+    };
+    if (!p.wheelOrder.empty()) o << "wheel_order =" << words(p.wheelOrder) << "\n";
+    if (!p.wheelHidden.empty()) o << "wheel_hidden =" << words(p.wheelHidden) << "\n";
     o << "# master <screen|lights> [not] <op> <number> <dataref> [and|or [not] <op> <number> <dataref>]\n";
     o << "#   the screen (or every light) is on only while this is true, e.g. avionics power. No master line: always on.\n";
     for (int w = 0; w < 2; ++w) {
@@ -774,6 +788,7 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
     std::string raw;
     int lineNo = 0;
     bool pinkieSeen[3] = {false, false, false};
+    bool throttleSeen = false;
     auto fail = [&](const std::string& msg) {
         if (error) *error = "line " + std::to_string(lineNo) + ": " + msg;
         return false;
@@ -822,6 +837,8 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
         int n = 0;
         if (key == "name") {
             p.name = value;
+        } else if (key == "based_on") {
+            p.basedOn = value;
         } else if (key.compare(0, 5, "ledsp") == 0) {
             if (!parseLeds(key, 5, true, value, p, err)) return fail(err);
             for (int m = 0; m < 3; ++m)
@@ -835,6 +852,11 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
             p.modeButtons[0] = a;
             p.modeButtons[1] = b;
             p.modeButtons[2] = c;
+        } else if (key == "wheel_order" || key == "wheel_hidden") {
+            std::vector<std::string>& v = key == "wheel_order" ? p.wheelOrder : p.wheelHidden;
+            v.clear();
+            std::stringstream ws(value);
+            for (std::string w; ws >> w;) v.push_back(w);
         } else if (key.compare(0, 5, "axis_") == 0 && key != "axis_override") {
             int usage = 0;
             for (int u : {0x30, 0x31, 0x35, 0x32})
@@ -882,6 +904,13 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
         } else if (key == "steady_lower" || key == "steady_upper" || key == "steady_slider") {
             AxisCurve& c = key == "steady_lower" ? p.axes.lowerRotary : key == "steady_upper" ? p.axes.upperRotary : p.axes.slider;
             c.deadzone = clampInt((int)n, 0, 20);
+        } else if (key == "throttle_plugin") {
+            p.axes.pluginThrottle = n != 0;
+            throttleSeen = true;
+        } else if (key == "slider_flaps") {
+            p.axes.sliderFlaps = n != 0;
+        } else if (key == "slider_invert") {
+            p.axes.slider.invert = n != 0;
         } else if (key == "axis_override") {
             p.axes.overrideXPlane = n != 0;
         } else if (key == "dial_accel") {
@@ -894,11 +923,15 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
             p.dial.factor = clampInt(n, 1, 50);
         } else if (key == "date_format") {
             p.dateFormat = clampInt(n, 0, 2);
+        } else if (key == "standard") {
+            p.standard = n != 0;
+
         }
         // Unknown numeric settings are ignored so newer files still load.
     }
     // Written before the screen cursor existed: add the wheel bindings. `version` stays
     // as read so a caller can tell the file on disk is still the old one.
+    if (!throttleSeen) p.axes.pluginThrottle = p.axes.overrideXPlane;   // older files: one switch for both
     if (p.version < 2) addWheelBindings(p);
     // Before version 3 the last rule for a light won; now the first does. Reverse the order
     // once so the lights keep behaving as they did.

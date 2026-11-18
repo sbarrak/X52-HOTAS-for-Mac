@@ -1171,12 +1171,19 @@ void drawAxesTab(const Rect& area) {
         gApp->profile.axes.overrideXPlane = !gApp->profile.axes.overrideXPlane;
         gApp->profileChanged();
     }, on);
-    Rect r = rc.take(area.r - rc.x);
-    text(r.l, r, "Process the flight axes in this plugin (overrides X-Plane's own axis settings)");
+    Rect r = rc.take(330);
+    text(r.l, r, "The plugin drives the stick and twist");
+    bool thr = a.profile.axes.pluginThrottle;
+    button(rc.take(36), thr ? "[x]" : "[  ]", [] {
+        gApp->profile.axes.pluginThrottle = !gApp->profile.axes.pluginThrottle;
+        gApp->profileChanged();
+    }, thr);
+    r = rc.take(area.r - rc.x);
+    text(r.l, r, "The plugin drives the throttle");
     rc.t -= kRow + kGap;
     const char* notes[] = {
         on ? "The plugin reads the stick and gives X-Plane the result. Dead zone, curve and inversion below apply."
-           : "Off: X-Plane reads the stick itself (its Joystick settings, including its null zone). The settings below wait.",
+           : "Stick off: X-Plane reads the stick itself (its Joystick settings, including its null zone).",
         "Throttle is only taken over once it has been moved. Axis assignments in X-Plane can stay as they are.",
     };
     for (const char* n : notes) {
@@ -1246,6 +1253,19 @@ void drawAxesTab(const Rect& area) {
         Rect vr = rc.take(46);
         text(vr.l, vr, val);
         stepper("Steady", c->deadzone, " %", 0, 20, 1, &c->deadzone);
+        if (usage == 0x36) {   // the slider can set the flaps
+            bool fl = a.profile.axes.sliderFlaps, inv = a.profile.axes.slider.invert;
+            button(rc.take(80), fl ? "[x] Flaps" : "[  ] Flaps", [] {
+                gApp->profile.axes.sliderFlaps = !gApp->profile.axes.sliderFlaps;
+                gApp->flapWritten = -1;
+                gApp->profileChanged();
+            }, fl);
+            button(rc.take(130), inv ? "[x] Invert flaps" : "[  ] Invert flaps", [] {
+                gApp->profile.axes.slider.invert = !gApp->profile.axes.slider.invert;
+                gApp->flapWritten = -1;   // move the flaps to the new direction at once
+                gApp->profileChanged();
+            }, inv);
+        }
         rc.t -= kRow + kGap;
     }
     rc.t -= kGap;
@@ -1319,13 +1339,20 @@ void draw(XPLMWindowID w, void*) {
         confirmDrop = false;   // a profile picked here or on the stick is in use: the aircraft's own is left alone
         std::string p = fit("Profile: " + App::profileTitle(a.manualKey) + " (picked)", 400);
         text(area.r - textW(p), status, p);
+    } else if (a.usingAircraftProfile && a.profile.standard) {
+        confirmDrop = false;   // a ready-made profile is never deleted (Save as my copy is on the bottom line)
+        std::string p = fit("Profile: " + a.profile.name + " (ready-made)", 400);
+        text(area.r - textW(p), status, p);
     } else if (a.usingAircraftProfile) {
-        std::string lab = confirmDrop ? "Really delete it?" : "Delete, use Default";
+        bool copy = a.profileKey() != Store::keyForAircraft(a.aircraft);
+        std::string lab = confirmDrop ? "Really delete it?" : copy ? "Delete my copy" : "Delete, use Default";
         pr.x = area.r - 170;
         button(pr.take(170), lab, [] {
             if (confirmDrop) {
+                bool wasCopy = gApp->profileKey() != Store::keyForAircraft(gApp->aircraft);
                 gApp->dropAircraftProfile();
-                gApp->notice = "Profile deleted, Default is in use. Press Undo delete to bring it back.";
+                gApp->notice = wasCopy ? "Your copy is set aside; the ready-made profile is in use again."
+                                       : "Profile deleted, Default is in use. Press Undo delete to bring it back.";
             }
             confirmDrop = !confirmDrop;
         }, confirmDrop);
@@ -1381,7 +1408,13 @@ void draw(XPLMWindowID w, void*) {
 
     // notice line at the bottom
     int bottom = area.b;
-    if (!a.notice.empty()) {
+    if (a.profile.standard) {   // a ready-made profile: changes last for this flight unless saved as a copy
+        Rect n{area.l, area.b + kRow, area.r - 150, area.b};
+        text(n.l, n, fit(a.notice.empty() ? "Ready-made profile: changes here last for this flight only." : a.notice, n.w()),
+             a.notice.empty() ? kDim : kAmber);
+        button({area.r - 144, area.b + kRow, area.r, area.b}, "Save as my copy", [] { gApp->saveCopy(); });
+        bottom += kRow + kGap;
+    } else if (!a.notice.empty()) {
         Rect n{area.l, area.b + kRow, area.r - 70, area.b};
         text(n.l, n, fit(a.notice, n.w()), kAmber);
         button({area.r - 64, area.b + kRow, area.r, area.b}, "OK", [] { gApp->notice.clear(); });

@@ -1,5 +1,6 @@
 // Profile files on disk: <X-Plane>/Output/preferences/X52Pro/<key>.x52
 #pragma once
+#include <map>
 #include <string>
 #include <vector>
 #include "../core/profile.h"
@@ -20,8 +21,24 @@ struct Store {
     std::vector<std::string> list() const;            // keys of every profile in the folder, sorted
     // Changes whenever the file is rewritten; 0 if it does not exist.
     long long stamp(const std::string& key) const;
+
     // File-name-safe version of an aircraft name.
     static std::string keyForAircraft(const std::string& aircraft);
+
+    // Ready-made profiles (standard = 1) are never written; a change goes to a copy. Which copy stands in for a
+    // standard profile (an aircraft's, or Default) is kept in <dir>/profile-choices.txt, "<standard key><TAB><copy key>".
+    bool isStandard(const std::string& key) const;
+    std::string choiceFor(const std::string& standardKey) const;   // "" when the standard profile itself is used
+    void setChoice(const std::string& standardKey, const std::string& copyKey) const;   // "" goes back to the standard
+    // Someone picked `key`: a standard profile goes back to itself, a copy of one stands in for it from now on.
+    void notePicked(const std::string& key) const;
+    // A free profile name made from `wanted` ("Citation X mine", "Citation X mine 2", ...), file-name safe.
+    std::string freeKey(const std::string& wanted) const;
+
+private:
+    mutable long long choicesStamp_ = -1;
+    mutable std::map<std::string, std::string> choices_;
+    const std::map<std::string, std::string>& choices() const;
 };
 
 // Says who is driving the stick's screen and lights. The X-Plane plugin holds this lock

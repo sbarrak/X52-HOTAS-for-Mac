@@ -1,6 +1,8 @@
 x52pro-profile 3
 # X52 Pro profile for the Beechcraft Baron 58 (ready-made, see profiles/README.md).
 name = Baron_58
+# standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)
+standard = 1
 pinkie_shift = 0
 shift_button = 6
 mode_buttons = 28 29 30
@@ -18,16 +20,23 @@ clock2_12h = 0
 clock3_12h = 0
 date_format = 0
 com_833 = 0
+axis_override = 1
+throttle_plugin = 1
+axis_roll = 5 0 0
+axis_pitch = 5 0 0
+axis_yaw = 5 0 0
+axis_throttle = 5 0 1
+slider_flaps = 1
+slider_invert = 0
 leds 1 = fire:green a:green b:green d:green e:green t1:green t2:green t3:green pov:green clutch:green throttle:green
 leds 2 = fire:green a:green b:green d:amber e:amber t1:amber t2:amber t3:amber pov:amber clutch:green throttle:green
 leds 3 = fire:green a:green b:green d:red e:red t1:red t2:red t3:red pov:red clutch:green throttle:green
 ledsp 1 = fire:green a:green b:green d:green e:green t1:green t2:green t3:green pov:green clutch:green throttle:green
 ledsp 2 = fire:green a:green b:green d:amber e:amber t1:amber t2:amber t3:amber pov:amber clutch:green throttle:green
 ledsp 3 = fire:green a:green b:green d:red e:red t1:red t2:red t3:red pov:red clutch:green throttle:green
-rule fire > 0.5 green off sim/cockpit2/controls/parking_brake_ratio
+rule fire > 0.5 green off sim/flightmodel/controls/parkbrake
 rule a > 0.99 green off sim/flightmodel2/gear/deploy_ratio[0]
-rule b > 0.01 amber green sim/cockpit2/controls/flap_ratio
-rule throttle > 0 green off sim/cockpit2/autopilot/servos_on
+rule b > 0.01 amber green sim/cockpit2/controls/flap_handle_deploy_ratio
 alarm fire blink fast red amber "Engine fire" > 0 sim/cockpit2/annunciators/engine_fires[0] or > 0 sim/cockpit2/annunciators/engine_fires[1]
 alarm pov blink fast red amber "Stall" > 0 sim/cockpit2/annunciators/stall_warning
 alarm a blink slow red amber "Gear unsafe" > 0 sim/cockpit2/annunciators/gear_unsafe
@@ -57,8 +66,6 @@ master lights == 1 sim/cockpit2/switches/avionics_power_on
 bind 1 any press "AP disconnect" cmd:sim/autopilot/servos_off_any
 bind 2 any press "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
 bind 3 any press "Gear up/down" cmd:sim/flight_controls/landing_gear_toggle
-bind 4 any press "Flaps up" cmd:sim/flight_controls/flaps_up
-bind 5 any press "Flaps down" cmd:sim/flight_controls/flaps_down
 bind 6 any press "Brakes (hold)" cmd:sim/flight_controls/brakes_regular
 bind 15 any press "Contact ATC" cmd:sim/operation/contact_atc
 bind 16 any press "Cockpit view" cmd:sim/view/3d_cockpit_cmnd_look
@@ -71,6 +78,8 @@ bind 36 any press "Screen page +" cmd:x52pro/mfd_page_next
 bind 37 any press "Screen cursor up" cmd:x52pro/mfd_up
 bind 38 any press "Screen cursor down" cmd:x52pro/mfd_down
 bind 39 any press "Screen select" cmd:x52pro/mfd_select
+bind 4 1 press "AP on" cmd:sim/autopilot/servos_on
+bind 5 1 press "AP off" cmd:sim/autopilot/servos_off_any
 bind 7 1 press "Landing lights" cmd:sim/lights/landing_lights_toggle
 bind 8 1 press "Strobes" cmd:sim/lights/strobe_lights_toggle
 bind 9 1 press "Battery on" cmd:sim/electrical/battery_1_on
@@ -86,6 +95,8 @@ bind 24 1 press "Mixture rich" cmd:sim/engines/mixture_up
 bind 25 1 press "Prop RPM +" cmd:sim/engines/prop_up
 bind 26 1 press "Mixture lean" cmd:sim/engines/mixture_down
 bind 27 1 press "Prop RPM -" cmd:sim/engines/prop_down
+bind 4 2 press "AP approach" cmd:sim/autopilot/approach
+bind 5 2 press "AP off" cmd:sim/autopilot/servos_off_any
 bind 7 2 press "Landing lights" cmd:sim/lights/landing_lights_toggle
 bind 8 2 press "AP approach" cmd:sim/autopilot/approach
 bind 9 2 press "AP NAV" cmd:sim/autopilot/NAV
@@ -101,6 +112,8 @@ bind 24 2 press "Mixture rich" cmd:sim/engines/mixture_up
 bind 25 2 press "Prop RPM +" cmd:sim/engines/prop_up
 bind 26 2 press "Mixture lean" cmd:sim/engines/mixture_down
 bind 27 2 press "Prop RPM -" cmd:sim/engines/prop_down
+bind 4 3 press "AP ALT hold" cmd:sim/autopilot/altitude_hold
+bind 5 3 press "AP VS" cmd:sim/autopilot/vertical_speed
 bind 7 3 press "AP on/off" cmd:sim/autopilot/servos_toggle
 bind 8 3 press "Flight director" cmd:sim/autopilot/fdir_toggle
 bind 9 3 press "AP HDG" cmd:sim/autopilot/heading

@@ -64,6 +64,16 @@ final class Model: ObservableObject {
     @Published var loginItem = false
     @Published var testLines = ["", "", ""]   // text typed on the Test tab
     @Published var axes: [AxisRow] = []       // every analog control, while the Axes tab is showing
+    @Published var pageSel = ""         // id of the page selected on the Pages tab and in the pages editor
+    @Published var pageNote = ""        // why a page change was refused
+    @Published var pagesConfirm = false // asking before "Restore default pages"
+    @Published var pagesOpen = false    // the pages editor window is open
+    @Published var pagePreview = ["", "", ""]   // the selected page as the stick shows it
+    @Published var pagePreviewLive = false      // with numbers from X-Plane (otherwise made up)
+    var openPagesEditor: () -> Void = {}
+    @Published var isStandard = false            // the profile being edited is ready-made (never changed)
+    @Published var standardKeys: Set<String> = []
+    private var askingCopy = false
 
     private var timer: Timer?
     private var slow = 0
@@ -112,14 +122,31 @@ final class Model: ObservableObject {
         set(\.moved, str(x52_moved()))
         set(\.screen, (0..<3).map { str(x52_screen(Int32($0))) })
         set(\.revision, Int(x52_revision()))
+        set(\.isStandard, x52_standard() != 0)
+        if x52_copy_needed() != 0 && !askingCopy {
+            askingCopy = true
+            DispatchQueue.main.async { [weak self] in self?.askCopyName() }
+        }
         if tab == 7 { set(\.axes, parseAxes(str(x52_axes()))) }   // changes constantly: only while it is shown
         set(\.liveStatus, statusMap())
         set(\.tried, Int(x52_alarm_tried()))
         set(\.masterTried, Int(x52_master_tried()))
         set(\.brightTried, Int(x52_bright_tried()))
+        if pagesOpen || tab == 8 {
+            if pageSel.hasPrefix("#") {   // a built-in page
+                let key = String(pageSel.dropFirst())
+                set(\.pagePreview, (0..<3).map { str(x52_builtin_preview(key, Int32($0))) })
+                set(\.pagePreviewLive, false)
+            } else {
+                let i = Int32(pageIndex(pageSel))
+                set(\.pagePreview, (0..<3).map { str(x52_page_preview(i, Int32($0))) })
+                set(\.pagePreviewLive, x52_page_preview_live(i) != 0)
+            }
+        }
         slow += 1
         if slow % 40 == 1 {
             set(\.profiles, str(x52_profiles()).split(separator: "\n").map(String.init))
+            set(\.standardKeys, Set(profiles.filter { x52_profile_standard($0) != 0 }))
             set(\.key, str(x52_key()))
             refreshPlugin()
         }
@@ -146,6 +173,35 @@ final class Model: ObservableObject {
         x52_set_led(Int32(mode), Int32(led), lightsPinkie ? 1 : 0, Int32(color))
         tick()
     }
+    // A change to a ready-made profile: ask for the name of the copy it goes into (or drop it).
+    func askCopyName() {
+        var name = str(x52_copy_suggest())
+        var problem = ""
+        while true {
+            let alert = NSAlert()
+            alert.messageText = "Save as a new profile"
+            alert.informativeText = "“\(profileTitle(key))” is a ready-made profile: it is never changed, so you can always go back to it. "
+                + "Your change goes into a new profile of yours, which is used from now on instead (pick the ready-made one again to go back)."
+                + (problem.isEmpty ? "" : "\n\n" + problem)
+            let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+            field.stringValue = name
+            alert.accessoryView = field
+            alert.addButton(withTitle: "Save")
+            alert.addButton(withTitle: "Cancel")
+            alert.window.initialFirstResponder = field
+            NSApp.activate(ignoringOtherApps: true)
+            if alert.runModal() != .alertFirstButtonReturn {
+                x52_copy_cancel()
+                break
+            }
+            name = field.stringValue
+            problem = str(x52_copy_save(name))
+            if problem.isEmpty { break }
+        }
+        askingCopy = false
+        tick()
+    }
+
     func get(_ name: String) -> Int { Int(x52_get(name)) }
     func set(_ name: String, _ value: Int) {
         guard get(name) != value else { return }
@@ -202,6 +258,29 @@ final class Model: ObservableObject {
 
 func profileTitle(_ key: String) -> String {
     key == "default" ? "Default (all aircraft)" : key.hasPrefix("aircraft-") ? String(key.dropFirst(9)) : key
+}
+
+// The picker's line for a profile: ready-made ones say so.
+func pickerTitle(_ key: String, _ standard: Set<String>) -> String {
+    profileTitle(key) + (standard.contains(key) ? "  (ready-made)" : "")
+}
+
+// Shown above the tabs while a ready-made profile is selected.
+struct StandardBanner: View {
+    @ObservedObject var m: Model
+    var body: some View {
+        if m.isStandard {
+            HStack(spacing: 10) {
+                Image(systemName: "lock.fill")
+                Text("Ready-made profile: it is never changed, so you can always go back to it. A change is saved as a new profile of yours.")
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Button("Save as new profile...") { x52_copy_ask(); m.tick() }
+            }
+            .padding(8)
+            .background(RoundedRectangle(cornerRadius: 6).fill(Color.accentColor.opacity(0.12)))
+        }
+    }
 }
 
 // MARK: - Lights
@@ -342,7 +421,7 @@ struct ConditionRow: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(which == 0 ? "Dataref" : "Second dataref").frame(width: 110, alignment: .leading)
-                TextField("e.g. sim/cockpit2/controls/parking_brake_ratio, or name[3]", text: ref)
+                TextField("e.g. sim/flightmodel/controls/parkbrake, or name[3]", text: ref)
                     .textFieldStyle(.roundedBorder)
             }
             if let status = m.liveStatus[statusKey(kind, index, which)], !status.isEmpty {
@@ -800,7 +879,7 @@ struct CatalogField: View {
                         ForEach(0..<rows.count, id: \.self) { i in
                             Button { text = rows[i][0]; focused = false } label: {
                                 HStack(spacing: 8) {
-                                    Text(rows[i][0]).lineLimit(1).truncationMode(.middle)
+                                    Text(rows[i][0]).lineLimit(1).truncationMode(.middle).layoutPriority(1)
                                     Text(rows[i][1] + (rows[i][2] == "0" ? "  (read-only)" : ""))
                                         .foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
                                     Spacer(minLength: 0)
@@ -1304,11 +1383,13 @@ struct AxesTab: View {
     var body: some View {
         let on = Binding<Bool>(get: { m.get("axis_override") != 0 }, set: { m.set("axis_override", $0 ? 1 : 0) })
         VStack(alignment: .leading, spacing: 10) {
-            Toggle("Process the flight axes in the plugin (overrides X-Plane's own axis settings)", isOn: on)
+            Toggle("The plugin drives the stick and twist (overrides X-Plane's own axis settings)", isOn: on)
             Text(on.wrappedValue
                  ? "While X-Plane runs, the plugin reads the stick and gives X-Plane the result. The dead zone, curve and inversion below apply."
                  : "Off: X-Plane reads the stick itself, with its own Joystick settings and null zone. The settings below wait until you switch this on.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Toggle("The plugin drives the throttle (engine power and the cockpit levers)", isOn: Binding(get: { m.get("throttle_plugin") != 0 }, set: { m.set("throttle_plugin", $0 ? 1 : 0) }))
+                .help("Engine power and the cockpit levers follow the X52 lever whatever X-Plane's own axis assignment is. The stick and twist stay X-Plane's.")
             Text("The throttle is only taken over once it has moved. This works inside X-Plane only: the app itself never moves the controls.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             AxisCurveRow(m: m, title: "Stick left/right", key: "roll", usage: 0x30)
@@ -1320,6 +1401,13 @@ struct AxesTab: View {
             DialSteadyRow(m: m, title: "Lower rotary (i)", key: "lower", usage: 0x33)
             DialSteadyRow(m: m, title: "Upper rotary (E)", key: "upper", usage: 0x34)
             DialSteadyRow(m: m, title: "Slider", key: "slider", usage: 0x36)
+            HStack(spacing: 16) {
+                Toggle("Slider sets the flaps", isOn: Binding(get: { m.get("slider_flaps") != 0 }, set: { m.set("slider_flaps", $0 ? 1 : 0) }))
+                Toggle("Invert flaps", isOn: Binding(get: { m.get("slider_invert") != 0 }, set: { m.set("slider_invert", $0 ? 1 : 0) }))
+                    .disabled(m.get("slider_flaps") == 0)
+            }
+            Text("In X-Plane the slider moves the flap lever to the aircraft's own stops. With Invert flaps off (as in the ready-made profiles), pushed away from you deploys the flaps and towards you retracts them; Invert flaps reverses that. This works whether the axes above are on or off. Flap buttons still work in between. Set the slider to None in X-Plane's Joystick settings if X-Plane uses it for something else.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Divider()
             let moving = m.axes.first { $0.moving }
             Text(moving.map { "Moving now: \($0.name)   \($0.text)" } ?? "Moving now: move a control to see which one it is")
@@ -1343,10 +1431,445 @@ struct AxesTab: View {
     }
 }
 
+// MARK: - Pages
+
+func pageIndex(_ id: String) -> Int {
+    if id.isEmpty { return -1 }
+    return (0..<Int(x52_page_count())).first { str(x52_page_id(Int32($0))) == id } ?? -1
+}
+
+// The pages in the order the editor lists them: (page number, depth).
+func pageOutline() -> [(Int, Int)] {
+    str(x52_pages_outline()).split(separator: "\n").compactMap { line in
+        let f = line.split(separator: "\t").compactMap { Int($0) }
+        return f.count == 2 ? (f[0], f[1]) : nil
+    }
+}
+
+func pageName(_ i: Int) -> String {
+    let t = str(x52_page_title(Int32(i)))
+    return t.isEmpty ? "(untitled: \(str(x52_page_id(Int32(i)))))" : t
+}
+
+// The stick's screen: three lines of 16 characters, green on black.
+struct StickScreen: View {
+    let lines: [String]
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(0..<3, id: \.self) { i in
+                Text(i < lines.count && !lines[i].isEmpty ? lines[i] : " ").font(.system(.body, design: .monospaced))
+            }
+        }
+        .padding(8).frame(width: 190, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.85)))
+        .foregroundStyle(Color(red: 0.4, green: 0.95, blue: 0.5))
+    }
+}
+
+struct PagePreview: View {
+    @ObservedObject var m: Model
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("On the stick's screen").foregroundStyle(.secondary)
+            StickScreen(lines: m.pagePreview)
+            Text(m.pagePreviewLive ? "Numbers from X-Plane, live." : m.pagesOpen
+     ? "Numbers are made up (1234.5): X-Plane is not answering. In X-Plane, Settings > Network: accept incoming connections."
+     : "Numbers are made up (1234.5). Open the pages editor to see X-Plane's.")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).frame(width: 190, alignment: .leading)
+        }
+    }
+}
+
+// The list of pages: every page the left wheel reaches, built-in ones too, in its order (the eye shows or skips it),
+// the user's sub-pages indented under their page.
+struct WheelEntryRow {
+    let token: String, title: String, hidden: Bool, builtin: Bool
+}
+func wheelEntryRows() -> [WheelEntryRow] {
+    str(x52_wheel_entries()).split(separator: "\n").compactMap { line in
+        let f = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+        return f.count == 4 ? WheelEntryRow(token: f[0], title: f[1], hidden: f[2] == "1", builtin: f[3] == "1") : nil
+    }
+}
+
+struct WheelList: View {
+    @ObservedObject var m: Model
+    var body: some View {
+        let outline = pageOutline()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("The left wheel, in order. The eye: shown or skipped. A lock: a built-in page.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).padding(.leading, 6)
+                ForEach(wheelEntryRows(), id: \.token) { e in
+                    let sel = e.builtin ? "#" + e.token : String(e.token.dropFirst())
+                    let on = m.pageSel == sel
+                    HStack(spacing: 4) {
+                        Button { x52_wheel_hide(e.token, e.hidden ? 0 : 1); m.tick() } label: {
+                            Image(systemName: e.hidden ? "eye.slash" : "eye").frame(width: 18)
+                        }
+                        .buttonStyle(.plain).foregroundStyle(e.hidden ? Color.secondary : Color.primary)
+                        .help(e.hidden ? "Skipped by the left wheel: click to show it" : "Shown by the left wheel: click to skip it")
+                        Button { m.pageSel = sel; m.pageNote = ""; m.tick() } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: e.builtin ? "lock.rectangle" : "rectangle.on.rectangle").frame(width: 16)
+                                    .foregroundStyle(on ? Color.white : Color.secondary)
+                                Text(e.title).lineLimit(1).strikethrough(e.hidden)
+                                Spacer(minLength: 4)
+                                if !e.builtin {
+                                    Text("\(x52_row_count(Int32(pageIndex(String(e.token.dropFirst())))))").font(.caption)
+                                        .foregroundStyle(on ? Color.white.opacity(0.8) : Color.secondary)
+                                }
+                            }
+                            .padding(.horizontal, 6).frame(height: 24)
+                            .background(on ? Color.accentColor : Color.clear)
+                            .foregroundStyle(on ? Color.white : e.hidden || e.builtin ? Color.secondary : Color.primary)
+                            .clipShape(RoundedRectangle(cornerRadius: 5)).contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if !e.builtin { SubPageRows(m: m, outline: outline, topId: String(e.token.dropFirst())) }
+                }
+            }
+        }
+    }
+}
+
+// The pages inside a top-level page, indented.
+struct SubPageRows: View {
+    @ObservedObject var m: Model
+    let outline: [(Int, Int)]
+    let topId: String
+    var body: some View {
+        let start = outline.firstIndex { str(x52_page_id(Int32($0.0))) == topId && $0.1 == 0 }
+        let subs: [(Int, Int)] = start.map { s in Array(outline[(s + 1)...].prefix { $0.1 > 0 }) } ?? []
+        ForEach(subs, id: \.0) { row in
+            let id = str(x52_page_id(Int32(row.0)))
+            let on = id == m.pageSel
+            Button { m.pageSel = id; m.pageNote = ""; m.tick() } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.turn.down.right").frame(width: 16).foregroundStyle(on ? Color.white : Color.secondary)
+                    Text(pageName(row.0)).lineLimit(1)
+                    Spacer(minLength: 4)
+                }
+                .padding(.leading, CGFloat(row.1) * 16 + 28).padding(.trailing, 6).frame(height: 24)
+                .background(on ? Color.accentColor : Color.clear)
+                .foregroundStyle(on ? Color.white : Color.primary)
+                .clipShape(RoundedRectangle(cornerRadius: 5)).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+// A built-in page chosen in the list. Its layout and tuning are fixed; the left wheel can skip it or meet it elsewhere.
+struct BuiltinDetail: View {
+    @ObservedObject var m: Model
+    let token: String
+    var body: some View {
+        let e = wheelEntryRows().first { $0.token == token }
+        VStack(alignment: .leading, spacing: 10) {
+            Text(e?.title ?? token).font(.title3)
+            Text("A built-in page: what it shows and how the right wheel tunes it are fixed. Here you choose whether the left wheel stops on it, and where (the arrows under the list).")
+                .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Toggle("The left wheel shows this page", isOn: Binding(get: { !(e?.hidden ?? false) }, set: {
+                x52_wheel_hide(token, $0 ? 0 : 1); m.tick()
+            }))
+        }
+    }
+}
+
+struct PageList: View {
+    @ObservedObject var m: Model
+    var body: some View { WheelList(m: m) }
+}
+
+let rowKinds = ["Text", "Value", "Link"]
+
+struct PageRowEditor: View {
+    @ObservedObject var m: Model
+    let page: Int
+    let row: Int
+    var body: some View {
+        let p = Int32(page), r = Int32(row)
+        let kind = Int(x52_row_kind(p, r))
+        let label = Binding<String>(get: { str(x52_row_text(p, r)) }, set: { write(text: $0) })
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                FixedSegments(selection: Binding(get: { kind }, set: { write(kind: $0) }), names: rowKinds, width: 54)
+                if kind == 1 {
+                    // A value row: label and format here, the dataref gets a whole line below.
+                    let format = str(x52_row_format(p, r))
+                    Text("Label").padding(.leading, 6)
+                    TextField("e.g. Fuel", text: label).textFieldStyle(.roundedBorder).frame(width: 130)
+                    Text("Format").padding(.leading, 6)
+                    TextField("format", text: Binding(get: { format }, set: { write(format: $0) }))
+                        .textFieldStyle(.roundedBorder).font(.system(.body, design: .monospaced)).frame(width: 100)
+                        .help("One number: %.0f (no decimals), %.1f (one), %d (whole number), %g (as needed), with words around it, e.g. %.0f kg")
+                    Text("→ \(str(x52_format_example(format, 1234.5)))").font(.system(.callout, design: .monospaced))
+                        .foregroundStyle(.secondary).lineLimit(1)
+                        .help("What the format makes of 1234.5")
+                    Spacer(minLength: 0)
+                } else {
+                    TextField(kind == 0 ? "words, up to 15 characters show" : "label", text: label)
+                        .textFieldStyle(.roundedBorder)
+                }
+                Button { x52_row_move(p, r, -1); m.tick() } label: { Image(systemName: "chevron.up") }
+                    .disabled(row == 0).help("Move up")
+                Button { x52_row_move(p, r, 1); m.tick() } label: { Image(systemName: "chevron.down") }
+                    .disabled(row >= Int(x52_row_count(p)) - 1).help("Move down")
+                Button { x52_row_remove(p, r); m.tick() } label: { Image(systemName: "xmark") }.help("Remove this row")
+            }
+            if kind == 1 {
+                HStack(alignment: .top, spacing: 8) {
+                    Text("Dataref").padding(.top, 4)
+                    CatalogField(kind: 1, placeholder: "e.g. sim/flightmodel/weight/m_fuel_total, or name[3]",
+                                 text: Binding(get: { str(x52_row_dataref(p, r)) }, set: { write(dataref: $0) }))
+                        .frame(maxWidth: .infinity)
+                }
+            } else if kind == 2 {
+                let target = str(x52_row_target(p, r))
+                HStack(spacing: 8) {
+                    Text("Opens")
+                    Picker("", selection: Binding(get: { target }, set: { write(target: $0) })) {
+                        Text("Choose a page").tag("")
+                        ForEach(pageOutline().map { $0.0 }.filter { $0 != page }, id: \.self) { i in
+                            Text(pageName(i)).tag(str(x52_page_id(Int32(i))))
+                        }
+                    }
+                    .labelsHidden().frame(width: 240)
+                    Button("New page inside this one") {
+                        let n = x52_page_add("New page", str(x52_page_id(p)))
+                        if n >= 0 { write(target: str(x52_page_id(n))) }
+                    }
+                    if target.isEmpty { Text("The wheel does nothing on this row yet.").font(.caption).foregroundStyle(.orange) }
+                    Spacer()
+                }
+                .padding(.leading, 170)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+    private func write(kind: Int? = nil, text: String? = nil, format: String? = nil, dataref: String? = nil, target: String? = nil) {
+        let p = Int32(page), r = Int32(row)
+        x52_row_set(p, r, Int32(kind ?? Int(x52_row_kind(p, r))), text ?? str(x52_row_text(p, r)),
+                    format ?? str(x52_row_format(p, r)), dataref ?? str(x52_row_dataref(p, r)), target ?? str(x52_row_target(p, r)))
+        m.tick()
+    }
+}
+
+// The selected page: its title, where it opens from, and its rows.
+struct PageDetail: View {
+    @ObservedObject var m: Model
+    let page: Int
+    var body: some View {
+        let p = Int32(page)
+        let id = str(x52_page_id(p))
+        let parent = str(x52_page_parent(p))
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Title").frame(width: 90, alignment: .leading)
+                TextField("shown when the page has no rows", text: Binding(get: { str(x52_page_title(p)) }, set: {
+                    _ = x52_page_set(p, $0, str(x52_page_parent(p))); m.tick()
+                }))
+                .textFieldStyle(.roundedBorder).frame(width: 260)
+                Text("id \(id)").font(.caption).foregroundStyle(.secondary)
+                    .help("How the profile file and link rows name this page. It stays the same when you rename the page.")
+            }
+            HStack {
+                Text("Opens from").frame(width: 90, alignment: .leading)
+                Picker("", selection: Binding(get: { parent }, set: {
+                    m.pageNote = x52_page_set(p, str(x52_page_title(p)), $0) == 0 ? "That page is inside this one: a page cannot open itself." : ""
+                    m.tick()
+                })) {
+                    Text("The left wheel (top level)").tag("")
+                    ForEach(pageOutline().map { $0.0 }.filter { $0 != page }, id: \.self) { i in
+                        Text("Inside “\(pageName(i))”").tag(str(x52_page_id(Int32(i))))
+                    }
+                }
+                .labelsHidden().frame(width: 260)
+                Text(parent.isEmpty ? "The left wheel reaches it; its place is set in the list on the left." : "Only a link row on that page opens it.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if !m.pageNote.isEmpty { Text(m.pageNote).foregroundStyle(.orange) }
+            Divider()
+            Text("Rows (the right wheel moves the cursor; pressing it on a link opens the page)").foregroundStyle(.secondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    if x52_row_count(p) == 0 {
+                        Text("No rows: the stick shows the title alone.").foregroundStyle(.secondary)
+                    }
+                    ForEach(0..<Int(x52_row_count(p)), id: \.self) { r in
+                        PageRowEditor(m: m, page: page, row: r)
+                        Divider()
+                    }
+                }
+                .padding(.trailing, 8)
+            }
+            HStack {
+                Button("+ Text") { _ = x52_row_add(p, 0); m.tick() }
+                Button("+ Value") { _ = x52_row_add(p, 1); m.tick() }
+                Button("+ Link") { _ = x52_row_add(p, 2); m.tick() }
+                Spacer()
+            }
+        }
+    }
+}
+
+struct PageListButtons: View {
+    @ObservedObject var m: Model
+    var body: some View {
+        let sel = pageIndex(m.pageSel)
+        let builtin = m.pageSel.hasPrefix("#")
+        // A built-in or top-level page moves in the left wheel's order; a sub-page among its siblings.
+        let wheelToken: String? = builtin ? String(m.pageSel.dropFirst())
+            : (sel >= 0 && str(x52_page_parent(Int32(sel))).isEmpty ? "@" + m.pageSel : nil)
+        let canMove = sel >= 0 || wheelToken != nil
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Button("Add page") { select(x52_page_add("New page", "")) }
+                Button("Add inside") { select(x52_page_add("New page", m.pageSel)) }.disabled(sel < 0)
+                    .help("A page that only a link row on the selected page opens")
+            }
+            HStack(spacing: 6) {
+                Button { move(-1, wheelToken, sel) } label: { Image(systemName: "chevron.up") }
+                    .disabled(!canMove).help("Move up")
+                Button { move(1, wheelToken, sel) } label: { Image(systemName: "chevron.down") }
+                    .disabled(!canMove).help("Move down")
+                Button("Remove") {
+                    x52_page_remove(Int32(sel))
+                    m.pageSel = pageOutline().first.map { str(x52_page_id(Int32($0.0))) } ?? ""
+                    m.tick()
+                }
+                .disabled(sel < 0).help("Removes the page and the pages inside it; links to them are cleared")
+            }
+        }
+    }
+    private func move(_ dir: Int32, _ token: String?, _ sel: Int) {
+        if let t = token { x52_wheel_move(t, dir) } else { x52_page_move(Int32(sel), dir) }
+        m.tick()
+    }
+    private func select(_ i: Int32) {
+        if i >= 0 { m.pageSel = str(x52_page_id(i)) }
+        m.pageNote = ""
+        m.tick()
+    }
+}
+
+struct RestorePagesButton: View {
+    @ObservedObject var m: Model
+    var body: some View {
+        Button("Restore default pages...") { m.pagesConfirm = true }
+            .alert("Remove all your own pages?", isPresented: $m.pagesConfirm) {
+                Button("Remove all", role: .destructive) { x52_pages_restore_default(); m.pageSel = ""; m.tick() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("The stick goes back to the built-in pages, all shown, in their usual order: radios, Buttons and Brightness. This profile's buttons, lights and other settings stay as they are.")
+            }
+    }
+}
+
+// The Pages tab of the settings window: an overview, and the button to the editor window.
+struct PagesTab: View {
+    @ObservedObject var m: Model
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Screen pages of your own: rows of text, live dataref values, and links to more pages. The list is the left wheel's order: move any page, built-in ones too, or skip it with the eye.")
+                .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 10) {
+                Button("Open pages editor...") { m.openPagesEditor() }.keyboardShortcut(.defaultAction)
+                RestorePagesButton(m: m)
+            }
+            HStack(alignment: .top, spacing: 24) {
+                PageList(m: m).frame(width: 300, height: 360)
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.25)))
+                PagePreview(m: m)
+            }
+            Spacer()
+        }
+    }
+}
+
+// The editor's own window: pages on the left, the selected page in the middle, the stick and the file on the right.
+struct PagesEditor: View {
+    @ObservedObject var m: Model
+    var body: some View {
+        let sel = pageIndex(m.pageSel)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Pages of the profile").font(.headline)
+                Picker("", selection: Binding(get: { m.key }, set: { m.select($0); m.pageSel = ""; m.pageNote = "" })) {
+                    ForEach(m.profiles, id: \.self) { Text(pickerTitle($0, m.standardKeys)).tag($0) }
+                }
+                .labelsHidden().frame(width: 280)
+                Spacer()
+                RestorePagesButton(m: m)
+            }
+            if !m.error.isEmpty {
+                Text(m.error).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+            }
+            StandardBanner(m: m)
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 8) {
+                    PageList(m: m)
+                    PageListButtons(m: m)
+                }
+                .frame(width: 210)
+                Divider()
+                Group {
+                    if m.pageSel.hasPrefix("#") {
+                        BuiltinDetail(m: m, token: String(m.pageSel.dropFirst()))
+                    } else if sel >= 0 {
+                        PageDetail(m: m, page: sel)
+                    } else {
+                        Text(x52_page_count() == 0 ? "Add a page to begin." : "Choose a page on the left.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                Divider()
+                VStack(alignment: .leading, spacing: 12) {
+                    PagePreview(m: m)
+                    PageSource(m: m)
+                }
+                .frame(width: 250)
+            }
+        }
+        .padding(16)
+        .frame(minWidth: 980, minHeight: 560)
+        .onAppear { if pageIndex(m.pageSel) < 0 { m.pageSel = pageOutline().first.map { str(x52_page_id(Int32($0.0))) } ?? "" } }
+    }
+}
+
+// What the editor writes in the profile file, read back after every change.
+struct PageSource: View {
+    @ObservedObject var m: Model
+    var body: some View {
+        let path = m.folder + "/" + m.key + ".x52"
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("In the profile file").foregroundStyle(.secondary)
+                Spacer()
+                Button("Show file") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) }
+                    .controlSize(.small)
+            }
+            Text(path).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head).help(path)
+            ScrollView([.vertical, .horizontal]) {
+                let src = str(x52_pages_source())
+                Text(src.isEmpty ? "(no page lines: the built-in pages only)" : src)
+                    .font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .topLeading).padding(6)
+            }
+            .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.08)))
+            .id(m.revision)
+        }
+    }
+}
+
+
 // MARK: - Window
 
 let tabList: [(Int, String)] = [(6, "Buttons"), (0, "Lights"), (1, "Live lights"), (2, "Alarms"), (3, "Screen & clock"),
-                                (5, "Master & brightness"), (7, "Axes"), (4, "Test")]
+                                (8, "Pages"), (5, "Master & brightness"), (7, "Axes"), (4, "Test")]
 
 struct SettingsView: View {
     @ObservedObject var m: Model
@@ -1357,7 +1880,7 @@ struct SettingsView: View {
                 Text(m.statusText)
                 Spacer()
                 Picker("Profile", selection: Binding(get: { m.key }, set: { m.select($0) })) {
-                    ForEach(m.profiles, id: \.self) { Text(profileTitle($0)).tag($0) }
+                    ForEach(m.profiles, id: \.self) { Text(pickerTitle($0, m.standardKeys)).tag($0) }
                 }
                 .frame(width: 280)
             }
@@ -1368,6 +1891,7 @@ struct SettingsView: View {
             if !m.error.isEmpty {
                 Text(m.error).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
             }
+            StandardBanner(m: m)
             // A scrolling strip of tabs, so a narrow window never hides some behind a ">>" menu.
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
@@ -1393,6 +1917,7 @@ struct SettingsView: View {
                 case 3: ScreenTab(m: m)
                 case 5: MasterTab(m: m)
                 case 7: AxesTab(m: m)
+                case 8: PagesTab(m: m)
                 default: TestTab(m: m)
                 }
             }
@@ -1440,6 +1965,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ note: Notification) {
         model.start()
+        model.openPagesEditor = { [weak self] in self?.openPagesEditor() }
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         let image = NSImage(systemSymbolName: "gamecontroller.fill", accessibilityDescription: "X52 Pro")
         image?.isTemplate = true
@@ -1513,6 +2039,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    // The pages editor gets a window of its own: there is a lot to see side by side.
+    var pagesWindow: NSWindow?
+    @objc func openPagesEditor() {
+        if pagesWindow == nil {
+            let w = NSWindow(contentRect: .zero, styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                             backing: .buffered, defer: false)
+            w.title = "X52 Pro: Pages"
+            w.contentView = NSHostingView(rootView: PagesEditor(m: model))
+            w.isReleasedWhenClosed = false
+            w.setContentSize(NSSize(width: 1320, height: 760))
+            w.contentMinSize = NSSize(width: 980, height: 560)
+            w.center()
+            NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: w, queue: .main) { [weak self] _ in
+                self?.model.pagesOpen = false
+                x52_pages_watch(0)
+            }
+            pagesWindow = w
+        }
+        model.pagesOpen = true
+        x52_pages_watch(1)
+        NSApp.activate(ignoringOtherApps: true)
+        pagesWindow?.makeKeyAndOrderFront(nil)
     }
 
     @objc func quit() { NSApp.terminate(nil) }

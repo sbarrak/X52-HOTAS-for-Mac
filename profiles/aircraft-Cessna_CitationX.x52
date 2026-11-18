@@ -1,6 +1,8 @@
 x52pro-profile 3
-# X52 Pro button profile. Written by the X52 Pro plugin; safe to edit by hand.
+# X52 Pro profile for the Cessna Citation X (ready-made, see profiles/README.md).
 name = Cessna_CitationX
+# standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)
+standard = 1
 pinkie_shift = 0
 shift_button = 6
 mode_buttons = 28 29 30
@@ -11,7 +13,6 @@ mode_settle_ms = 100
 mfd_brightness = 127
 led_brightness = 127
 clutch_latched = 0
-# clocks: clock 1 is GMT; clock 2 and 3 are minutes from GMT. date_format: 0 DD-MM-YY, 1 MM-DD-YY, 2 YY-MM-DD
 clock2_offset = 0
 clock3_offset = 0
 clock1_12h = 0
@@ -20,30 +21,22 @@ clock3_12h = 0
 date_format = 0
 com_833 = 0
 axis_override = 1
-# axis_<name> = dead zone %, expo %, inverted (1/0)
+throttle_plugin = 1
 axis_roll = 5 0 0
 axis_pitch = 5 0 0
 axis_yaw = 5 0 0
 axis_throttle = 5 0 1
-dial_accel = 1
-dial_slow_ms = 150
-dial_fast_ms = 60
-dial_factor = 10
+slider_flaps = 1
+slider_invert = 0
 leds 1 = fire:green a:green b:green d:green e:green t1:green t2:green t3:green pov:green clutch:green throttle:green
 leds 2 = fire:green a:green b:green d:amber e:amber t1:amber t2:amber t3:amber pov:amber clutch:green throttle:green
 leds 3 = fire:green a:green b:green d:red e:red t1:red t2:red t3:red pov:red clutch:green throttle:green
-# leds with the pinkie held, per mode
 ledsp 1 = fire:green a:green b:green d:green e:green t1:green t2:green t3:green pov:green clutch:green throttle:green
 ledsp 2 = fire:green a:green b:green d:amber e:amber t1:amber t2:amber t3:amber pov:amber clutch:green throttle:green
 ledsp 3 = fire:green a:green b:green d:red e:red t1:red t2:red t3:red pov:red clutch:green throttle:green
-# rule <light> <op> <number> <colour if true> <colour if not> [not] <dataref> [and|or [not] <op> <number> <dataref>]
-#   colours: off green amber red mode. One rule per light; the first rule that has a colour wins. A dataref of - is not chosen yet.
-rule fire > 0.5 green off sim/cockpit2/controls/parking_brake_ratio
+rule fire > 0.5 green off sim/flightmodel/controls/parkbrake
 rule a > 0.99 green off sim/flightmodel2/gear/deploy_ratio[0]
-rule b > 0.01 amber green sim/cockpit2/controls/flap_ratio
-rule throttle > 0 green off sim/cockpit2/autopilot/servos_on
-# alarm <light> <steady|blink|alternate> <slow|fast> <colour> <colour 2> "name" [not] <op> <number> <dataref> [and|or [not] <op> <number> <dataref>]
-#   alarms beat the rules above and the mode colours; the first alarm that is triggered wins, one that is not leaves the light to the next.
+rule b > 0.01 amber green sim/cockpit2/controls/flap_handle_deploy_ratio
 alarm fire blink fast red amber "Engine fire" > 0 sim/cockpit2/annunciators/engine_fires[0] or > 0 sim/cockpit2/annunciators/engine_fires[1]
 alarm pov blink fast red amber "Stall" > 0 sim/cockpit2/annunciators/stall_warning
 alarm a blink slow red amber "Gear unsafe" > 0 sim/cockpit2/annunciators/gear_unsafe
@@ -52,8 +45,6 @@ alarm clutch blink slow amber red "Master caution" > 0 sim/cockpit2/annunciators
 alarm t1 alternate slow red amber "Low fuel" > 0 sim/cockpit2/annunciators/fuel_quantity
 alarm t2 blink fast amber red "Autopilot disconnect" > 0 sim/cockpit2/annunciators/autopilot_disconnect
 alarm t3 blink fast red amber "Overspeed" > 0 sim/flightmodel/failures/over_vne
-# page <id> "<title>" [in <parent id>]    pages of the stick's screen; a page without 'in' is reached with the left wheel
-# row <page id> text "<words>" | value "<label>" "<format, e.g. %.0f kg>" <dataref> | link "<label>" <page id>
 page flt "Flight"
 row flt value "IAS" "%.0f kt" sim/cockpit2/gauges/indicators/airspeed_kts_pilot
 row flt value "Alt" "%.0f ft" sim/cockpit2/gauges/indicators/altitude_ft_pilot
@@ -71,75 +62,71 @@ page fuel "Fuel"
 row fuel value "Total" "%.0f kg" sim/flightmodel/weight/m_fuel_total
 row fuel value "Left" "%.0f kg" sim/cockpit2/fuel/fuel_quantity[0]
 row fuel value "Right" "%.0f kg" sim/cockpit2/fuel/fuel_quantity[1]
-# master <screen|lights> [not] <op> <number> <dataref> [and|or [not] <op> <number> <dataref>]
-#   the screen (or every light) is on only while this is true, e.g. avionics power. No master line: always on.
 master screen == 1 sim/cockpit2/switches/avionics_power_on
 master lights == 1 sim/cockpit2/switches/avionics_power_on
-# brightness <screen|lights> <value at dim> <value at bright> <dim 0..127> <bright 0..127> <dataref>
-#   the brightness follows the dataref between those two points. No line: the fixed brightness above.
-# bind <button> <any|1..6> <press|hold> "label" step ; step ...
-#   layers 1-3 = mode 1-3, 4-6 = mode 1-3 with the pinkie held
-#   steps: cmd:<x-plane command>   key:<combo e.g. shift+f1>   wait:<milliseconds>
-#          set:<dataref>=<value>   toggle:<dataref>=<a>,<b>   add:<dataref>=<amount>[,<min>,<max>]
 bind 1 any press "AP disconnect" cmd:sim/autopilot/servos_off_any
 bind 2 any press "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
 bind 3 any press "Gear up/down" cmd:sim/flight_controls/landing_gear_toggle
-bind 4 any press "Flaps up" cmd:sim/flight_controls/flaps_up
-bind 5 any press "Flaps down" cmd:sim/flight_controls/flaps_down
 bind 6 any press "Brakes (hold)" cmd:sim/flight_controls/brakes_regular
-bind 7 1 press "Landing lights" cmd:sim/lights/landing_lights_toggle
-bind 7 2 press "Speedbrake" cmd:sim/flight_controls/speed_brakes_toggle
-bind 7 3 press "AP on/off" cmd:sim/autopilot/servos_toggle
-bind 8 1 press "Strobes" cmd:sim/lights/strobe_lights_toggle
-bind 8 2 press "AP approach" cmd:sim/autopilot/approach
-bind 8 3 press "Flight director" cmd:sim/autopilot/fdir_toggle
-bind 9 1 press "Battery on" cmd:sim/electrical/battery_1_on
-bind 9 2 press "AP NAV" cmd:sim/autopilot/NAV
-bind 9 3 press "AP HDG" cmd:sim/autopilot/heading
-bind 10 1 press "Battery off" cmd:sim/electrical/battery_1_off
-bind 10 2 press "AP HDG" cmd:sim/autopilot/heading
-bind 10 3 press "AP NAV" cmd:sim/autopilot/NAV
-bind 11 1 press "Avionics on" cmd:sim/systems/avionics_on
-bind 11 2 press "Spoilers arm" cmd:sim/flight_controls/speed_brakes_arm_toggle
-bind 11 3 press "AP ALT hold" cmd:sim/autopilot/altitude_hold
-bind 12 1 press "Avionics off" cmd:sim/systems/avionics_off
-bind 12 2 press "Spoilers retract" cmd:sim/flight_controls/speed_brakes_up_all
-bind 12 3 press "AP VS" cmd:sim/autopilot/vertical_speed
-bind 13 1 press "APU start" cmd:sim/electrical/APU_start
-bind 13 2 press "Pitot heat on" cmd:sim/ice/pitot_heat0_on
-bind 13 3 press "Autothrottle" cmd:sim/autopilot/autothrottle_toggle
-bind 14 1 press "APU off" cmd:sim/electrical/APU_off
-bind 14 2 press "Pitot heat off" cmd:sim/ice/pitot_heat0_off
-bind 14 3 press "AP level change" cmd:sim/autopilot/level_change
 bind 15 any press "TOGA" cmd:sim/autopilot/take_off_go_around
 bind 16 any press "Cockpit view" cmd:sim/view/3d_cockpit_cmnd_look
-bind 17 1 press "Zoom in" cmd:sim/general/zoom_in
-bind 17 2 press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
-bind 17 3 press "HDG bug +" cmd:sim/autopilot/heading_up
-bind 18 1 press "Zoom out" cmd:sim/general/zoom_out
-bind 18 2 press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
-bind 18 3 press "HDG bug -" cmd:sim/autopilot/heading_down
-bind 19 1 press "Chase view" cmd:sim/view/chase
-bind 19 2 press "Take-off trim" cmd:sim/flight_controls/pitch_trim_takeoff
-bind 19 3 press "HDG sync" cmd:sim/autopilot/heading_sync
 bind 20 any press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
 bind 21 any press "Rudder trim R" cmd:sim/flight_controls/rudder_trim_right
 bind 22 any press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
 bind 23 any press "Rudder trim L" cmd:sim/flight_controls/rudder_trim_left
-bind 24 1 press "Nav lights on" cmd:sim/lights/nav_lights_on
-bind 24 2 press "Speedbrake in" cmd:sim/flight_controls/speed_brakes_up_one
-bind 24 3 press "ALT select +" cmd:sim/autopilot/altitude_up
-bind 25 1 press "Taxi light on" cmd:sim/lights/taxi_lights_on
-bind 25 2 press "Autothrottle" cmd:sim/autopilot/autothrottle_toggle
-bind 25 3 press "Speed +" cmd:sim/autopilot/airspeed_up
-bind 26 1 press "Nav lights off" cmd:sim/lights/nav_lights_off
-bind 26 2 press "Speedbrake out" cmd:sim/flight_controls/speed_brakes_down_one
-bind 26 3 press "ALT select -" cmd:sim/autopilot/altitude_down
-bind 27 1 press "Taxi light off" cmd:sim/lights/taxi_lights_off
-bind 27 2 press "Reverse (hold)" cmd:sim/engines/thrust_reverse_hold
-bind 27 3 press "Speed -" cmd:sim/autopilot/airspeed_down
 bind 35 any press "Screen page -" cmd:x52pro/mfd_page_prev
 bind 36 any press "Screen page +" cmd:x52pro/mfd_page_next
 bind 37 any press "Screen cursor up" cmd:x52pro/mfd_up
 bind 38 any press "Screen cursor down" cmd:x52pro/mfd_down
 bind 39 any press "Screen select" cmd:x52pro/mfd_select
+bind 4 1 press "AP on" cmd:sim/autopilot/servos_on
+bind 5 1 press "AP off" cmd:sim/autopilot/servos_off_any
+bind 7 1 press "Landing lights" cmd:sim/lights/landing_lights_toggle
+bind 8 1 press "Strobes" cmd:sim/lights/strobe_lights_toggle
+bind 9 1 press "Battery on" cmd:sim/electrical/battery_1_on
+bind 10 1 press "Battery off" cmd:sim/electrical/battery_1_off
+bind 11 1 press "Avionics on" cmd:sim/systems/avionics_on
+bind 12 1 press "Avionics off" cmd:sim/systems/avionics_off
+bind 13 1 press "APU start" cmd:sim/electrical/APU_start
+bind 14 1 press "APU off" cmd:sim/electrical/APU_off
+bind 17 1 press "Zoom in" cmd:sim/general/zoom_in
+bind 18 1 press "Zoom out" cmd:sim/general/zoom_out
+bind 19 1 press "Chase view" cmd:sim/view/chase
+bind 24 1 press "Nav lights on" cmd:sim/lights/nav_lights_on
+bind 25 1 press "Taxi light on" cmd:sim/lights/taxi_lights_on
+bind 26 1 press "Nav lights off" cmd:sim/lights/nav_lights_off
+bind 27 1 press "Taxi light off" cmd:sim/lights/taxi_lights_off
+bind 4 2 press "AP approach" cmd:sim/autopilot/approach
+bind 5 2 press "TOGA" cmd:sim/autopilot/take_off_go_around
+bind 7 2 press "Speedbrake" cmd:sim/flight_controls/speed_brakes_toggle
+bind 8 2 press "AP approach" cmd:sim/autopilot/approach
+bind 9 2 press "AP NAV" cmd:sim/autopilot/NAV
+bind 10 2 press "AP HDG" cmd:sim/autopilot/heading
+bind 11 2 press "Spoilers arm" cmd:sim/flight_controls/speed_brakes_arm_toggle
+bind 12 2 press "Spoilers retract" cmd:sim/flight_controls/speed_brakes_up_all
+bind 13 2 press "Pitot heat on" cmd:sim/ice/pitot_heat0_on
+bind 14 2 press "Pitot heat off" cmd:sim/ice/pitot_heat0_off
+bind 17 2 press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
+bind 18 2 press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
+bind 19 2 press "Take-off trim" cmd:sim/flight_controls/pitch_trim_takeoff
+bind 24 2 press "Speedbrake in" cmd:sim/flight_controls/speed_brakes_up_one
+bind 25 2 press "Autothrottle" cmd:sim/autopilot/autothrottle_toggle
+bind 26 2 press "Speedbrake out" cmd:sim/flight_controls/speed_brakes_down_one
+bind 27 2 press "Reverse (hold)" cmd:sim/engines/thrust_reverse_hold
+bind 4 3 press "AP ALT hold" cmd:sim/autopilot/altitude_hold
+bind 5 3 press "AP VS" cmd:sim/autopilot/vertical_speed
+bind 7 3 press "AP on/off" cmd:sim/autopilot/servos_toggle
+bind 8 3 press "Flight director" cmd:sim/autopilot/fdir_toggle
+bind 9 3 press "AP HDG" cmd:sim/autopilot/heading
+bind 10 3 press "AP NAV" cmd:sim/autopilot/NAV
+bind 11 3 press "AP ALT hold" cmd:sim/autopilot/altitude_hold
+bind 12 3 press "AP VS" cmd:sim/autopilot/vertical_speed
+bind 13 3 press "Autothrottle" cmd:sim/autopilot/autothrottle_toggle
+bind 14 3 press "AP level change" cmd:sim/autopilot/level_change
+bind 17 3 press "HDG bug +" cmd:sim/autopilot/heading_up
+bind 18 3 press "HDG bug -" cmd:sim/autopilot/heading_down
+bind 19 3 press "HDG sync" cmd:sim/autopilot/heading_sync
+bind 24 3 press "ALT select +" cmd:sim/autopilot/altitude_up
+bind 25 3 press "Speed +" cmd:sim/autopilot/airspeed_up
+bind 26 3 press "ALT select -" cmd:sim/autopilot/altitude_down
+bind 27 3 press "Speed -" cmd:sim/autopilot/airspeed_down

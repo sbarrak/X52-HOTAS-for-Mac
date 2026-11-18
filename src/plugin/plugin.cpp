@@ -1,5 +1,7 @@
 // X52 Pro plugin for X-Plane 12 (macOS, arm64).
 // Glue between X-Plane (commands, datarefs, flight loop, menu) and the engine + hardware.
+#include <algorithm>
+#include <cmath>
 #include <cctype>
 #include <chrono>
 #include <cstdio>
@@ -211,6 +213,11 @@ void updateDevice(App& a, double now) {
     DeviceState s;
     Lines lines;
     bool labelFresh = now < a.labelUntil;
+    if (a.page != PageButtons) {
+        // The page was hidden: show the first one the left wheel visits.
+        std::vector<int> order = a.pageOrder();
+        if (std::find(order.begin(), order.end(), a.page) == order.end()) a.setPage(order[0]);
+    }
     if (a.testMode)
         lines = a.testLines;
     else if (a.engine.clutch() && a.pickIndex >= 0 && a.pickIndex < (int)a.pickKeys.size()) {
@@ -326,6 +333,7 @@ float flightLoop(float, float, int, void*) {
     }
     a.trackAxes(now);
     a.applyAxes();
+    a.applySliderFlaps();
     if (a.testMode) {
         for (const AxisEvent& m : moves) {
             auto key = std::make_pair(m.usagePage, m.usage);
@@ -400,7 +408,9 @@ double App::now() const {
 
 std::string App::profileKey() const {
     if (!manualKey.empty()) return manualKey;
-    return usingAircraftProfile ? Store::keyForAircraft(aircraft) : std::string("default");
+    std::string base = usingAircraftProfile ? Store::keyForAircraft(aircraft) : std::string("default");
+    std::string copy = store.choiceFor(base);   // the user's copy of a ready-made profile stands in for it
+    return !copy.empty() && store.exists(copy) ? copy : base;
 }
 
 std::string datarefReport(const std::string& spec) {
@@ -433,16 +443,8 @@ void App::setPage(int p) {
 
 int App::pageTotal() const { return kPageCount + (int)profile.pages.topLevel().size(); }
 
-// Radio pages, then the user's pages, and the Buttons page last.
-std::vector<int> App::pageOrder() const {
-    std::vector<int> order;
-    for (int p = 0; p < kPageCount; ++p)
-        if (p != PageButtons && p != PageBrightness) order.push_back(p);
-    for (int k = 0; k < (int)profile.pages.topLevel().size(); ++k) order.push_back(kPageCount + k);
-    order.push_back(PageButtons);
-    order.push_back(PageBrightness);
-    return order;
-}
+// Radio pages, then the user's pages, Buttons and Brightness last; or the order the profile sets, without its hidden pages.
+std::vector<int> App::pageOrder() const { return wheelOrder(profile); }
 
 void App::stepPage(int direction) {
     std::vector<int> order = pageOrder();
@@ -509,15 +511,21 @@ void App::trackAxes(double t) {
 }
 
 void App::applyAxes() {
-    if (!profile.axes.overrideXPlane) {
+    bool wantJoy = profile.axes.overrideXPlane, wantThr = profile.axes.pluginThrottle;
+    if (!wantJoy && !wantThr) {
         if (axesOverridden) releaseAxes();
         return;
+    }
+    if (!wantJoy && joyOverridden) {   // only the throttle now: the stick goes back to X-Plane
+        if (XPLMDataRef r = cachedRef("sim/operation/override/override_joystick")) XPLMSetDatai(r, 0);
+        joyOverridden = false;
     }
     bool joy = false, thr = false;
     for (const auto& key : kFlightAxes) {
         const AxisTarget* t = axisTarget(key.first, key.second);
         auto it = axisLive.find(key);
         if (!t || (it == axisLive.end() && !t->centred)) continue;   // an unseen throttle stays X-Plane's
+        if (t->centred ? !wantJoy : !wantThr) continue;
         double v = 0.0;
         if (it != axisLive.end()) {
             const AxisLive& l = it->second;
@@ -527,6 +535,9 @@ void App::applyAxes() {
             if (t->count > 1) {
                 std::vector<float> all(t->count, (float)v);   // every engine gets the same throttle
                 XPLMSetDatavf(r, all.data(), 0, t->count);
+                // The handle too: the cockpit levers follow, and aircraft whose own systems read the handle
+                // (FADEC jets, autothrottles) see the same power.
+                if (XPLMDataRef h = cachedRef("sim/cockpit2/engine/actuators/throttle_ratio")) XPLMSetDatavf(h, all.data(), 0, t->count);
             } else {
                 XPLMSetDataf(r, (float)v);
             }
@@ -535,13 +546,31 @@ void App::applyAxes() {
     }
     if (joy) if (XPLMDataRef r = cachedRef("sim/operation/override/override_joystick")) XPLMSetDatai(r, 1);
     if (thr) if (XPLMDataRef r = cachedRef("sim/operation/override/override_throttles")) XPLMSetDatai(r, 1);
+    joyOverridden = joyOverridden || joy;
     axesOverridden = axesOverridden || joy || thr;
+}
+
+// The slider sets the flap handle at the aircraft's detents, written only when the stop changes, so flap
+// commands from buttons or the mouse still work in between. Nothing happens until the slider has moved.
+void App::applySliderFlaps() {
+    if (!profile.axes.sliderFlaps) return;
+    auto it = axisLive.find({0x01, 0x36});
+    if (it == axisLive.end() || it->second.changedAt <= 0) return;
+    const AxisLive& l = it->second;
+    double x = normalizeAxis(l.value, l.min, l.max, false);   // high reading: flaps deployed (unless inverted)
+    if (profile.axes.slider.invert) x = 1.0 - x;
+    XPLMDataRef det = cachedRef("sim/aircraft/controls/acf_flap_detents");
+    double handle = flapHandleFor(x, det ? XPLMGetDatai(det) : 0);
+    if (std::fabs(handle - flapWritten) < 1e-4) return;
+    if (XPLMDataRef r = cachedRef("sim/cockpit2/controls/flap_handle_request_ratio")) XPLMSetDataf(r, (float)handle);
+    flapWritten = handle;
 }
 
 void App::releaseAxes() {
     for (const char* n : {"sim/operation/override/override_joystick", "sim/operation/override/override_throttles"})
         if (XPLMDataRef r = cachedRef(n)) XPLMSetDatai(r, 0);
     axesOverridden = false;
+    joyOverridden = false;
 }
 
 void App::wheel(Wheel w) { wheelAt(w, now()); }
@@ -580,6 +609,7 @@ void App::hatMoved(int direction) {
     } else if (direction == 1) {
         if (pickIndex < 0 || pickIndex >= (int)pickKeys.size()) return;
         manualKey = pickKeys[pickIndex];
+        store.notePicked(manualKey);
         pickIndex = -1;
         reload();
         showLabel("Profile in use");
@@ -598,6 +628,7 @@ void App::chooseProfile(const std::string& key) {
         loadForAircraft(aircraft);
     } else if (store.exists(key)) {
         manualKey = key;
+        store.notePicked(key);
         reload();
     }
 }
@@ -617,6 +648,10 @@ void App::lightColors(Color out[kLedCount], double now) {
 
 void App::profileChanged() {
     engine.setProfile(profile);
+    if (profile.standard) {   // a ready-made profile is never written: the change lasts for this flight
+        notice = "Ready-made profile: this change lasts for this flight only. Save as my copy keeps it.";
+        return;
+    }
     if (saveBlocked) {
         notice = "Not saved: the profile file has a mistake. Fix or delete it, then Plugins > X52 Pro > Reload.";
         return;
@@ -645,6 +680,7 @@ void App::saveAircraftDescription() {
 void App::loadForAircraft(const std::string& acfName) {
     saveAircraftDescription();
     if (acfName != aircraft) manualKey.clear();   // a profile picked on the stick lasts until the aircraft changes
+    flapWritten = -1;
     aircraft = acfName;
     std::string key = Store::keyForAircraft(aircraft);
     usingAircraftProfile = !aircraft.empty() && store.exists(key);
@@ -659,7 +695,7 @@ void App::reload() {
     loadedStamp = store.stamp(key);
     if (store.exists(key)) {
         if (store.load(key, p, &err)) {
-            if (p.version < 2) {
+            if (p.version < 2 && !p.standard) {
                 // An older file: reading it added the wheel bindings; write them down once.
                 p.version = 2;
                 store.save(key, p, &err);
@@ -691,15 +727,44 @@ void App::makeAircraftProfile() {
     if (aircraft.empty() || usingAircraftProfile) return;
     usingAircraftProfile = true;
     profile.name = aircraft;   // starts as a copy of the default profile
+    profile.standard = false;
+    profile.basedOn.clear();
     profileChanged();
 }
 
 void App::dropAircraftProfile() {
     manualKey.clear();
     if (!usingAircraftProfile) return;
-    store.trash(profileKey());   // kept aside, so the window can offer "Undo"
+    std::string base = Store::keyForAircraft(aircraft), key = profileKey();
+    if (key != base) {   // the user's copy of the ready-made profile: set it aside, the ready-made one comes back
+        store.trash(key);
+        store.setChoice(base, "");
+        reload();
+        return;
+    }
+    if (profile.standard) return;   // a ready-made profile is never deleted
+    store.trash(key);   // kept aside, so the window can offer "Undo"
     usingAircraftProfile = false;
     reload();
+}
+
+std::string App::saveCopy() {
+    std::string from = profileKey();
+    std::string key = store.freeKey((from == "default" ? std::string("Default") : profileTitle(from)) + " mine");
+    Profile p = profile;   // with the changes made in this flight
+    p.standard = false;
+    if (p.basedOn.empty() && store.isStandard(from)) p.basedOn = from;
+    p.name = key;
+    std::string err;
+    if (!store.save(key, p, &err)) {
+        notice = "Could not save: " + err;
+        return "";
+    }
+    if (!manualKey.empty()) manualKey = key;
+    store.notePicked(key);
+    reload();
+    notice = "Saved as your profile '" + key + "'" + (p.basedOn.empty() ? "." : ", used from now on instead of the ready-made one.");
+    return key;
 }
 
 bool App::canUndoDrop() const { return !aircraft.empty() && !usingAircraftProfile && store.hasTrash(Store::keyForAircraft(aircraft)); }

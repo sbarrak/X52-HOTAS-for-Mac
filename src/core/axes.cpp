@@ -64,4 +64,10 @@ double shapeAxis(double x, const AxisCurve& c, bool centred) {
     return y;
 }
 
+double flapHandleFor(double slider, int detents) {
+    double x = std::max(0.0, std::min(1.0, slider));
+    if (detents <= 0) return x;
+    return std::round(x * detents) / detents;
+}
+
 }  // namespace x52

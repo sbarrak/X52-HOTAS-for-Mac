@@ -7,7 +7,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from aircraft import (AIRCRAFT, ANY, LED_ORDER, alarms, features, layout, mode_leds, pages, rules)
+from aircraft import (AIRCRAFT, ANY, LED_ORDER, alarms, axes, features, layout, mode_leds, pages, rules)
 
 OUT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
@@ -25,6 +25,8 @@ def profile_text(ac, acf):
     o.append("x52pro-profile 3")
     o.append("# X52 Pro profile for the %s (ready-made, see profiles/README.md)." % ac["name"])
     o.append("name = " + acf)
+    o.append("# standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)")
+    o.append("standard = 1")
     o.append("pinkie_shift = 0")
     o.append("shift_button = 6")
     o.append("mode_buttons = 28 29 30")
@@ -41,6 +43,7 @@ def profile_text(ac, acf):
         o.append("clock%d_12h = 0" % i)
     o.append("date_format = 0")
     o.append("com_833 = 0")
+    o.extend(axes(f))
     for m in (1, 2, 3):
         leds = mode_leds(m)
         o.append("leds %d = " % m + " ".join("%s:%s" % (l, leds[l]) for l in LED_ORDER))

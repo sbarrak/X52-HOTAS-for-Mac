@@ -11,10 +11,19 @@ struct AxisCurve {
 };
 
 struct AxisSettings {
-    bool overrideXPlane = false;   // true: the plugin writes the axes into X-Plane, replacing its own joystick reading
+    // true: the plugin writes the stick and twist (roll, pitch, yaw) into X-Plane, replacing its own joystick reading.
+    bool overrideXPlane = false;
+    // true: the plugin drives the throttle (engine power and the cockpit levers), whatever X-Plane's own axis
+    // assignment does. Separate from the stick, so a helicopter's lever (the collective) can stay X-Plane's.
+    // A file without its own line takes the value of axis_override (older files drove both with that one switch).
+    bool pluginThrottle = false;
     AxisCurve roll, pitch, yaw, throttle;
     // The dials and the slider: only a "steady" percentage (deadzone field), so a value that flickers by a hair stays put.
     AxisCurve lowerRotary = {2, 0, false}, upperRotary = {2, 0, false}, slider = {2, 0, false};
+    // The slider on the throttle sets the flap handle, at the aircraft's own detents (independent of overrideXPlane).
+    // A high slider reading is flaps fully deployed, a low one flaps up; slider.invert ("Invert flaps") swaps that.
+    // On the X52, with it off (as in the ready-made profiles), the slider pushed away from you deploys the flaps.
+    bool sliderFlaps = false;
 };
 
 // The X-Plane value a stick axis replaces.
@@ -39,5 +48,9 @@ long steadyValue(long shown, long value, long min, long max, int pct);
 double normalizeAxis(long value, long min, long max, bool centred);
 // Dead zone, curve and inversion applied to a normalised value.
 double shapeAxis(double x, const AxisCurve& c, bool centred);
+
+// The flap handle (0 up .. 1 fully down) for a slider position 0..1: the nearest of the aircraft's `detents` stops
+// (0, 1/n, ..., 1), or the position itself when the aircraft reports no detents.
+double flapHandleFor(double slider, int detents);
 
 }  // namespace x52

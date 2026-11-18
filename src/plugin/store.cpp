@@ -35,6 +35,10 @@ bool Store::load(const std::string& key, Profile& out, std::string* error) const
 }
 
 bool Store::save(const std::string& key, const Profile& p, std::string* error) const {
+    if (isStandard(key)) {
+        if (error) *error = "'" + key + "' is a ready-made profile and is never changed: save the change as a new profile";
+        return false;
+    }
     mkdir(dir.c_str(), 0755);
     Profile copy = p;
     copy.prune();
@@ -119,6 +123,76 @@ bool Store::hasTrash(const std::string& key) const { return access((pathFor(key)
 bool Store::restore(const std::string& key) const {
     if (!hasTrash(key) || exists(key)) return false;
     return rename((pathFor(key) + ".deleted").c_str(), pathFor(key).c_str()) == 0;
+}
+
+bool Store::isStandard(const std::string& key) const {
+    std::ifstream f(pathFor(key));
+    for (std::string line; std::getline(f, line);) {
+        if (line.compare(0, 8, "standard") != 0) continue;
+        size_t eq = line.find('=');
+        if (eq == std::string::npos) continue;
+        std::string v = line.substr(eq + 1);
+        v.erase(0, v.find_first_not_of(" \t"));
+        return !v.empty() && v[0] != '0';
+    }
+    return false;
+}
+
+const std::map<std::string, std::string>& Store::choices() const {
+    std::string path = dir + "/profile-choices.txt";
+    struct stat st;
+    long long s = stat(path.c_str(), &st) == 0 ? (long long)st.st_mtimespec.tv_sec * 1000000000LL + st.st_mtimespec.tv_nsec + st.st_size : 0;
+    if (s == choicesStamp_) return choices_;
+    choicesStamp_ = s;
+    choices_.clear();
+    std::ifstream f(path);
+    for (std::string line; std::getline(f, line);) {
+        size_t tab = line.find('\t');
+        if (line.empty() || line[0] == '#' || tab == std::string::npos) continue;
+        choices_[line.substr(0, tab)] = line.substr(tab + 1);
+    }
+    return choices_;
+}
+
+std::string Store::choiceFor(const std::string& standardKey) const {
+    const auto& c = choices();
+    auto it = c.find(standardKey);
+    return it == c.end() ? "" : it->second;
+}
+
+void Store::setChoice(const std::string& standardKey, const std::string& copyKey) const {
+    if (standardKey.empty()) return;
+    std::map<std::string, std::string> c = choices();
+    if (copyKey.empty()) c.erase(standardKey);
+    else c[standardKey] = copyKey;
+    std::string path = dir + "/profile-choices.txt", tmp = path + ".tmp";
+    {
+        std::ofstream f(tmp, std::ios::trunc);
+        f << "# Your copy used instead of a ready-made profile: <ready-made profile><TAB><your copy>\n";
+        for (const auto& kv : c) f << kv.first << "\t" << kv.second << "\n";
+    }
+    rename(tmp.c_str(), path.c_str());
+    choicesStamp_ = -1;
+}
+
+void Store::notePicked(const std::string& key) const {
+    if (key.empty() || !exists(key)) return;
+    if (isStandard(key)) {
+        setChoice(key, "");
+        return;
+    }
+    Profile p;
+    if (load(key, p, nullptr) && !p.basedOn.empty() && isStandard(p.basedOn)) setChoice(p.basedOn, key);
+}
+
+std::string Store::freeKey(const std::string& wanted) const {
+    std::string base;
+    for (unsigned char c : wanted) base += (isalnum(c) || c == '-' || c == '_' || c == '.' || c == ' ') ? (char)c : '_';
+    size_t a = base.find_first_not_of(' '), b = base.find_last_not_of(' ');
+    base = a == std::string::npos ? "My profile" : base.substr(a, b - a + 1);
+    std::string key = base;
+    for (int n = 2; key == "default" || exists(key) || hasTrash(key); ++n) key = base + " " + std::to_string(n);
+    return key;
 }
 
 }  // namespace x52

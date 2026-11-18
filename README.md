@@ -69,6 +69,24 @@ plugin drives the stick and the app stays quiet (it still saves what you change,
 the plugin applies it within a second). When X-Plane quits, the app takes over again.
 Without X-Plane installed, profiles live in `~/Library/Application Support/X52Pro/`.
 
+**Ready-made profiles are never changed.** The profiles that come with this project (Default and one for each
+X-Plane aircraft, see `profiles/README.md`) say `standard = 1`, and the app and the plugin never write them, so
+you can always go back to the original. The settings window shows a lock and **Save as new profile...** while
+one is selected, and the profile pickers mark them "(ready-made)".
+
+- Change anything on a ready-made profile in the app (lights, alarms, buttons, screen pages, axes) and it asks
+  for a name first: your change, and any after it, go into a new profile of yours, which the app switches to.
+  Cancel drops the change.
+- Your copy remembers where it came from (`based_on = aircraft-Cessna_CitationX`) and X-Plane uses it for that
+  aircraft from then on (or instead of Default, for a copy of Default). Picking the ready-made profile again,
+  in the app, the X-Plane window or on the stick, goes back to it; picking your copy again uses the copy. The
+  choice is kept in `profile-choices.txt` next to the profiles.
+- In X-Plane, a change made on a ready-made profile (the X-Plane window's editors, the Brightness page on the
+  stick) works for that flight but is not saved. **Save as my copy** on the window's bottom line keeps it, as
+  "<aircraft> mine". **Delete my copy** sets your copy aside and the ready-made profile is used again; a
+  ready-made profile itself cannot be deleted.
+- Profiles you make yourself (an import, a copy, an aircraft profile made in X-Plane) save as you change them.
+
 **How X-Plane is found:** the app reads the install list X-Plane keeps in
 `~/Library/Preferences/x-plane_install_12.txt`, then Steam's library list, then the usual
 places (Applications, your home folder, Desktop, other disks). A folder you choose by hand
@@ -137,9 +155,33 @@ from highest: **alarms**, then **live lights**, then the plain **mode colours**.
 ## Your own screen pages
 
 The screen's radio pages are built in and stay as they are. You can add pages of your own, in a tree.
-A page has rows, and a row is plain text, a dataref value, or a link that opens another page. Write them
-in the profile file (`Plugins > X52 Pro > Reload profile from disk` afterwards, or save the file while X-Plane
-runs and it reloads within a second). Example, pasted before the `bind` lines:
+A page has rows, and a row is plain text, a dataref value, or a link that opens another page.
+
+**In the menu bar app:** the **Pages** tab lists your pages and shows the selected one as the stick shows it.
+**Open pages editor...** opens a window of its own for the selected profile (picked at its top):
+
+- Left, the left wheel's pages in their order: the built-in ones (a lock: COM1 / NAV1, COM2 / NAV2, ADF, DME,
+  XPDR, AP, VOR / HDG, Buttons, Brightness) and yours, with the pages inside each of yours indented under it.
+  The eye shows or skips a page: a skipped page stays in the list (crossed out) and the left wheel passes it by.
+  The arrows move the selected page in the wheel's order (a page inside another moves among its neighbours).
+  **Add page**, **Add inside** (a page only a link on the selected page opens), **Remove** (it also removes the
+  pages inside it, and clears the links that opened them). A built-in page cannot be removed or changed, only
+  skipped or moved.
+- Middle, the selected page: its **Title**, **Opens from** (the left wheel, or inside another page) and its
+  rows. Each row is **Text**, **Value** or **Link**. A value row takes a dataref (suggestions come from X-Plane's
+  `DataRefs.txt` while you type), a label and a format, with an example of what the format makes of 1234.5.
+  A link row picks the page it opens, or makes a new page inside this one.
+- Right, the page on a black three-line screen (with X-Plane's live numbers when it answers over UDP, made-up
+  ones otherwise) and the page lines as they are saved in the profile file, with **Show file**.
+- **Restore default pages...** asks first, then removes all your pages and brings back the usual order with every
+  built-in page shown.
+
+Every change is saved at once into the profile file (button assignments and other settings in it are kept), and a
+running X-Plane picks it up within a second.
+
+**In the profile file** the pages are plain lines, and you can still write them by hand
+(`Plugins > X52 Pro > Reload profile from disk` afterwards, or save the file while X-Plane runs and it reloads
+within a second). Example, pasted before the `bind` lines:
 
 ```
 page fly "Flight"
@@ -151,15 +193,24 @@ row fuel value "Total" "%.0f kg" sim/flightmodel/weight/m_fuel_total
 row fuel value "Tank 1" "%.0f kg" sim/cockpit2/fuel/fuel_quantity[0]
 ```
 
-- A page without `in` is reached with the left wheel: after the radio pages, before the Buttons page. A page
-  with `in <page id>` is only opened by a link row. Page ids are letters, digits, `-` and `_`.
+- A page without `in` is reached with the left wheel: after the radio pages, before the Buttons page, unless the
+  order says otherwise (below). A page with `in <page id>` is only opened by a link row. Page ids are letters,
+  digits, `-` and `_`.
+- The left wheel's order and the pages it skips, as the editor saves them:
+  ```
+  wheel_order = @fly com1 com2 xpdr ap vorhdg buttons brightness
+  wheel_hidden = adf dme
+  ```
+  Built-in pages are `com1 com2 adf dme xpdr ap vorhdg buttons brightness`; your top-level pages are `@<id>`.
+  A page the list does not name comes after the ones it names, in the usual order (before Buttons and Brightness
+  when those are named). With neither line the usual order applies and nothing is skipped.
 - Rows: `text "words"`, `value "label" "format" dataref` (the format has one `%d`, `%f`, `%e` or `%g`, with an
   optional width and decimals, for example `%.0f kg`; `name[3]` reads one item of a list) and `link "label" page-id`.
 - On the screen the cursor `>` is on one row (the right wheel moves it, up and down; the screen scrolls to
   keep it in view). Pressing the wheel on a link opens its page; inside a sub-page the first row is `< Back`.
   Leaving a page with the left wheel forgets where you were. A value that cannot be read shows `--`.
-- To get the default screen back, delete the `page` and `row` lines: with none, only the radio pages and the
-  Buttons page remain.
+- To get the default screen back, use **Restore default pages...** or delete the `page`, `row`, `wheel_order`
+  and `wheel_hidden` lines: with none, only the built-in pages remain (radios, Buttons and Brightness).
 - The Function, Start/Stop and Reset buttons under the screen are not used for going back, because the stick
   itself uses them for its clocks and stopwatch.
 
