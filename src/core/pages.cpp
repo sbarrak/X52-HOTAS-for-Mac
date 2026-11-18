@@ -1,4 +1,5 @@
 #include "pages.h"
+#include "sidepages.h"
 
 #include <algorithm>
 #include <cmath>
@@ -119,7 +120,8 @@ std::string marked(const std::string& text, bool selected, bool editing) {
 
 }  // namespace
 
-int pageItemCount(int page) {
+int pageItemCount(int page, bool side) {
+    if (side && isSidePage(page)) return 4;
     switch (page) {
         case PageComNav1:
         case PageComNav2: return 6;
@@ -169,7 +171,8 @@ bool brightnessInput(PageCursor& c, Wheel w, int& screen, int& lights, bool scre
     return changed;
 }
 
-Lines formatSimPage(int page, const SimData& d, const PageCursor& cur) {
+Lines formatSimPage(int page, const SimData& d, const PageCursor& cur, bool side) {
+    if (side && isSidePage(page)) return formatSidePage(page, d, cur);
     Lines p;
     int count = pageItemCount(page);
     int item = count ? std::max(0, std::min(count - 1, cur.item)) : 0;
@@ -252,7 +255,8 @@ int dialRepeat(double gapSeconds, const DialAccel& d) {
     return 1 + (int)lround((d.factor - 1) * t);
 }
 
-std::vector<std::string> pageInput(int page, PageCursor& c, Wheel w, bool com833, int repeat) {
+std::vector<std::string> pageInput(int page, PageCursor& c, Wheel w, bool com833, int repeat, bool side) {
+    if (side && isSidePage(page)) return sidePageInput(page, c, w, com833, repeat);
     int count = pageItemCount(page);
     if (count == 0) {
         c = PageCursor();

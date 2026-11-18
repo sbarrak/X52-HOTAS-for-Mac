@@ -94,6 +94,13 @@ const char* pageName(int page) {
     return page >= 0 && page < kPageCount ? names[page] : "";
 }
 
+const char* pageName(int page, bool side) {
+    if (side && page == PageComNav1) return "COM 1+2";
+    if (side && page == PageComNav2) return "NAV 1+2";
+    if (side && page == PageAdf) return "ADF 1+2";
+    return pageName(page);
+}
+
 namespace {
 bool isHat(int usagePage, int usage) { return usagePage == 0x01 && usage == 0x39; }
 }  // namespace

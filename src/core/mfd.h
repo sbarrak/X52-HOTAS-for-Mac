@@ -51,6 +51,7 @@ struct SimData {
 // the Buttons page, and the Brightness page is the very last one.
 enum Page { PageComNav1, PageComNav2, PageAdf, PageDme, PageXpdr, PageAutopilot, PageVorHdg, PageButtons, PageBrightness, kPageCount };
 const char* pageName(int page);
+const char* pageName(int page, bool side);   // side-by-side layout: "COM 1+2", "NAV 1+2", "ADF 1+2" for the radio slots
 
 struct Lines {
     std::string l[kMfdLines];
