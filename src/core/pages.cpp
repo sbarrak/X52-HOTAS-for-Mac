@@ -1,4 +1,5 @@
 #include "pages.h"
+#include "sidepages.h"
 
 #include <algorithm>
 #include <cmath>
@@ -113,13 +114,20 @@ std::string activeLine(const std::string& name, const std::string& value, bool s
     return selected ? name + " [" + value + "]" : name + "  " + value;
 }
 
+// "v" in the last column: the cursor goes on to values not on the screen yet (NAV1, ADF2).
+std::string moreBelow(std::string line) {
+    if (line.size() < (size_t)kMfdCols - 1) line += std::string(kMfdCols - 1 - line.size(), ' ');
+    return line.substr(0, kMfdCols - 1) + "v";
+}
+
 std::string marked(const std::string& text, bool selected, bool editing) {
     return selected ? (editing ? ">>" : ">") + text : text;
 }
 
 }  // namespace
 
-int pageItemCount(int page) {
+int pageItemCount(int page, bool side) {
+    if (side && isSidePage(page)) return 4;
     switch (page) {
         case PageComNav1:
         case PageComNav2: return 6;
@@ -169,7 +177,8 @@ bool brightnessInput(PageCursor& c, Wheel w, int& screen, int& lights, bool scre
     return changed;
 }
 
-Lines formatSimPage(int page, const SimData& d, const PageCursor& cur) {
+Lines formatSimPage(int page, const SimData& d, const PageCursor& cur, bool side) {
+    if (side && isSidePage(page)) return formatSidePage(page, d, cur);
     Lines p;
     int count = pageItemCount(page);
     int item = count ? std::max(0, std::min(count - 1, cur.item)) : 0;
@@ -184,7 +193,7 @@ Lines formatSimPage(int page, const SimData& d, const PageCursor& cur) {
             if (item < 3) {
                 p.l[0] = activeLine(std::string("COM") + n, com, item == 0);
                 p.l[1] = standbyLine(coms, item == 1, item == 2, ed);
-                p.l[2] = "N" + nav + "  " + navs;
+                p.l[2] = moreBelow("N" + nav + "  " + navs);
             } else {
                 p.l[0] = activeLine(std::string("NAV") + n, nav, item == 3);
                 p.l[1] = standbyLine(navs, item == 4, item == 5, ed);
@@ -199,6 +208,7 @@ Lines formatSimPage(int page, const SimData& d, const PageCursor& cur) {
             p.l[0] = activeLine(first ? "ADF1" : "ADF2", act, part == 0);
             p.l[1] = standbyLine(stby, part == 1, part >= 2, ed, part == 2 ? "10" : "1");
             p.l[2] = fmt("ADF%d %4d %4d", first ? 2 : 1, first ? d.adf2 : d.adf1, first ? d.adf2s : d.adf1s);
+            if (first) p.l[2] = moreBelow(p.l[2]);
             break;
         }
         case PageDme:
@@ -252,7 +262,8 @@ int dialRepeat(double gapSeconds, const DialAccel& d) {
     return 1 + (int)lround((d.factor - 1) * t);
 }
 
-std::vector<std::string> pageInput(int page, PageCursor& c, Wheel w, bool com833, int repeat) {
+std::vector<std::string> pageInput(int page, PageCursor& c, Wheel w, bool com833, int repeat, bool side) {
+    if (side && isSidePage(page)) return sidePageInput(page, c, w, com833, repeat);
     int count = pageItemCount(page);
     if (count == 0) {
         c = PageCursor();

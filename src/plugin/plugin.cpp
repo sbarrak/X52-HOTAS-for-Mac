@@ -213,6 +213,7 @@ void updateDevice(App& a, double now) {
     DeviceState s;
     Lines lines;
     bool labelFresh = now < a.labelUntil;
+    a.followLayout();
     if (a.page != PageButtons) {
         // The page was hidden: show the first one the left wheel visits.
         std::vector<int> order = a.pageOrder();
@@ -232,7 +233,7 @@ void updateDevice(App& a, double now) {
     else if (a.page >= kPageCount)
         lines = a.userPageLines(now);
     else
-        lines = formatSimPage(a.page, readSim(), a.cursor);
+        lines = formatSimPage(a.page, readSim(), a.cursor, a.profile.radioSide);
     for (int i = 0; i < kMfdLines; ++i) s.lines[i] = a.screen.l[i] = mfdText(lines.l[i]);
     a.lightColors(s.leds, now);
     s.shift = a.engine.shift();
@@ -444,7 +445,17 @@ void App::setPage(int p) {
 int App::pageTotal() const { return kPageCount + (int)profile.pages.topLevel().size(); }
 
 // Radio pages, then the user's pages, Buttons and Brightness last; or the order the profile sets, without its hidden pages.
-std::vector<int> App::pageOrder() const { return wheelOrder(profile); }
+std::vector<int> App::pageOrder() const { return wheelOrder(profile, engine.mode()); }
+
+void App::showFirstPage() { setPage(pageOrder()[0]); }
+
+// A cursor position means a different value in the other layout (classic item 3 is the NAV1 swap, side item 3 is
+// COM2's standby), so a layout change must not carry it over.
+void App::followLayout() {
+    if (profile.radioSide == cursorSide) return;
+    cursorSide = profile.radioSide;
+    cursor = PageCursor();
+}
 
 void App::stepPage(int direction) {
     std::vector<int> order = pageOrder();
@@ -471,7 +482,7 @@ Lines App::userPageLines(double now) {
     const std::string* id = userPageId(page);
     if (!id) {
         setPage(PageComNav1);   // the page is gone (the profile changed): back to the first radio page
-        return formatSimPage(page, readSim(), cursor);
+        return formatSimPage(page, readSim(), cursor, profile.radioSide);
     }
     return formatUserPage(profile.pages, *id, nav, [now](const std::string& ref, double& v) { return readDataref(ref, now, v); });
 }
@@ -577,6 +588,7 @@ void App::wheel(Wheel w) { wheelAt(w, now()); }
 
 void App::wheelAt(Wheel w, double t) {
     if (testMode || engine.clutch()) return;
+    followLayout();
     // A turn in the same direction soon after the last click is a fast spin: the change is repeated.
     double gap = w == lastWheelDir && w != Wheel::Select ? t - lastWheelTime : 1e9;
     lastWheelTime = t;
@@ -591,7 +603,7 @@ void App::wheelAt(Wheel w, double t) {
             profileChanged();   // saved at once; the stick follows on the next refresh
         return;
     }
-    for (const std::string& c : pageInput(page, cursor, w, profile.com833, dialRepeat(gap, profile.dial))) commandOnce(c);
+    for (const std::string& c : pageInput(page, cursor, w, profile.com833, dialRepeat(gap, profile.dial), profile.radioSide)) commandOnce(c);
 }
 
 void App::hatMoved(int direction) {
@@ -612,6 +624,7 @@ void App::hatMoved(int direction) {
         store.notePicked(manualKey);
         pickIndex = -1;
         reload();
+        showFirstPage();
         showLabel("Profile in use");
     } else {
         manualKey.clear();
@@ -630,6 +643,7 @@ void App::chooseProfile(const std::string& key) {
         manualKey = key;
         store.notePicked(key);
         reload();
+        showFirstPage();
     }
 }
 
@@ -685,6 +699,7 @@ void App::loadForAircraft(const std::string& acfName) {
     std::string key = Store::keyForAircraft(aircraft);
     usingAircraftProfile = !aircraft.empty() && store.exists(key);
     reload();
+    showFirstPage();   // a new aircraft or profile starts on the first page; a file reload keeps the page
 }
 
 void App::reload() {
@@ -881,7 +896,14 @@ void App::showLabel(const std::string& text) {
     labelUntil = now() + 3.0;
 }
 
-void App::layerChanged(int, bool) {}
+// The mode dial: a mode with an order of its own (Profile::modeWheel) starts on its first page. When both modes
+// visit the same pages in the same order (every profile without per-mode orders), the page stays.
+void App::layerChanged(int mode, bool) {
+    if (mode == pageMode) return;
+    bool differs = wheelOrder(profile, mode) != wheelOrder(profile, pageMode);
+    pageMode = mode;
+    if (differs) showFirstPage();
+}
 
 }  // namespace x52
 
@@ -933,7 +955,9 @@ PLUGIN_API int XPluginEnable(void) {
     a.loadForAircraft(currentAircraft());
     a.loadButtonMap();
     a.lock.tryHold(a.store.dir);
+#ifndef X52_NO_HID   // the tests feed buttons themselves: a real stick plugged in would mix its own in
     a.input.start();
+#endif
     a.device.start();
     uiCreate();
     XPLMRegisterFlightLoopCallback(flightLoop, -1.0f, nullptr);

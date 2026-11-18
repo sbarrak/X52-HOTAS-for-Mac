@@ -973,6 +973,71 @@ TEST(a_ready_made_profile_is_never_written_and_my_copy_takes_its_place) {
     gApp->loadForAircraft("Cessna_172SP");
 }
 
+TEST(side_layout_shows_both_coms_on_the_first_radio_page) {
+    gApp->profile.radioSide = true;
+    gApp->setPage(PageComNav1);
+    gApp->nextDeviceUpdate = 0;
+    sim().frame();
+    CHECK_EQ(gApp->screen.l[0].substr(0, 6), std::string("[COM1]"));
+    sim().knownCommands.push_back("sim/radios/com1_standy_flip");
+    int before = sim().onces["sim/radios/com1_standy_flip"];
+    gApp->wheel(Wheel::Select);   // swaps COM1
+    CHECK_EQ(sim().onces["sim/radios/com1_standy_flip"], before + 1);
+    gApp->profile.radioSide = false;
+    gApp->nextDeviceUpdate = 0;
+    sim().frame();
+    CHECK_EQ(gApp->screen.l[0].substr(0, 4), std::string("COM1"));
+}
+
+TEST(the_mode_dial_opens_the_first_page_only_when_the_orders_differ) {
+    CHECK_EQ(gApp->engine.mode(), 1);
+    gApp->setPage(PageXpdr);
+    turnDial(28, 29);
+    CHECK_EQ(gApp->engine.mode(), 2);
+    CHECK_EQ(gApp->page, (int)PageXpdr);   // the same order in every mode: the page stays
+    gApp->profile.modeWheel[2].own = true;
+    gApp->profile.modeWheel[2].order = {"ap"};
+    gApp->cursor.editing = true;
+    turnDial(29, 30);
+    CHECK_EQ(gApp->engine.mode(), 3);
+    CHECK_EQ(gApp->page, (int)PageAutopilot);
+    CHECK(!gApp->cursor.editing);
+    gApp->stepPage(1);
+    CHECK_EQ(gApp->page, (int)PageComNav1);   // mode 3's order goes on after AP
+    gApp->setPage(PageDme);
+    turnDial(30, 28);
+    CHECK_EQ(gApp->page, (int)PageComNav1);   // back to the shared order's first page
+    gApp->profile.modeWheel[2] = WheelSet();
+}
+
+TEST(a_file_reload_keeps_the_page_and_a_new_aircraft_starts_on_the_first) {
+    gApp->setPage(PageXpdr);
+    gApp->reload();
+    CHECK_EQ(gApp->page, (int)PageXpdr);
+    gApp->loadForAircraft("Cessna_172SP");
+    CHECK_EQ(gApp->page, gApp->pageOrder()[0]);
+}
+
+TEST(a_layout_flip_while_editing_starts_the_cursor_over) {
+    gApp->setPage(PageComNav1);
+    gApp->cursor.item = 5;                  // classic: editing NAV1 fine
+    gApp->cursor.editing = true;
+    gApp->profile.radioSide = true;         // ticked in the plugin window, or a file reload
+    gApp->nextDeviceUpdate = 0;
+    sim().frame();
+    CHECK(!gApp->cursor.editing);
+    CHECK_EQ(gApp->cursor.item, 0);
+    CHECK_EQ(gApp->screen.l[0].substr(0, 6), std::string("[COM1]"));
+    gApp->cursor.item = 3;                  // side: editing COM2 standby
+    gApp->cursor.editing = true;
+    gApp->profile.radioSide = false;
+    sim().knownCommands.push_back("sim/radios/nav1_standy_flip");
+    int before = sim().onces["sim/radios/nav1_standy_flip"];
+    gApp->wheel(Wheel::Select);             // classic item 3 would swap NAV1
+    CHECK_EQ(sim().onces["sim/radios/nav1_standy_flip"], before);
+    CHECK_EQ(gApp->cursor.item, 0);
+}
+
 TEST(plugin_shuts_down_cleanly) {
     XPluginDisable();
     XPluginStop();

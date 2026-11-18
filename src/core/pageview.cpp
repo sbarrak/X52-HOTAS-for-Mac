@@ -95,7 +95,10 @@ const char* const kKeys[kPageCount] = {"com1", "com2", "adf", "dme", "xpdr", "ap
 
 const char* builtinPageKey(int page) { return page >= 0 && page < kPageCount ? kKeys[page] : ""; }
 
-std::vector<WheelEntry> wheelEntries(const Profile& p) {
+std::vector<WheelEntry> wheelEntries(const Profile& p, int mode) {
+    bool own = mode >= 1 && mode <= 3 && p.modeWheel[mode - 1].own;
+    const std::vector<std::string>& named = own ? p.modeWheel[mode - 1].order : p.wheelOrder;
+    const std::vector<std::string>& hidden = own ? p.modeWheel[mode - 1].hidden : p.wheelHidden;
     std::vector<int> top = p.pages.topLevel();
     std::vector<WheelEntry> def;   // the usual order
     for (int b = 0; b < kPageCount; ++b)
@@ -110,7 +113,7 @@ std::vector<WheelEntry> wheelEntries(const Profile& p) {
         return false;
     };
     std::vector<WheelEntry> out;
-    for (const std::string& tok : p.wheelOrder)
+    for (const std::string& tok : named)
         for (const WheelEntry& e : def)
             if (e.token == tok && !has(out, tok)) out.push_back(e);
     // Pages the list does not name (a new page, say) keep their usual order after the ones it names, before
@@ -127,13 +130,13 @@ std::vector<WheelEntry> wheelEntries(const Profile& p) {
         out.insert(out.begin() + at, e);
     }
     for (WheelEntry& e : out)
-        e.hidden = std::find(p.wheelHidden.begin(), p.wheelHidden.end(), e.token) != p.wheelHidden.end();
+        e.hidden = std::find(hidden.begin(), hidden.end(), e.token) != hidden.end();
     return out;
 }
 
-std::vector<int> wheelOrder(const Profile& p) {
+std::vector<int> wheelOrder(const Profile& p, int mode) {
     std::vector<int> order;
-    for (const WheelEntry& e : wheelEntries(p))
+    for (const WheelEntry& e : wheelEntries(p, mode))
         if (!e.hidden) order.push_back(e.page);
     if (order.empty()) order.push_back(PageButtons);   // everything hidden: keep one page
     return order;

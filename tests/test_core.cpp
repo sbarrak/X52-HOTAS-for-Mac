@@ -241,7 +241,7 @@ TEST(com_nav_page_shows_active_and_standby) {
     Lines p = formatSimPage(PageComNav1, d);
     CHECK_EQ(p.l[0], std::string("COM1 [118.000]"));
     CHECK_EQ(p.l[1], std::string("STBY  121.500"));
-    CHECK_EQ(p.l[2], std::string("N110.50  113.90"));
+    CHECK_EQ(p.l[2], std::string("N110.50  113.90v"));
 }
 
 TEST(second_com_nav_page_uses_radio_two) {
@@ -1859,4 +1859,209 @@ TEST(the_slider_picks_the_nearest_flap_detent_and_is_saved) {
     Profile split;
     CHECK(parse("x52pro-profile 3\naxis_override = 1\nthrottle_plugin = 0\n", split, &err));
     CHECK(split.axes.overrideXPlane && !split.axes.pluginThrottle);
+}
+
+// ---- side-by-side radio screens
+
+TEST(side_com_page_browses_names_and_standbys) {
+    SimData d;
+    d.com1 = 118005;
+    d.com1s = 121900;
+    d.com2 = 121505;
+    d.com2s = 122800;
+    PageCursor c;
+    Lines p = formatSimPage(PageComNav1, d, c, true);
+    CHECK_EQ(p.l[0], std::string("[COM1]   COM2"));
+    CHECK_EQ(p.l[1], std::string(" 118.005 121.505"));
+    CHECK_EQ(p.l[2], std::string(" 121.900 122.800"));
+    CHECK_EQ(cmds(pageInput(PageComNav1, c, Wheel::Select, false, 1, true)), std::string("sim/radios/com1_standy_flip "));
+    pageInput(PageComNav1, c, Wheel::Down, false, 1, true);
+    CHECK_EQ(formatSimPage(PageComNav1, d, c, true).l[2], std::string(">121.900 122.800"));
+    pageInput(PageComNav1, c, Wheel::Down, false, 1, true);
+    CHECK_EQ(formatSimPage(PageComNav1, d, c, true).l[0], std::string(" COM1   [COM2]"));
+    CHECK_EQ(cmds(pageInput(PageComNav1, c, Wheel::Select, false, 1, true)), std::string("sim/radios/com2_standy_flip "));
+    pageInput(PageComNav1, c, Wheel::Down, false, 1, true);
+    CHECK_EQ(formatSimPage(PageComNav1, d, c, true).l[2], std::string(" 121.900>122.800"));
+    pageInput(PageComNav1, c, Wheel::Down, false, 1, true);
+    CHECK_EQ(c.item, 0);   // wraps
+    pageInput(PageComNav1, c, Wheel::Up, false, 1, true);
+    CHECK_EQ(c.item, 3);
+}
+
+TEST(side_com_edit_view_is_centred_and_steps_mhz_then_khz) {
+    SimData d;
+    d.com2 = 121505;
+    d.com2s = 122800;
+    PageCursor c;
+    c.item = 3;
+    pageInput(PageComNav1, c, Wheel::Select, false, 1, true);   // open the edit view
+    Lines p = formatSimPage(PageComNav1, d, c, true);
+    CHECK_EQ(p.l[0], std::string("      COM2"));
+    CHECK_EQ(p.l[1], std::string("     121.505"));
+    CHECK_EQ(p.l[2], std::string("    >122.800"));
+    CHECK_EQ(cmds(pageInput(PageComNav1, c, Wheel::Up, false, 1, true)), std::string("sim/radios/stby_com2_coarse_up "));
+    pageInput(PageComNav1, c, Wheel::Select, false, 1, true);   // to kHz
+    CHECK_EQ(formatSimPage(PageComNav1, d, c, true).l[2], std::string("     122.800<"));
+    CHECK_EQ(cmds(pageInput(PageComNav1, c, Wheel::Down, true, 3, true)),
+             std::string("sim/radios/stby_com2_fine_down_833 sim/radios/stby_com2_fine_down_833 sim/radios/stby_com2_fine_down_833 "));
+    CHECK_EQ(cmds(pageInput(PageComNav1, c, Wheel::Up, false, 1, true)), std::string("sim/radios/stby_com2_fine_up "));
+    pageInput(PageComNav1, c, Wheel::Select, false, 1, true);   // done
+    CHECK(!c.editing);
+    CHECK_EQ(c.item, 3);
+    CHECK_EQ(formatSimPage(PageComNav1, d, c, true).l[0], std::string(" COM1    COM2"));   // the browse view again
+}
+
+TEST(side_nav_page_uses_nav_commands) {
+    SimData d;
+    d.nav1 = 11050;
+    d.nav1s = 11390;
+    d.nav2 = 10800;
+    d.nav2s = 11795;
+    PageCursor c;
+    Lines p = formatSimPage(PageComNav2, d, c, true);
+    CHECK_EQ(p.l[0], std::string("[NAV1]   NAV2"));
+    CHECK_EQ(p.l[1], std::string(" 110.50  108.00"));
+    CHECK_EQ(cmds(pageInput(PageComNav2, c, Wheel::Select, false, 1, true)), std::string("sim/radios/nav1_standy_flip "));
+    c.item = 1;
+    pageInput(PageComNav2, c, Wheel::Select, false, 1, true);
+    CHECK_EQ(formatSimPage(PageComNav2, d, c, true).l[2], std::string("    >113.90"));
+    CHECK_EQ(cmds(pageInput(PageComNav2, c, Wheel::Up, false, 1, true)), std::string("sim/radios/stby_nav1_coarse_up "));
+    pageInput(PageComNav2, c, Wheel::Select, false, 1, true);
+    CHECK_EQ(cmds(pageInput(PageComNav2, c, Wheel::Up, false, 2, true)),
+             std::string("sim/radios/stby_nav1_fine_up sim/radios/stby_nav1_fine_up "));
+}
+
+TEST(side_adf_page_edits_hundreds_tens_ones) {
+    SimData d;
+    d.adf1 = 365;
+    d.adf1s = 379;
+    d.adf2 = 410;
+    d.adf2s = 520;
+    PageCursor c;
+    CHECK_EQ(formatSimPage(PageAdf, d, c, true).l[0], std::string("[ADF1]   ADF2"));
+    CHECK_EQ(formatSimPage(PageAdf, d, c, true).l[1], std::string("  365     410"));
+    c.item = 3;
+    pageInput(PageAdf, c, Wheel::Select, false, 1, true);
+    CHECK_EQ(formatSimPage(PageAdf, d, c, true).l[0], std::string("      ADF2"));
+    CHECK_EQ(formatSimPage(PageAdf, d, c, true).l[2], std::string("     > 520"));
+    CHECK_EQ(cmds(pageInput(PageAdf, c, Wheel::Up, false, 5, true)), std::string("sim/radios/stby_adf2_hundreds_up "));   // no repeat
+    pageInput(PageAdf, c, Wheel::Select, false, 1, true);
+    CHECK_EQ(formatSimPage(PageAdf, d, c, true).l[2], std::string("       520<10"));
+    CHECK_EQ(cmds(pageInput(PageAdf, c, Wheel::Down, false, 1, true)), std::string("sim/radios/stby_adf2_tens_down "));
+    pageInput(PageAdf, c, Wheel::Select, false, 1, true);
+    CHECK_EQ(formatSimPage(PageAdf, d, c, true).l[2], std::string("       520<1"));
+    CHECK_EQ(cmds(pageInput(PageAdf, c, Wheel::Up, false, 1, true)), std::string("sim/radios/stby_adf2_ones_up "));
+    pageInput(PageAdf, c, Wheel::Select, false, 1, true);
+    CHECK(!c.editing);
+    CHECK_EQ(cmds(pageInput(PageAdf, c, Wheel::Select, false, 1, true)), std::string(""));   // standby: opens editing again
+    CHECK(c.editing);
+}
+
+TEST(side_pages_fit_and_clamp_out_of_range_cursors) {
+    SimData d;
+    d.com1 = d.com1s = d.com2 = d.com2s = 136975;
+    d.nav1 = d.nav1s = d.nav2 = d.nav2s = 11795;
+    d.adf1 = d.adf1s = d.adf2 = d.adf2s = 1799;
+    for (int page : {(int)PageComNav1, (int)PageComNav2, (int)PageAdf})
+        for (int item = -1; item < 7; ++item)
+            for (int part = -1; part < 4; ++part)
+                for (bool ed : {false, true}) {
+                    PageCursor c;
+                    c.item = item;
+                    c.part = part;
+                    c.editing = ed;
+                    Lines p = formatSimPage(page, d, c, true);
+                    for (auto& l : p.l) CHECK(l.size() <= 16);
+                    pageInput(page, c, Wheel::Up, false, 1, true);   // must not crash
+                    CHECK(c.item >= 0 && c.item < 4);
+                }
+    PageCursor c;   // side state left over, the layout now classic
+    c.item = 1;
+    c.editing = true;
+    c.part = 2;
+    CHECK(formatSimPage(PageComNav1, d, c).l[0].size() <= 16);
+    CHECK_EQ(pageItemCount(PageAdf, true), 4);
+    CHECK_EQ(pageItemCount(PageAdf), 8);
+    CHECK_EQ(pageItemCount(PageXpdr, true), 5);
+    CHECK_EQ(std::string(pageName(PageComNav2, true)), std::string("NAV 1+2"));
+    CHECK_EQ(std::string(pageName(PageComNav2, false)), std::string("COM2 / NAV2"));
+    CHECK_EQ(std::string(pageName(PageXpdr, true)), std::string("Transponder"));
+}
+
+TEST(classic_radio_pages_mark_more_below_on_the_first_unit_only) {
+    SimData d;
+    d.adf1 = 365;
+    d.adf2 = 410;
+    d.adf1s = 379;
+    d.adf2s = 520;
+    PageCursor c;
+    CHECK_EQ(formatSimPage(PageAdf, d, c).l[2], std::string("ADF2  410  520 v"));
+    c.item = 3;
+    CHECK_EQ(formatSimPage(PageAdf, d, c).l[2], std::string("ADF2  410  520 v"));
+    c.item = 4;
+    CHECK_EQ(formatSimPage(PageAdf, d, c).l[2], std::string("ADF1  365  379"));
+    SimData n;
+    n.com2 = 127275;
+    n.com2s = 135000;
+    n.nav2 = 10800;
+    n.nav2s = 11795;
+    PageCursor k;
+    k.item = 2;
+    CHECK_EQ(formatSimPage(PageComNav2, n, k).l[2], std::string("N108.00  117.95v"));
+    k.item = 4;
+    CHECK_EQ(formatSimPage(PageComNav2, n, k).l[2], std::string("C127.275 135.000"));   // unchanged
+}
+
+// ---- radio layout and a page order per mode
+
+TEST(radio_layout_round_trips_and_defaults_to_classic) {
+    Profile p = defaultProfile();
+    CHECK(serialize(p).find("radio_layout") == std::string::npos);
+    p.radioSide = true;
+    CHECK(serialize(p).find("radio_layout = side\n") != std::string::npos);
+    Profile q;
+    std::string err;
+    CHECK(parse(serialize(p), q, &err));
+    CHECK(q.radioSide);
+    Profile r;
+    CHECK(parse("x52pro-profile 3\nradio_layout = classic\n", r, &err));
+    CHECK(!r.radioSide);
+}
+
+TEST(a_mode_can_have_its_own_wheel_order) {
+    Profile p = defaultProfile();
+    p.modeWheel[1].own = true;
+    p.modeWheel[1].order = {"ap", "com1"};
+    std::vector<int> two = wheelOrder(p, 2);
+    CHECK_EQ(two[0], (int)PageAutopilot);
+    CHECK_EQ(two[1], (int)PageComNav1);
+    CHECK(wheelOrder(p, 1) == wheelOrder(p));   // mode 1 has none: the shared order
+    CHECK(wheelOrder(p, 3) == wheelOrder(p));
+    CHECK(wheelOrder(p, 0) == wheelOrder(p));
+    std::string text = serialize(p);
+    CHECK(text.find("wheel_order.2 = ap com1\n") != std::string::npos);
+    CHECK(text.find("wheel_hidden.2 =\n") != std::string::npos);
+    CHECK(text.find("wheel_order.1") == std::string::npos);
+    Profile q;
+    std::string err;
+    CHECK(parse(text, q, &err));
+    CHECK(q.modeWheel[1].own && q.modeWheel[1].hidden.empty());
+    CHECK(q.modeWheel[1].order == p.modeWheel[1].order);
+    CHECK(!q.modeWheel[0].own && !q.modeWheel[2].own);
+}
+
+TEST(a_mode_with_only_hidden_pages_is_its_own_and_hiding_everything_keeps_buttons) {
+    Profile q;
+    std::string err;
+    CHECK(parse("x52pro-profile 3\nwheel_hidden = adf\nwheel_hidden.3 = com1 com2 adf dme xpdr ap vorhdg buttons brightness\n", q, &err));
+    CHECK(q.modeWheel[2].own && q.modeWheel[2].order.empty());
+    std::vector<int> three = wheelOrder(q, 3);
+    CHECK_EQ((int)three.size(), 1);
+    CHECK_EQ(three[0], (int)PageButtons);
+    std::vector<int> one = wheelOrder(q, 1);   // shared: only ADF hidden
+    CHECK(std::find(one.begin(), one.end(), (int)PageAdf) == one.end());
+    CHECK(std::find(one.begin(), one.end(), (int)PageDme) != one.end());
+    std::vector<WheelEntry> e = wheelEntries(q, 3);
+    CHECK_EQ(e[0].token, std::string("com1"));
+    CHECK(e[0].hidden);
 }

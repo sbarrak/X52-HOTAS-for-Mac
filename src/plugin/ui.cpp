@@ -1065,6 +1065,10 @@ void drawSettingsTab(const Rect& area) {
         gApp->profile.com833 = !gApp->profile.com833;
         gApp->profileChanged();
     });
+    check(a.profile.radioSide, "Side-by-side radio screens (COM 1+2, NAV 1+2, ADF 1+2) instead of one radio per screen", [] {
+        gApp->profile.radioSide = !gApp->profile.radioSide;
+        gApp->profileChanged();
+    });
 
     check(a.testMode, "Test mode: the stick's screen names whatever you move or press (buttons do nothing meanwhile)", [] {
         gApp->setTestMode(!gApp->testMode);

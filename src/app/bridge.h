@@ -176,6 +176,12 @@ const char* x52_wheel_entries(void);
 void x52_wheel_move(const char* token, int direction);
 void x52_wheel_hide(const char* token, int hidden);
 const char* x52_builtin_preview(const char* token, int line);   // a built-in page with the sim's values blank
+// Each stick mode can have a left-wheel order of its own (wheel_order.N / wheel_hidden.N). The three calls above act
+// on the order being edited: 0 every mode (the shared order, the default), 1..3 that mode's own. Moving or hiding a
+// page of a mode that has no order yet gives it one, copied from the shared order.
+void x52_wheel_edit_mode(int mode);
+int x52_wheel_mode_own(int mode);              // 1 when the mode has an order of its own
+void x52_wheel_set_mode_own(int mode, int own);   // 1: copy the shared order into it; 0: back to the shared order
 void x52_pages_restore_default(void);          // also forgets the left wheel's order and hidden pages          // no user pages: the stick shows the built-in pages only
 // Line 0..2 of the page as the stick shows it, the first row under the cursor. Live numbers when X-Plane sends
 // them (see x52_pages_watch), otherwise a made-up 1234.5; x52_page_preview_live says which.
