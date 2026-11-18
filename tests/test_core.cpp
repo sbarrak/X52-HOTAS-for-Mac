@@ -2011,3 +2011,57 @@ TEST(classic_radio_pages_mark_more_below_on_the_first_unit_only) {
     k.item = 4;
     CHECK_EQ(formatSimPage(PageComNav2, n, k).l[2], std::string("C127.275 135.000"));   // unchanged
 }
+
+// ---- radio layout and a page order per mode
+
+TEST(radio_layout_round_trips_and_defaults_to_classic) {
+    Profile p = defaultProfile();
+    CHECK(serialize(p).find("radio_layout") == std::string::npos);
+    p.radioSide = true;
+    CHECK(serialize(p).find("radio_layout = side\n") != std::string::npos);
+    Profile q;
+    std::string err;
+    CHECK(parse(serialize(p), q, &err));
+    CHECK(q.radioSide);
+    Profile r;
+    CHECK(parse("x52pro-profile 3\nradio_layout = classic\n", r, &err));
+    CHECK(!r.radioSide);
+}
+
+TEST(a_mode_can_have_its_own_wheel_order) {
+    Profile p = defaultProfile();
+    p.modeWheel[1].own = true;
+    p.modeWheel[1].order = {"ap", "com1"};
+    std::vector<int> two = wheelOrder(p, 2);
+    CHECK_EQ(two[0], (int)PageAutopilot);
+    CHECK_EQ(two[1], (int)PageComNav1);
+    CHECK(wheelOrder(p, 1) == wheelOrder(p));   // mode 1 has none: the shared order
+    CHECK(wheelOrder(p, 3) == wheelOrder(p));
+    CHECK(wheelOrder(p, 0) == wheelOrder(p));
+    std::string text = serialize(p);
+    CHECK(text.find("wheel_order.2 = ap com1\n") != std::string::npos);
+    CHECK(text.find("wheel_hidden.2 =\n") != std::string::npos);
+    CHECK(text.find("wheel_order.1") == std::string::npos);
+    Profile q;
+    std::string err;
+    CHECK(parse(text, q, &err));
+    CHECK(q.modeWheel[1].own && q.modeWheel[1].hidden.empty());
+    CHECK(q.modeWheel[1].order == p.modeWheel[1].order);
+    CHECK(!q.modeWheel[0].own && !q.modeWheel[2].own);
+}
+
+TEST(a_mode_with_only_hidden_pages_is_its_own_and_hiding_everything_keeps_buttons) {
+    Profile q;
+    std::string err;
+    CHECK(parse("x52pro-profile 3\nwheel_hidden = adf\nwheel_hidden.3 = com1 com2 adf dme xpdr ap vorhdg buttons brightness\n", q, &err));
+    CHECK(q.modeWheel[2].own && q.modeWheel[2].order.empty());
+    std::vector<int> three = wheelOrder(q, 3);
+    CHECK_EQ((int)three.size(), 1);
+    CHECK_EQ(three[0], (int)PageButtons);
+    std::vector<int> one = wheelOrder(q, 1);   // shared: only ADF hidden
+    CHECK(std::find(one.begin(), one.end(), (int)PageAdf) == one.end());
+    CHECK(std::find(one.begin(), one.end(), (int)PageDme) != one.end());
+    std::vector<WheelEntry> e = wheelEntries(q, 3);
+    CHECK_EQ(e[0].token, std::string("com1"));
+    CHECK(e[0].hidden);
+}

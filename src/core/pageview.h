@@ -37,7 +37,8 @@ struct WheelEntry {
 // Every page the left wheel can reach, in its order, hidden ones included: the profile's wheelOrder, then the pages
 // it does not name in their usual order (radio pages, the user's pages, Buttons, Brightness), placed before Buttons
 // and Brightness when the list names those. A page in wheelHidden is listed but skipped.
-std::vector<WheelEntry> wheelEntries(const Profile& p);
-std::vector<int> wheelOrder(const Profile& p);   // the pages the left wheel visits (never empty)
+// mode 1..3: that mode's own order when it has one (Profile::modeWheel); 0 or a mode without one: the shared order.
+std::vector<WheelEntry> wheelEntries(const Profile& p, int mode = 0);
+std::vector<int> wheelOrder(const Profile& p, int mode = 0);   // the pages the left wheel visits (never empty)
 
 }  // namespace x52

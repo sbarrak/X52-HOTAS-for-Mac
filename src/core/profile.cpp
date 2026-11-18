@@ -529,6 +529,12 @@ std::string serialize(const Profile& p) {
     };
     if (!p.wheelOrder.empty()) o << "wheel_order =" << words(p.wheelOrder) << "\n";
     if (!p.wheelHidden.empty()) o << "wheel_hidden =" << words(p.wheelHidden) << "\n";
+    for (int m = 0; m < 3; ++m)
+        if (p.modeWheel[m].own) {
+            o << "wheel_order." << m + 1 << " =" << words(p.modeWheel[m].order) << "\n";
+            o << "wheel_hidden." << m + 1 << " =" << words(p.modeWheel[m].hidden) << "\n";
+        }
+    if (p.radioSide) o << "radio_layout = side\n";
     o << "# master <screen|lights> [not] <op> <number> <dataref> [and|or [not] <op> <number> <dataref>]\n";
     o << "#   the screen (or every light) is on only while this is true, e.g. avionics power. No master line: always on.\n";
     for (int w = 0; w < 2; ++w) {
@@ -852,6 +858,18 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
             p.modeButtons[0] = a;
             p.modeButtons[1] = b;
             p.modeButtons[2] = c;
+        } else if ((key.size() == 13 && key.compare(0, 12, "wheel_order.") == 0) ||
+                   (key.size() == 14 && key.compare(0, 13, "wheel_hidden.") == 0)) {
+            int m = key.back() - '1';
+            if (m < 0 || m > 2) continue;   // not a mode: ignored so newer files still load
+            WheelSet& ws = p.modeWheel[m];
+            std::vector<std::string>& v = key[6] == 'o' ? ws.order : ws.hidden;
+            ws.own = true;
+            v.clear();
+            std::stringstream mw(value);
+            for (std::string w; mw >> w;) v.push_back(w);
+        } else if (key == "radio_layout") {
+            p.radioSide = value == "side";
         } else if (key == "wheel_order" || key == "wheel_hidden") {
             std::vector<std::string>& v = key == "wheel_order" ? p.wheelOrder : p.wheelHidden;
             v.clear();

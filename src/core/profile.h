@@ -188,6 +188,12 @@ struct RulePreset {
 int rulePresetCount();
 const RulePreset& rulePreset(int i);
 
+// One stick mode's own left-wheel order (see Profile::modeWheel). own false: the mode uses the shared order.
+struct WheelSet {
+    std::vector<std::string> order, hidden;
+    bool own = false;
+};
+
 struct Profile {
     std::string name = "default";
     bool pinkieShift = true;
@@ -210,6 +216,10 @@ struct Profile {
     // user's top-level pages. Empty: the usual order. The pages in wheelHidden are skipped, built-in ones too.
     std::vector<std::string> wheelOrder;
     std::vector<std::string> wheelHidden;
+    // Mode 1..3's own order (index mode - 1), as wheel_order.N / wheel_hidden.N. A mode with either line is its own,
+    // both lists from its lines; a mode with neither uses wheelOrder / wheelHidden.
+    WheelSet modeWheel[3];
+    bool radioSide = false;   // the radio slots show the side-by-side screens (radio_layout = side)
     // A ready-made profile (shipped in profiles/): never changed by the app or the plugin, so it can always be
     // gone back to. A change to it is saved as a new profile instead (basedOn names the profile it came from).
     bool standard = false;
