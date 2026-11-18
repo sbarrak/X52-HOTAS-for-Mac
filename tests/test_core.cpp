@@ -241,7 +241,7 @@ TEST(com_nav_page_shows_active_and_standby) {
     Lines p = formatSimPage(PageComNav1, d);
     CHECK_EQ(p.l[0], std::string("COM1 [118.000]"));
     CHECK_EQ(p.l[1], std::string("STBY  121.500"));
-    CHECK_EQ(p.l[2], std::string("N110.50  113.90"));
+    CHECK_EQ(p.l[2], std::string("N110.50  113.90v"));
 }
 
 TEST(second_com_nav_page_uses_radio_two) {
@@ -1986,4 +1986,28 @@ TEST(side_pages_fit_and_clamp_out_of_range_cursors) {
     CHECK_EQ(std::string(pageName(PageComNav2, true)), std::string("NAV 1+2"));
     CHECK_EQ(std::string(pageName(PageComNav2, false)), std::string("COM2 / NAV2"));
     CHECK_EQ(std::string(pageName(PageXpdr, true)), std::string("Transponder"));
+}
+
+TEST(classic_radio_pages_mark_more_below_on_the_first_unit_only) {
+    SimData d;
+    d.adf1 = 365;
+    d.adf2 = 410;
+    d.adf1s = 379;
+    d.adf2s = 520;
+    PageCursor c;
+    CHECK_EQ(formatSimPage(PageAdf, d, c).l[2], std::string("ADF2  410  520 v"));
+    c.item = 3;
+    CHECK_EQ(formatSimPage(PageAdf, d, c).l[2], std::string("ADF2  410  520 v"));
+    c.item = 4;
+    CHECK_EQ(formatSimPage(PageAdf, d, c).l[2], std::string("ADF1  365  379"));
+    SimData n;
+    n.com2 = 127275;
+    n.com2s = 135000;
+    n.nav2 = 10800;
+    n.nav2s = 11795;
+    PageCursor k;
+    k.item = 2;
+    CHECK_EQ(formatSimPage(PageComNav2, n, k).l[2], std::string("N108.00  117.95v"));
+    k.item = 4;
+    CHECK_EQ(formatSimPage(PageComNav2, n, k).l[2], std::string("C127.275 135.000"));   // unchanged
 }

@@ -114,6 +114,12 @@ std::string activeLine(const std::string& name, const std::string& value, bool s
     return selected ? name + " [" + value + "]" : name + "  " + value;
 }
 
+// "v" in the last column: the cursor goes on to values not on the screen yet (NAV1, ADF2).
+std::string moreBelow(std::string line) {
+    if (line.size() < (size_t)kMfdCols - 1) line += std::string(kMfdCols - 1 - line.size(), ' ');
+    return line.substr(0, kMfdCols - 1) + "v";
+}
+
 std::string marked(const std::string& text, bool selected, bool editing) {
     return selected ? (editing ? ">>" : ">") + text : text;
 }
@@ -187,7 +193,7 @@ Lines formatSimPage(int page, const SimData& d, const PageCursor& cur, bool side
             if (item < 3) {
                 p.l[0] = activeLine(std::string("COM") + n, com, item == 0);
                 p.l[1] = standbyLine(coms, item == 1, item == 2, ed);
-                p.l[2] = "N" + nav + "  " + navs;
+                p.l[2] = moreBelow("N" + nav + "  " + navs);
             } else {
                 p.l[0] = activeLine(std::string("NAV") + n, nav, item == 3);
                 p.l[1] = standbyLine(navs, item == 4, item == 5, ed);
@@ -202,6 +208,7 @@ Lines formatSimPage(int page, const SimData& d, const PageCursor& cur, bool side
             p.l[0] = activeLine(first ? "ADF1" : "ADF2", act, part == 0);
             p.l[1] = standbyLine(stby, part == 1, part >= 2, ed, part == 2 ? "10" : "1");
             p.l[2] = fmt("ADF%d %4d %4d", first ? 2 : 1, first ? d.adf2 : d.adf1, first ? d.adf2s : d.adf1s);
+            if (first) p.l[2] = moreBelow(p.l[2]);
             break;
         }
         case PageDme:
