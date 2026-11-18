@@ -9,6 +9,7 @@
 #include <sstream>
 #include <thread>
 
+#include "../src/core/version.h"
 #include "XPLMDefs.h"
 #include "XPLMPlugin.h"
 #include "XPLMUtilities.h"
@@ -55,7 +56,8 @@ TEST(starting_writes_a_default_profile) {
     CHECK_EQ(XPluginStart(name, sig, desc), 1);
     CHECK_EQ(XPluginEnable(), 1);
     gApp->askedKeyAccess = true;   // never raise the macOS permission prompt from a test run
-    CHECK_EQ(std::string(name), std::string("X52 Pro"));
+    CHECK_EQ(std::string(name), std::string("X52 Pro ") + X52_VERSION);
+    CHECK(has(std::string(desc), "Version " X52_VERSION));
     CHECK(has(slurp(defaultFile()), "cmd:x52pro/mfd_page_next"));
     CHECK_EQ(gApp->commands.size(), (size_t)10);   // 3 from Commands.txt + 7 of our own
 }

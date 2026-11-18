@@ -76,6 +76,7 @@ final class Model: ObservableObject {
     @Published var isStandard = false            // the profile being edited is ready-made (never changed)
     @Published var standardKeys: Set<String> = []
     private var askingCopy = false
+    var snapshotMode = false            // drawing pictures for the project: never ask for a name
     private var copyDeclined = false        // the name was just refused: drop the rest of that gesture
     private var ignoreCopyUntil = Date.distantPast
 
@@ -128,7 +129,7 @@ final class Model: ObservableObject {
         set(\.revision, Int(x52_revision()))
         set(\.isStandard, x52_standard() != 0)
         if x52_copy_needed() != 0 && !askingCopy {
-            if Date() < ignoreCopyUntil || (copyDeclined && NSEvent.pressedMouseButtons != 0) {
+            if snapshotMode || Date() < ignoreCopyUntil || (copyDeclined && NSEvent.pressedMouseButtons != 0) {
                 // Still the gesture that was just cancelled (a stepper or slider keeps repeating while the
                 // mouse is held): drop it rather than ask again, which used to loop.
                 x52_copy_cancel()
@@ -2195,6 +2196,9 @@ struct SettingsView: View {
 
 // MARK: - App
 
+/// The version in the app's Info.plist (set from the VERSION file when the app is built).
+let appVersion: String = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "dev"
+
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let model = Model()
     var item: NSStatusItem!
@@ -2216,6 +2220,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusLine.isEnabled = false
         menu.addItem(statusLine)
         menu.addItem(.separator())
+        let versionLine = NSMenuItem(title: "X52 Pro \(appVersion)", action: nil, keyEquivalent: "")
+        versionLine.isEnabled = false
+        menu.addItem(versionLine)
+        menu.addItem(withTitle: "About X52 Pro", action: #selector(showAbout), keyEquivalent: "").target = self
+        menu.addItem(.separator())
         menu.addItem(withTitle: "Open settings...", action: #selector(openSettings), keyEquivalent: ",").target = self
         menu.addItem(withTitle: "Open pages editor...", action: #selector(openPagesEditor), keyEquivalent: "").target = self
         loginLine.target = self
@@ -2224,6 +2233,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(withTitle: "Quit X52 Pro", action: #selector(quit), keyEquivalent: "q").target = self
         item.menu = menu
         installEditMenu()
+
+        // Hidden option for the project's own pictures: `X52Pro --snapshot <folder>` draws the windows into PNG files.
+        if let i = CommandLine.arguments.firstIndex(of: "--snapshot"), i + 1 < CommandLine.arguments.count {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.snapshots(into: CommandLine.arguments[i + 1],
+                                profile: CommandLine.arguments.firstIndex(of: "--profile").flatMap { j in
+                                    j + 1 < CommandLine.arguments.count ? CommandLine.arguments[j + 1] : nil })
+            }
+            return
+        }
 
         // Opened by hand (not at login): show the window so there is something to see.
         if !CommandLine.arguments.contains("--background") && !launchedAsLoginItem() { openSettings() }
@@ -2237,6 +2256,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let appItem = NSMenuItem()
         main.addItem(appItem)
         let appMenu = NSMenu()
+        appMenu.addItem(withTitle: "About X52 Pro", action: #selector(showAbout), keyEquivalent: "").target = self
+        appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Settings...", action: #selector(openSettings), keyEquivalent: ",").target = self
         appMenu.addItem(withTitle: "Pages Editor...", action: #selector(openPagesEditor), keyEquivalent: "e").target = self
         appMenu.addItem(.separator())
@@ -2310,13 +2331,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         loginLine.state = model.loginItem ? .on : .off
     }
 
+    // Draws a window, title bar included, into a PNG file.
+    private func draw(_ w: NSWindow?, to path: String) {
+        guard let w = w, let frame = w.contentView?.superview else { return }
+        w.displayIfNeeded()
+        guard let rep = frame.bitmapImageRepForCachingDisplay(in: frame.bounds) else { return }
+        frame.cacheDisplay(in: frame.bounds, to: rep)
+        if let png = rep.representation(using: .png, properties: [:]) { try? png.write(to: URL(fileURLWithPath: path)) }
+    }
+
+    private func snapshots(into dir: String, profile: String?) {
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        let saved = UserDefaults.standard.string(forKey: "profileKey")
+        model.snapshotMode = true
+        if let p = profile { model.select(p) }
+        openSettings()
+        window?.setContentSize(NSSize(width: 960, height: 800))
+        let shots: [(String, Int)] = [("buttons", 6), ("lights", 0), ("live-lights", 1), ("alarms", 2), ("screen", 3),
+                                      ("pages", 8), ("master", 5), ("axes", 7), ("test", 4)]
+        var n = 0
+        func next() {
+            if n < shots.count {
+                let (name, tab) = shots[n]; n += 1
+                model.tab = tab
+                if tab == 6 { model.btn = 4; model.btnLayer = 1 }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [self] in
+                    draw(window, to: dir + "/" + name + ".png"); next()
+                }
+            } else if n == shots.count {
+                n += 1
+                openPagesEditor()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [self] in
+                    draw(pagesWindow, to: dir + "/pages-editor.png"); next()
+                }
+            } else {
+                if let s = saved { UserDefaults.standard.set(s, forKey: "profileKey") }
+                else { UserDefaults.standard.removeObject(forKey: "profileKey") }
+                reallyQuit = true
+                NSApp.terminate(nil)
+            }
+        }
+        next()
+    }
+
+    @objc func showAbout() {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .applicationName: "X52 Pro",
+            .applicationVersion: appVersion,
+            .version: "",
+            .credits: NSAttributedString(string: "Modes, macros, screen and lights for the Saitek / Logitech X52 and X52 Pro on Apple Silicon Macs, for X-Plane 12.\n\nMIT licence. Not affiliated with Laminar Research, Logitech or Saitek.")
+        ])
+    }
+
     @objc func toggleLogin() { model.setLoginItem(!model.loginItem) }
 
     @objc func openSettings() {
         if window == nil {
             let w = NSWindow(contentRect: .zero, styleMask: [.titled, .closable, .miniaturizable, .resizable],
                              backing: .buffered, defer: false)
-            w.title = "X52 Pro"
+            w.title = "X52 Pro \(appVersion)"
             w.contentView = NSHostingView(rootView: SettingsView(m: model))
             w.isReleasedWhenClosed = false
             w.setContentSize(NSSize(width: 900, height: 720))
@@ -2336,7 +2410,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if pagesWindow == nil {
             let w = NSWindow(contentRect: .zero, styleMask: [.titled, .closable, .miniaturizable, .resizable],
                              backing: .buffered, defer: false)
-            w.title = "X52 Pro: Pages"
+            w.title = "X52 Pro \(appVersion): Pages"
             w.contentView = NSHostingView(rootView: PagesEditor(m: model))
             w.isReleasedWhenClosed = false
             w.setContentSize(NSSize(width: 1320, height: 760))
