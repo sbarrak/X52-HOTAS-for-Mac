@@ -1018,6 +1018,26 @@ TEST(a_file_reload_keeps_the_page_and_a_new_aircraft_starts_on_the_first) {
     CHECK_EQ(gApp->page, gApp->pageOrder()[0]);
 }
 
+TEST(a_layout_flip_while_editing_starts_the_cursor_over) {
+    gApp->setPage(PageComNav1);
+    gApp->cursor.item = 5;                  // classic: editing NAV1 fine
+    gApp->cursor.editing = true;
+    gApp->profile.radioSide = true;         // ticked in the plugin window, or a file reload
+    gApp->nextDeviceUpdate = 0;
+    sim().frame();
+    CHECK(!gApp->cursor.editing);
+    CHECK_EQ(gApp->cursor.item, 0);
+    CHECK_EQ(gApp->screen.l[0].substr(0, 6), std::string("[COM1]"));
+    gApp->cursor.item = 3;                  // side: editing COM2 standby
+    gApp->cursor.editing = true;
+    gApp->profile.radioSide = false;
+    sim().knownCommands.push_back("sim/radios/nav1_standy_flip");
+    int before = sim().onces["sim/radios/nav1_standy_flip"];
+    gApp->wheel(Wheel::Select);             // classic item 3 would swap NAV1
+    CHECK_EQ(sim().onces["sim/radios/nav1_standy_flip"], before);
+    CHECK_EQ(gApp->cursor.item, 0);
+}
+
 TEST(plugin_shuts_down_cleanly) {
     XPluginDisable();
     XPluginStop();

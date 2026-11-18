@@ -45,6 +45,8 @@ struct App : Host {
     void stepPage(int direction);   // left wheel: +1 next, -1 previous
     void showFirstPage();           // the first page of the current mode's order, cursor reset
     int pageMode = 1;               // the mode whose order the left wheel was last following
+    bool cursorSide = false;        // the radio layout the cursor was set for
+    void followLayout();            // the layout changed (window, file reload): the cursor starts over
     std::string pageTitle(int p) const;
     const std::string* userPageId(int p) const;   // id of a user page's top-level page, or nullptr for a built-in one
     Lines userPageLines(double now);
