@@ -1536,24 +1536,27 @@ struct WheelList: View {
     @ObservedObject var m: Model
     var body: some View {
         let outline = pageOutline()
+        // The mode choice sits above the scrolling list at a fixed width: inside the ScrollView the segmented
+        // picker and the list kept re-measuring each other and the list jumped sideways.
+        VStack(alignment: .leading, spacing: 4) {
+            Picker("Order for", selection: Binding(get: { m.wheelMode }, set: {
+                m.wheelMode = $0; x52_wheel_edit_mode(Int32($0)); m.tick()
+            })) {
+                Text("Every mode").tag(0)
+                Text("Mode 1").tag(1)
+                Text("Mode 2").tag(2)
+                Text("Mode 3").tag(3)
+            }
+            .labelsHidden().pickerStyle(.segmented).frame(maxWidth: .infinity).padding(.horizontal, 6).padding(.top, 6)
+            if m.wheelMode != 0 {
+                Toggle("Same as every mode", isOn: Binding(get: { x52_wheel_mode_own(Int32(m.wheelMode)) == 0 }, set: {
+                    x52_wheel_set_mode_own(Int32(m.wheelMode), $0 ? 0 : 1); m.tick()
+                }))
+                .toggleStyle(.checkbox).padding(.leading, 6)
+                .help("Off: this mode has its own order, and turning the mode dial to it opens its first page")
+            }
         ScrollView {
             VStack(alignment: .leading, spacing: 2) {
-                Picker("Order for", selection: Binding(get: { m.wheelMode }, set: {
-                    m.wheelMode = $0; x52_wheel_edit_mode(Int32($0)); m.tick()
-                })) {
-                    Text("Every mode").tag(0)
-                    Text("Mode 1").tag(1)
-                    Text("Mode 2").tag(2)
-                    Text("Mode 3").tag(3)
-                }
-                .labelsHidden().pickerStyle(.segmented).padding(.horizontal, 6)
-                if m.wheelMode != 0 {
-                    Toggle("Same as every mode", isOn: Binding(get: { x52_wheel_mode_own(Int32(m.wheelMode)) == 0 }, set: {
-                        x52_wheel_set_mode_own(Int32(m.wheelMode), $0 ? 0 : 1); m.tick()
-                    }))
-                    .toggleStyle(.checkbox).padding(.leading, 6)
-                    .help("Off: this mode has its own order, and turning the mode dial to it opens its first page")
-                }
                 Text("The left wheel, in order. The eye: shown or skipped. A lock: a built-in page.")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).padding(.leading, 6)
                 ForEach(wheelEntryRows(), id: \.token) { e in
@@ -1586,6 +1589,8 @@ struct WheelList: View {
                     if !e.builtin { SubPageRows(m: m, outline: outline, topId: String(e.token.dropFirst())) }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
         }
     }
 }
