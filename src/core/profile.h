@@ -49,6 +49,9 @@ struct Binding {
     bool empty() const { return press.empty() && hold.empty(); }
 };
 
+// What clock 1 shows: GMT, the simulator's local time (the Mac's while X-Plane is not running), the Mac's local
+// time, or GMT plus a fixed number of minutes (clock1Offset).
+enum ClockSource { ClockGmt = 0, ClockSimLocal = 1, ClockMacLocal = 2, ClockFixed = 3 };
 enum Led { LedFire, LedA, LedB, LedD, LedE, LedT1, LedT2, LedT3, LedPov, LedClutch, LedThrottle, kLedCount };
 enum class Color { Off, Green, Amber, Red };   // Fire and Throttle are single colour: Off or lit
 
@@ -231,6 +234,8 @@ struct Profile {
     int version = 3;          // file format the profile was read from; 1 = older file (wheel bindings added on reading); below 3 the rules were reversed on reading (first rule wins now)
     bool clutchLatched = false;   // clutch toggles safe mode instead of holding it
     int clockOffset[2] = {0, 0};  // clock 2 and 3: minutes from GMT
+    int clock1Source = 0;         // ClockSource: what clock 1 shows (GMT unless chosen)
+    int clock1Offset = 0;         // ClockFixed: clock 1's minutes from GMT
     bool clock12h[3] = {false, false, false};
     AxisSettings axes;        // flight axes processed by the plugin (off: X-Plane reads the stick itself)
     DialAccel dial;           // fast turns of the right wheel change values in bigger jumps

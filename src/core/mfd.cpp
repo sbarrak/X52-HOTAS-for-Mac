@@ -88,6 +88,53 @@ UsbCmd packClockOffset(int clock, int minutes, bool h24) {
 }
 UsbCmd packBlink(bool on) { return {0xb4, (uint16_t)(on ? 0x51 : 0x50)}; }
 
+namespace {
+int wrapDay(int minutes) { return ((minutes + 720) % 1440 + 1440) % 1440 - 720; }
+bool leap(int year) { return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0; }
+int daysIn(int month, int year) {
+    static const int d[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    return month == 2 && leap(year) ? 29 : d[(month - 1) % 12];
+}
+}  // namespace
+
+ClockTime shiftClock(const ClockTime& gmt, int minutes) {
+    ClockTime t = gmt;
+    int total = t.hour * 60 + t.minute + minutes;
+    int days = total >= 0 ? total / 1440 : -((-total + 1439) / 1440);
+    total -= days * 1440;
+    t.hour = total / 60;
+    t.minute = total % 60;
+    int year = 2000 + t.year2;
+    if (t.month < 1 || t.month > 12) t.month = 1;
+    for (; days > 0; --days)
+        if (++t.day > daysIn(t.month, year)) {
+            t.day = 1;
+            if (++t.month > 12) t.month = 1, ++year;
+        }
+    for (; days < 0; ++days)
+        if (--t.day < 1) {
+            if (--t.month < 1) t.month = 12, --year;
+            t.day = daysIn(t.month, year);
+        }
+    t.year2 = ((year % 100) + 100) % 100;
+    return t;
+}
+
+int clockOffsetFromFirst(int fromGmt, int firstFromGmt) { return wrapDay(fromGmt - firstFromGmt); }
+
+int localMinusGmt(int localHour, int localMinute, int gmtHour, int gmtMinute) {
+    return wrapDay(localHour * 60 + localMinute - (gmtHour * 60 + gmtMinute));
+}
+
+int clock1FromGmt(const Profile& p, int macLocal, bool simKnown, int simLocal) {
+    switch (p.clock1Source) {
+        case ClockSimLocal: return simKnown ? simLocal : macLocal;
+        case ClockMacLocal: return macLocal;
+        case ClockFixed: return p.clock1Offset;
+        default: return 0;
+    }
+}
+
 const char* pageName(int page) {
     static const char* const names[kPageCount] = {"COM1 / NAV1", "COM2 / NAV2", "ADF",       "DME",
                                                   "Transponder", "Autopilot",   "OBS / Heading", "Buttons", "Brightness"};

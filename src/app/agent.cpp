@@ -95,6 +95,61 @@ bool Agent::createProfile(const std::string& key, const Profile& p, std::string*
     return true;
 }
 
+bool Agent::createBlank(const std::string& name, std::string* error) {
+    size_t a = name.find_first_not_of(' '), b = name.find_last_not_of(' ');
+    std::string wanted = a == std::string::npos ? "" : name.substr(a, b - a + 1);
+    if (wanted.empty()) {
+        if (error) *error = "Type a name for the new profile.";
+        return false;
+    }
+    std::string safe = store_.freeKey(wanted);   // file-name safe and not taken
+    if (safe != wanted) {
+        if (error) *error = "'" + wanted + "' is taken, or has characters a file name cannot have. Try '" + safe + "'.";
+        return false;
+    }
+    Profile p = defaultProfile();   // only the screen controls on the wheel and the page buttons
+    p.name = wanted;
+    p.axes = profile_.axes;
+    return createProfile(wanted, p, error);
+}
+
+bool Agent::deleteProfile(const std::string& key, std::string* error) {
+    if (key.empty() || key == "default") {
+        if (error) *error = "Default is never deleted.";
+        return false;
+    }
+    if (!store_.exists(key)) {
+        if (error) *error = "There is no profile called '" + key + "'.";
+        return false;
+    }
+    if (store_.isStandard(key)) {
+        if (error) *error = "'" + key + "' is a ready-made profile: it is never deleted, so you can always go back to it.";
+        return false;
+    }
+    Profile p;
+    std::string basedOn = store_.load(key, p, nullptr) ? p.basedOn : "";
+    if (!basedOn.empty() && store_.choiceFor(basedOn) == key) store_.setChoice(basedOn, "");
+    if (!store_.trash(key)) {
+        if (error) *error = "Could not delete '" + key + "'.";
+        return false;
+    }
+    if (key == key_) {
+        cancelCopy();
+        key_ = !basedOn.empty() && store_.exists(basedOn) ? basedOn : "default";
+        store_.notePicked(key_);
+        reload();
+    }
+    ++revision_;
+    return true;
+}
+
+bool Agent::restoreProfile(const std::string& key) {
+    if (!store_.restore(key)) return false;
+    select(key);
+    ++revision_;
+    return true;
+}
+
 void Agent::select(const std::string& key) {
     if (key.empty() || key == key_ || !store_.exists(key)) return;
     cancelCopy();
@@ -382,15 +437,24 @@ void Agent::push(double t) {
         s.blink = false;
     }
     time_t tt = time(nullptr);
-    struct tm g;
+    struct tm g, local;
     gmtime_r(&tt, &g);
+    localtime_r(&tt, &local);
+    ClockTime gmt;
+    gmt.hour = g.tm_hour;
+    gmt.minute = g.tm_min;
+    gmt.day = g.tm_mday;
+    gmt.month = g.tm_mon + 1;
+    gmt.year2 = g.tm_year % 100;
+    int first = clock1FromGmt(profile_, (int)(local.tm_gmtoff / 60), false, 0);   // no simulator time here
+    ClockTime c1 = shiftClock(gmt, first);
     s.clockValid = true;
-    s.hour = g.tm_hour;
-    s.minute = g.tm_min;
-    s.day = g.tm_mday;
-    s.month = g.tm_mon + 1;
-    s.year2 = g.tm_year % 100;
-    for (int c = 0; c < 2; ++c) s.clockOffset[c] = profile_.clockOffset[c];
+    s.hour = c1.hour;
+    s.minute = c1.minute;
+    s.day = c1.day;
+    s.month = c1.month;
+    s.year2 = c1.year2;
+    for (int c = 0; c < 2; ++c) s.clockOffset[c] = clockOffsetFromFirst(profile_.clockOffset[c], first);
     for (int c = 0; c < 3; ++c) s.h12[c] = profile_.clock12h[c];
     s.dateFormat = profile_.dateFormat;
     device_.setState(s);

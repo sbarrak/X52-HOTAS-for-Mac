@@ -79,8 +79,9 @@ void x52_trg_set(int kind, int index, int which, const char* dataref, int op, do
 void x52_trg_set_join(int kind, int index, int join);
 const char* x52_trg_status(int kind, int index, int which);   // what the dataref is doing right now
 
-// Settings by name: led_brightness, mfd_brightness (0..127), clock2_offset,
-// clock3_offset (minutes from GMT), clock1_12h..clock3_12h, date_format, clutch_latched.
+// Settings by name: led_brightness, mfd_brightness (0..127), clock1_source (0 GMT, 1 simulator local time,
+// 2 Mac local time, 3 GMT + clock1_offset), clock1_offset, clock2_offset, clock3_offset (minutes from GMT),
+// clock1_12h..clock3_12h, date_format, clutch_latched.
 // Master switches: the screen (which 0) or the lights (which 1) are on only while their trigger is true.
 // They use the trigger calls above with kind 2 and the index 0 (screen) or 1 (lights); no dataref means always on.
 void x52_master_try(int which);                // switches it off on the stick for a few seconds
@@ -213,6 +214,13 @@ const char* x52_copy_save(const char* name);
 void x52_copy_cancel(void);
 const char* x52_key(void);
 void x52_select(const char* key);
+// A new profile with nothing programmed (keeps the axis settings), switched to: "" on success, else why.
+const char* x52_blank_suggest(void);           // a free name for it
+const char* x52_blank_create(const char* name);
+// Deletes a profile of the user's (set aside, so x52_restore_profile can bring it back): "" on success, else why.
+// Default and ready-made profiles are never deleted.
+const char* x52_delete_profile(const char* key);
+int x52_restore_profile(const char* key);      // 1 if it came back (and is in use)
 
 const char* x52_screen(int line);
 const char* x52_held(void);
