@@ -53,6 +53,12 @@ void Agent::reload() {
 }
 
 bool Agent::change(const std::function<void(Profile&)>& edit) {
+    if (profile_.standard || store_.isStandard(key_)) {
+        pending_.push_back(edit);   // a ready-made profile is never written: this goes into a copy, once it has a name
+        copyAsked_ = true;
+        ++revision_;
+        return false;
+    }
     Profile p;
     std::string err;
     if (store_.exists(key_)) {
@@ -91,8 +97,47 @@ bool Agent::createProfile(const std::string& key, const Profile& p, std::string*
 
 void Agent::select(const std::string& key) {
     if (key.empty() || key == key_ || !store_.exists(key)) return;
+    cancelCopy();
     key_ = key;
+    store_.notePicked(key);
     reload();
+}
+
+std::string Agent::suggestCopyName() const {
+    std::string title = key_ == "default" ? "Default" : key_.compare(0, 9, "aircraft-") == 0 ? key_.substr(9) : key_;
+    return store_.freeKey(title + " mine");
+}
+
+bool Agent::saveCopy(const std::string& name, std::string* error) {
+    size_t a = name.find_first_not_of(' '), b = name.find_last_not_of(' ');
+    std::string wanted = a == std::string::npos ? "" : name.substr(a, b - a + 1);
+    if (wanted.empty()) {
+        if (error) *error = "Type a name for the new profile.";
+        return false;
+    }
+    std::string safe = store_.freeKey(wanted);   // file-name safe and not taken
+    if (safe != wanted) {
+        if (error) *error = "'" + wanted + "' is taken, or has characters a file name cannot have. Try '" + safe + "'.";
+        return false;
+    }
+    Profile p;
+    std::string err;
+    if (!store_.exists(key_) || !store_.load(key_, p, &err)) p = profile_;
+    for (const auto& e : pending_) e(p);
+    p.standard = false;
+    if (p.basedOn.empty()) p.basedOn = store_.isStandard(key_) ? key_ : "";
+    p.name = wanted;
+    pending_.clear();
+    copyAsked_ = false;
+    if (!store_.save(wanted, p, error)) return false;
+    select(wanted);
+    return true;
+}
+
+void Agent::cancelCopy() {
+    pending_.clear();
+    if (copyAsked_) ++revision_;
+    copyAsked_ = false;
 }
 
 std::vector<std::string> Agent::profiles() const {
@@ -154,12 +199,21 @@ std::string Agent::liveStatus(const std::string& ref) {
     return "No answer from X-Plane. Is it running, with Settings > Network > accept incoming connections on, and is the name right?";
 }
 
+bool Agent::peek(const std::string& ref, double& out) const {
+    return link_ && !ref.empty() && link_->value(ref, now(), out);
+}
+
 // Live lights: ask X-Plane for what the rules need (the plugin does this itself when it runs).
 void Agent::updateLive(double t) {
     std::vector<Trigger> masters = {profile_.masterScreen, profile_.masterLights};
     std::vector<std::string> refs = datarefsUsed(profile_.alarms, profile_.rules, masters);
     for (const BrightnessLink* b : {&profile_.brightScreen, &profile_.brightLights})
         if (b->active() && std::find(refs.begin(), refs.end(), b->dataref) == refs.end()) refs.push_back(b->dataref);
+    if (watchPages_)
+        for (const UserPage& pg : profile_.pages.pages)
+            for (const PageRow& r : pg.rows)
+                if (r.kind == RowKind::Value && !r.dataref.empty() && std::find(refs.begin(), refs.end(), r.dataref) == refs.end())
+                    refs.push_back(r.dataref);
     if (refs.empty()) {
         link_.reset();
         return;
@@ -286,6 +340,8 @@ void Agent::tick() {
     if (deviceRunning_) {
         updateLive(t);
         push(t);
+    } else if (watchPages_) {
+        updateLive(t);   // the plugin drives the stick, but the pages editor's preview still wants live numbers
     } else if (link_) {
         link_.reset();   // the plugin took over: stop asking
     }

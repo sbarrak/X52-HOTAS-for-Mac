@@ -1,5 +1,7 @@
+#include <dirent.h>
 #include <fstream>
 #include <map>
+#include <sstream>
 #include "check.h"
 #include <cmath>
 #include "../src/core/axes.h"
@@ -919,7 +921,7 @@ TEST(light_rules_survive_save_and_load) {
     blank.led = LedA;
     p.rules = {brake, gear, second, blank};
     std::string text = serialize(p);
-    CHECK(text.find("rule e > 0.5 red green sim/cockpit2/controls/parking_brake_ratio") != std::string::npos);
+    CHECK(text.find("rule e > 0.5 red green sim/flightmodel/controls/parkbrake") != std::string::npos);
     CHECK(text.find("rule a > 0.5 red green -") != std::string::npos);
     CHECK(text.find("rule d > 0.5 red green not sim/y or not != 3 sim/z[1]") != std::string::npos);
     Profile q;
@@ -1743,4 +1745,118 @@ TEST(dial_steadiness_is_saved_in_the_profile) {
     CHECK(dialCurve(q.axes, 0x34) == &q.axes.upperRotary);
     CHECK(dialCurve(q.axes, 0x36) == &q.axes.slider);
     CHECK(dialCurve(q.axes, 0x30) == nullptr);
+}
+
+// ---------------------------------------------------------------- the left wheel's order
+
+TEST(the_left_wheels_pages_can_be_reordered_and_hidden) {
+    Profile p;
+    std::string err;
+    parsePageLine("fly \"Flight\"", p.pages, err);
+    parsePageLine("sub \"Sub\" in fly", p.pages, err);
+    std::vector<int> def = wheelOrder(p);
+    CHECK_EQ(def.size(), (size_t)kPageCount + 1);
+    CHECK_EQ(def[PageVorHdg + 1], (int)kPageCount);           // the user's page after the radio pages
+    p.wheelOrder = {"@fly", "com1", "xpdr"};
+    p.wheelHidden = {"adf", "dme"};
+    std::vector<int> o = wheelOrder(p);
+    CHECK_EQ(o[0], (int)kPageCount);
+    CHECK_EQ(o[1], (int)PageComNav1);
+    CHECK_EQ(o[2], (int)PageXpdr);
+    CHECK_EQ(o[3], (int)PageComNav2);                         // not named: after the named ones, in the usual order
+    CHECK_EQ(o[5], (int)PageVorHdg);
+    CHECK_EQ(o[6], (int)PageButtons);
+    p.wheelOrder = {"buttons", "@fly", "com1"};
+    o = wheelOrder(p);
+    CHECK_EQ(o[0], (int)PageComNav2);                         // a new page in a list that names Buttons: before it
+    CHECK_EQ(o[4], (int)PageButtons);
+    CHECK_EQ(o[5], (int)kPageCount);
+    CHECK(std::find(o.begin(), o.end(), (int)PageAdf) == o.end());
+    CHECK_EQ(o.back(), (int)PageBrightness);
+    CHECK_EQ(wheelEntries(p).size(), (size_t)kPageCount + 1);   // hidden ones are still listed for the editor
+    p.wheelHidden.clear();
+    for (const WheelEntry& e : wheelEntries(p)) p.wheelHidden.push_back(e.token);
+    CHECK_EQ(wheelOrder(p).size(), (size_t)1);                // everything hidden: one page stays
+    Profile q;
+    CHECK(parse(serialize(p), q, &err));
+    CHECK(q.wheelOrder == p.wheelOrder);
+    CHECK(q.wheelHidden == p.wheelHidden);
+    CHECK(serialize(Profile()).find("wheel_") == std::string::npos);   // nothing written while unused
+}
+
+
+TEST(a_ready_made_profile_says_so_and_a_copy_names_where_it_came_from) {
+    Profile p;
+    CHECK(!p.standard);
+    CHECK(serialize(p).find("standard") == std::string::npos);   // nothing written for ordinary profiles
+    p.standard = true;
+    p.basedOn = "aircraft-Cirrus SR22";
+    Profile q;
+    std::string err;
+    CHECK(parse(serialize(p), q, &err));
+    CHECK(q.standard);
+    CHECK_EQ(q.basedOn, std::string("aircraft-Cirrus SR22"));
+}
+
+// The ready-made profiles in profiles/ (built by profiles/tools/build_profiles.py): the throttle light follows its
+// mode colour in every one, the plugin drives the throttle, and no light uses a dataref X-Plane 12 has replaced.
+TEST(the_ready_made_profiles_light_the_throttle_and_let_the_plugin_drive_it) {
+    const std::vector<std::string> helis = {"aircraft-Robinson R22 Beta II", "aircraft-Robinson R22 Beta II_mariner", "aircraft-S-76C"};
+    int checked = 0;
+    DIR* d = opendir("profiles");
+    CHECK(d != nullptr);
+    while (dirent* e = d ? readdir(d) : nullptr) {
+        std::string n = e->d_name;
+        if (n.size() < 4 || n.compare(n.size() - 4, 4, ".x52") != 0) continue;
+        std::ifstream f("profiles/" + n);
+        std::stringstream ss;
+        ss << f.rdbuf();
+        Profile p;
+        std::string err;
+        CHECK(parse(ss.str(), p, &err));
+        if (!p.standard) continue;   // the user's own profiles kept in the folder
+        ++checked;
+        for (const LightRule& r : p.rules) CHECK(r.led != LedThrottle);
+        bool heli = std::find(helis.begin(), helis.end(), n.substr(0, n.size() - 4)) != helis.end();
+        // X-Plane's own axis assignment did not reach the controls: the plugin drives the stick and twist, and the
+        // throttle except the helicopters' (their lever is the collective). Default, for any aircraft, is left alone.
+        CHECK_EQ(p.axes.overrideXPlane, n != "default.x52");
+        CHECK_EQ(p.axes.pluginThrottle, !heli && n != "default.x52");
+        if (n != "default.x52") CHECK(p.axes.throttle.invert);   // ready for the override: the X52 lever reads 0 at full power
+        for (const LightRule& r : p.rules) CHECK(r.dataref != "sim/cockpit2/controls/flap_ratio" && r.dataref != "sim/cockpit2/controls/parking_brake_ratio");
+        for (const Binding& bd : p.bindings)                  // the flaps are on the slider, not on B and C
+            for (const Step& st : bd.press) CHECK(st.text != "sim/flight_controls/flaps_up" && st.text != "sim/flight_controls/flaps_down");
+        if (n == "aircraft-Cessna_CitationX.x52") {
+            CHECK(p.axes.sliderFlaps);
+            CHECK(!p.axes.slider.invert);                     // Invert flaps off: slider away from you deploys them
+            CHECK_EQ(p.exact(4, 1)->press[0].text, std::string("sim/autopilot/servos_on"));   // B, mode 1
+            CHECK_EQ(p.exact(5, 2)->press[0].text, std::string("sim/autopilot/take_off_go_around"));   // C, mode 2
+            CHECK_EQ(p.exact(4, 3)->press[0].text, std::string("sim/autopilot/altitude_hold"));   // B, mode 3
+        }
+    }
+    if (d) closedir(d);
+    CHECK_EQ(checked, 24);
+}
+
+TEST(the_slider_picks_the_nearest_flap_detent_and_is_saved) {
+    CHECK_EQ(flapHandleFor(0.0, 4), 0.0);
+    CHECK_EQ(flapHandleFor(0.55, 4), 0.5);
+    CHECK_EQ(flapHandleFor(0.9, 4), 1.0);
+    CHECK_EQ(flapHandleFor(0.3, 0), 0.3);                    // no detents: as it is
+    CHECK_EQ(flapHandleFor(1.7, 3), 1.0);
+    Profile p;
+    CHECK(!p.axes.sliderFlaps);
+    p.axes.sliderFlaps = true;
+    p.axes.slider.invert = true;
+    Profile q;
+    std::string err;
+    CHECK(parse(serialize(p), q, &err));
+    CHECK(q.axes.sliderFlaps);
+    CHECK(q.axes.slider.invert);                              // the app's switch is kept
+    Profile old;                                              // an older file: axis_override alone drove the throttle too
+    CHECK(parse("x52pro-profile 3\naxis_override = 1\n", old, &err));
+    CHECK(old.axes.pluginThrottle);
+    Profile split;
+    CHECK(parse("x52pro-profile 3\naxis_override = 1\nthrottle_plugin = 0\n", split, &err));
+    CHECK(split.axes.overrideXPlane && !split.axes.pluginThrottle);
 }

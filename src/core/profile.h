@@ -206,6 +206,14 @@ struct Profile {
     std::vector<LightRule> rules;   // conditional lights, the same in every mode; one rule per light, the first wins
     std::vector<Alarm> alarms;      // alarms, in priority order: the first triggered one wins
     PageTree pages;                 // screen pages written by the user (the radio pages are built in; none: just those)
+    // The left wheel's order (see wheelEntries() in pageview.h): page keys ("com1", "adf", ...) and "@<id>" for the
+    // user's top-level pages. Empty: the usual order. The pages in wheelHidden are skipped, built-in ones too.
+    std::vector<std::string> wheelOrder;
+    std::vector<std::string> wheelHidden;
+    // A ready-made profile (shipped in profiles/): never changed by the app or the plugin, so it can always be
+    // gone back to. A change to it is saved as a new profile instead (basedOn names the profile it came from).
+    bool standard = false;
+    std::string basedOn;
     Trigger masterScreen;           // the screen is on only while this is true (no dataref chosen: always on)
     Trigger masterLights;           // the same for every light
     BrightnessLink brightScreen;    // screen brightness follows a dataref (none chosen: mfdBrightness)

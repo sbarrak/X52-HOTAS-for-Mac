@@ -89,4 +89,54 @@ void pageTreeInput(const PageTree& t, const std::string& topId, PageNav& nav, Wh
     }
 }
 
+namespace {
+const char* const kKeys[kPageCount] = {"com1", "com2", "adf", "dme", "xpdr", "ap", "vorhdg", "buttons", "brightness"};
+}
+
+const char* builtinPageKey(int page) { return page >= 0 && page < kPageCount ? kKeys[page] : ""; }
+
+std::vector<WheelEntry> wheelEntries(const Profile& p) {
+    std::vector<int> top = p.pages.topLevel();
+    std::vector<WheelEntry> def;   // the usual order
+    for (int b = 0; b < kPageCount; ++b)
+        if (b != PageButtons && b != PageBrightness) def.push_back({kKeys[b], b, false});
+    for (size_t k = 0; k < top.size(); ++k) def.push_back({"@" + p.pages.pages[top[k]].id, kPageCount + (int)k, false});
+    def.push_back({kKeys[PageButtons], PageButtons, false});
+    def.push_back({kKeys[PageBrightness], PageBrightness, false});
+
+    auto has = [](const std::vector<WheelEntry>& v, const std::string& tok) {
+        for (const WheelEntry& e : v)
+            if (e.token == tok) return true;
+        return false;
+    };
+    std::vector<WheelEntry> out;
+    for (const std::string& tok : p.wheelOrder)
+        for (const WheelEntry& e : def)
+            if (e.token == tok && !has(out, tok)) out.push_back(e);
+    // Pages the list does not name (a new page, say) keep their usual order after the ones it names, before
+    // Buttons and Brightness when those are named.
+    for (const WheelEntry& e : def) {
+        if (has(out, e.token)) continue;
+        size_t at = out.size();
+        if (e.page != PageButtons && e.page != PageBrightness)
+            for (size_t j = 0; j < out.size(); ++j)
+                if (out[j].page == PageButtons || out[j].page == PageBrightness) {
+                    at = j;
+                    break;
+                }
+        out.insert(out.begin() + at, e);
+    }
+    for (WheelEntry& e : out)
+        e.hidden = std::find(p.wheelHidden.begin(), p.wheelHidden.end(), e.token) != p.wheelHidden.end();
+    return out;
+}
+
+std::vector<int> wheelOrder(const Profile& p) {
+    std::vector<int> order;
+    for (const WheelEntry& e : wheelEntries(p))
+        if (!e.hidden) order.push_back(e.page);
+    if (order.empty()) order.push_back(PageButtons);   // everything hidden: keep one page
+    return order;
+}
+
 }  // namespace x52

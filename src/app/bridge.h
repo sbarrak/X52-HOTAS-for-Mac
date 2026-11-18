@@ -145,15 +145,66 @@ const char* x52_import_message(void);
 int x52_catalog_size(int kind);
 const char* x52_catalog_search(int kind, const char* query, int max);
 
+// ---- The user's own screen pages (see src/core/pagetree.h). Pages are numbered in file order. A page with
+// parent "" is reached with the left wheel; otherwise only a link row opens it. Row kinds: 0 text, 1 value, 2 link.
+int x52_page_count(void);
+const char* x52_page_id(int page);
+const char* x52_page_title(int page);
+const char* x52_page_parent(int page);         // the parent's id, "" for a top-level page
+// The pages as the editor lists them, one line each: "page<TAB>depth": top-level pages in wheel order, each
+// followed by the pages inside it (depth 1, 2, ...); pages whose parent is missing come last at depth 0.
+const char* x52_pages_outline(void);
+int x52_page_add(const char* title, const char* parent);   // the new page's number (its id comes from the title)
+void x52_page_remove(int page);                // also its sub-pages; links to any of them are cleared
+void x52_page_move(int page, int direction);   // -1 / 1: past the previous / next page with the same parent
+// Returns 1 when applied; 0 when the parent would put the page inside itself or does not exist (nothing changed).
+int x52_page_set(int page, const char* title, const char* parent);
+int x52_row_count(int page);
+int x52_row_kind(int page, int row);
+const char* x52_row_text(int page, int row);
+const char* x52_row_format(int page, int row);
+const char* x52_row_dataref(int page, int row);
+const char* x52_row_target(int page, int row);
+int x52_row_add(int page, int kind);           // the new row's number, -1 if refused
+void x52_row_remove(int page, int row);
+void x52_row_move(int page, int row, int direction);
+void x52_row_set(int page, int row, int kind, const char* text, const char* format, const char* dataref, const char* target);
+// The left wheel: every page it can reach, in order, one line each: "token<TAB>title<TAB>hidden 1/0<TAB>built-in 1/0".
+// Moving or hiding one saves the whole order in the profile (wheel_order, wheel_hidden).
+// token is a built-in page's key ("com1", "adf", ...) or "@<page id>".
+const char* x52_wheel_entries(void);
+void x52_wheel_move(const char* token, int direction);
+void x52_wheel_hide(const char* token, int hidden);
+const char* x52_builtin_preview(const char* token, int line);   // a built-in page with the sim's values blank
+void x52_pages_restore_default(void);          // also forgets the left wheel's order and hidden pages          // no user pages: the stick shows the built-in pages only
+// Line 0..2 of the page as the stick shows it, the first row under the cursor. Live numbers when X-Plane sends
+// them (see x52_pages_watch), otherwise a made-up 1234.5; x52_page_preview_live says which.
+const char* x52_page_preview(int page, int line);
+int x52_page_preview_live(int page);
+void x52_pages_watch(int on);                  // ask X-Plane for the pages' datarefs (while the editor is open)
+const char* x52_pages_source(void);            // the page and row lines of the profile file, as saved
+const char* x52_format_example(const char* format, double value);
+
 int x52_get(const char* name);
 void x52_set(const char* name, int value);
 
 // Every analog control the stick reports, one line each: "name<TAB>percent<TAB>value text<TAB>raw<TAB>moving 1/0<TAB>usage".
 // Settings by name for the flight axes: axis_override, axis_<roll|pitch|yaw|throttle>_deadzone (0..40 %),
-// _expo (0..100 %) and _invert; for the right wheel: dial_accel and dial_factor (2..50).
+// _expo (0..100 %) and _invert; for the right wheel: dial_accel and dial_factor (2..50); throttle_plugin (the plugin drives the throttle on its own), slider_flaps (the slider
+// sets the flap lever) and slider_invert (invert the flaps: slider towards you = deployed).
 const char* x52_axes(void);
 
 const char* x52_profiles(void);                // keys, one per line
+// Ready-made profiles (standard) are never changed. Any change to one waits (x52_copy_needed) for a name:
+// x52_copy_save puts it, and the changes after it, into a new profile and switches to it ("" on success, else why);
+// x52_copy_cancel drops them. x52_copy_ask asks for a name without a change waiting ("Save as new profile").
+int x52_standard(void);                        // the profile being edited is a ready-made one
+int x52_profile_standard(const char* key);
+int x52_copy_needed(void);
+void x52_copy_ask(void);
+const char* x52_copy_suggest(void);
+const char* x52_copy_save(const char* name);
+void x52_copy_cancel(void);
 const char* x52_key(void);
 void x52_select(const char* key);
 

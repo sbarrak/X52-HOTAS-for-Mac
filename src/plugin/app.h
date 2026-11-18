@@ -88,6 +88,9 @@ struct App : Host {
     void profileChanged();
     void loadForAircraft(const std::string& acfName);
     void makeAircraftProfile();
+    // A copy of the profile in use, with this flight's changes, under a free name ("<title> mine"); a copy of a
+    // ready-made profile is used instead of it from then on. Returns the new key, "" when it could not be saved.
+    std::string saveCopy();
     void dropAircraftProfile();        // sets the aircraft's profile aside and goes back to Default
     bool canUndoDrop() const;          // the loaded aircraft has a profile that was set aside
     void undoDropAircraftProfile();
@@ -125,6 +128,9 @@ public:
     void applyAxes();                      // writes the shaped flight axes into X-Plane while the override is on
     void releaseAxes();                    // gives the axes back to X-Plane
     bool axesOverridden = false;           // the plugin has set X-Plane's override flags
+    bool joyOverridden = false;            // ... the stick's one (override_joystick) among them
+    double flapWritten = -1;               // the flap handle the slider last set (-1: not since the aircraft loaded)
+    void applySliderFlaps();
     std::map<std::pair<int, int>, long> axisShown;   // test mode: last value shown per moving control
 };
 

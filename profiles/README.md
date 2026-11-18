@@ -12,26 +12,51 @@ One X52 Pro profile per aircraft that comes with X-Plane 12, plus a printable bu
 | 3 | Cruise & autopilot | autopilot modes, altitude / heading / VS values (fighters: combat; no autopilot: fuel, lights, views) |
 
 The same in every mode: trigger (autopilot disconnect, or guns), Fire (parking brake), A (gear or
-landing light), B / C (flaps up / down), Hat 2 (trim), Pinkie (wheel brakes while held), screen wheels.
-The pinkie is a normal button in these profiles, not a shift.
+landing light), Hat 2 (trim), Pinkie (wheel brakes while held), screen wheels. The pinkie is a normal
+button in these profiles, not a shift.
 
-Lights: mode 1 green, mode 2 amber, mode 3 red. Live lights show parking brake (Fire), gear (A),
-flaps (B) and autopilot (Throttle). Alarms: engine fire, stall / low rotor RPM, gear unsafe,
+**Flaps are on the slider** on the throttle (`slider_flaps = 1`, `slider_invert = 0`): pushed away from you is
+flaps deployed, towards you flaps up, and the flap lever goes to the aircraft's own stops. **Invert flaps** on
+the app's Axes tab reverses the direction for a profile. **B and C:**
+
+| Aircraft | Mode 1 | Mode 2 | Mode 3 |
+|---|---|---|---|
+| With an autopilot | B AP on, C AP off | B AP approach, C TOGA (no autothrottle: AP off) | B AP ALT hold, C AP VS |
+| Fighters | B speedbrake in, C speedbrake out | same | same |
+| Light pistons without autopilot (PA-18, L-5, Aerolite) | B magnetos both, C starter (hold) | same | same |
+| Glider | B airbrakes in, C airbrakes out | same | same |
+| R22 | B governor, C carb heat | same | same |
+
+Lights: mode 1 green, mode 2 amber, mode 3 red; the throttle light is green in every mode. Live lights show
+parking brake (Fire), gear (A) and flaps (B). Alarms: engine fire, stall / low rotor RPM, gear unsafe,
 master warning / caution, low fuel, autopilot disconnect, overspeed, low oil pressure.
 The screen gets Flight, Engine and Fuel pages after the built-in radio pages.
 
 ## Installing
 
 The plugin picks a profile by the aircraft's `.acf` file name: `aircraft-<acf name>.x52` in
-`X-Plane 12/Output/preferences/X52Pro/`. Copy the `.x52` files there; do not replace one you have
-already changed. Then, in X-Plane, set every button these profiles use to **Do nothing**
-(Settings > Joystick), or X-Plane and the plugin both act on it. Axes, rotaries, the slider and the
-main hat stay with X-Plane.
+`X-Plane 12/Output/preferences/X52Pro/`. Copy the `.x52` files there. They never change once
+installed, so copying a newer version over one is safe; your own changes live in your copies. Then, in X-Plane, set every button these profiles use to **Do nothing**
+(Settings > Joystick), or X-Plane and the plugin both act on it.
+
+Flight axes: the plugin drives them, because X-Plane's own axis assignment did not reach the controls (seen
+live in the Citation X: X-Plane saw the stick and throttle move, but the yoke and throttle stayed at 0).
+
+- Stick and twist (`axis_override = 1`, 5 % dead zone) in every aircraft.
+- Throttle (`throttle_plugin = 1`): engine power and the cockpit levers follow the X52 lever, set the way the
+  X52 reports it (`axis_throttle = 5 0 1`: inverted, 5 % dead zone), taken over once it has moved. The
+  helicopters leave the lever to X-Plane (`throttle_plugin = 0`): there it is the collective.
+- The slider is the flaps (above). If X-Plane also uses the slider for something, set it to None in X-Plane's
+  Joystick settings. Rotaries and the main hat stay with X-Plane.
+
+All of it can be changed per profile on the app's Axes tab (dead zone, expo, invert, Invert flaps).
 
 ## Changing them
 
-Edit a profile in the menu bar app or in X-Plane like any other. To change the layout for all
-aircraft, edit `tools/aircraft.py` and run:
+These profiles are ready-made (`standard = 1`): the app and the plugin never change them, so the original is
+always there to go back to. Change one in the menu bar app and it asks for a name and saves your change as a new
+profile, which X-Plane then uses for that aircraft; in X-Plane, **Save as my copy** does the same (see the main
+README). To change the layout for all aircraft, edit `tools/aircraft.py` and run:
 
 ```bash
 python3 tools/build_profiles.py

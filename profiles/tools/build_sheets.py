@@ -266,7 +266,8 @@ class Sheet:
         self.box(rx, 440, bw, "BUTTON E", [("p", E)], mode, (cx + 18, 396, 7), side="r")
         self.box(rx, 398, bw, "BUTTON D", [("p", D)], mode, (cx + 20, 364, 7), side="r")
         self.box(rx, 356, bw, "CLUTCH (i)", [("p", "Hold: safe mode / pick profile")], mode, (cx + 20, 332, 7), side="r")
-        self.box(rx, 250, bw, "THROTTLE LEVER", [("", "Throttle axis: X-Plane")], mode, (cx + 34, 260), side="r")
+        lever = "Collective: X-Plane" if self.f["kind"] == "heli" else ("Throttle: X-Plane; slider: flaps" if self.f["flaps"] else "Throttle: X-Plane")
+        self.box(rx, 250, bw, "THROTTLE LEVER", [("", lever)], mode, (cx + 34, 260), side="r")
         # ---- stick (right half)
         x0 = W / 2 + 7
         cx = self.stick(x0, mode)
