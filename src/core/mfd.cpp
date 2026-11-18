@@ -109,7 +109,7 @@ const char* controlName(int usagePage, int usage) {
             case 0x33: return "Lower rotary (i)";
             case 0x34: return "Upper rotary (E)";
             case 0x36: return "Slider";
-            case 0x39: return "POV hat";
+            case 0x39: return "POV 1 (hat switch)";
         }
     }
     if (usagePage == 0x05 && usage == 0x24) return "Mouse nub L/R";
@@ -133,6 +133,12 @@ int hatDirection(long value, long min, long max) {
     long i = value - min;
     if (i < 0 || i >= 8 || value > max || i % 2) return -1;
     return (int)(i / 2);
+}
+
+std::string povButtonsText(bool up, bool right, bool down, bool left) {
+    std::string v = up && !down ? "up" : down && !up ? "down" : "";
+    std::string h = right && !left ? "right" : left && !right ? "left" : "";
+    return v.empty() ? h : h.empty() ? v : v + "-" + h;
 }
 
 bool controlMoved(int usagePage, int usage, long shown, long value, long min, long max) {

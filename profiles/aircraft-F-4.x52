@@ -1,0 +1,114 @@
+x52pro-profile 3
+# X52 Pro profile for the McDonnell Douglas F-4 Phantom II (ready-made, see profiles/README.md).
+name = F-4
+pinkie_shift = 0
+shift_button = 6
+mode_buttons = 28 29 30
+clutch_safe = 1
+clutch_button = 31
+hold_ms = 400
+mode_settle_ms = 100
+mfd_brightness = 127
+led_brightness = 127
+clutch_latched = 0
+clock2_offset = 0
+clock3_offset = 0
+clock1_12h = 0
+clock2_12h = 0
+clock3_12h = 0
+date_format = 0
+com_833 = 0
+leds 1 = fire:green a:green b:green d:green e:green t1:green t2:green t3:green pov:green clutch:green throttle:green
+leds 2 = fire:green a:green b:green d:amber e:amber t1:amber t2:amber t3:amber pov:amber clutch:green throttle:green
+leds 3 = fire:green a:green b:green d:red e:red t1:red t2:red t3:red pov:red clutch:green throttle:green
+ledsp 1 = fire:green a:green b:green d:green e:green t1:green t2:green t3:green pov:green clutch:green throttle:green
+ledsp 2 = fire:green a:green b:green d:amber e:amber t1:amber t2:amber t3:amber pov:amber clutch:green throttle:green
+ledsp 3 = fire:green a:green b:green d:red e:red t1:red t2:red t3:red pov:red clutch:green throttle:green
+rule fire > 0.5 green off sim/cockpit2/weapons/master_arm
+rule a > 0.99 green off sim/flightmodel2/gear/deploy_ratio[0]
+rule b > 0.01 amber green sim/cockpit2/controls/flap_ratio
+alarm fire blink fast red amber "Engine fire" > 0 sim/cockpit2/annunciators/engine_fires[0] or > 0 sim/cockpit2/annunciators/engine_fires[1]
+alarm pov blink fast red amber "Stall" > 0 sim/cockpit2/annunciators/stall_warning
+alarm a blink slow red amber "Gear unsafe" > 0 sim/cockpit2/annunciators/gear_unsafe
+alarm clutch blink fast red amber "Master warning" > 0 sim/cockpit2/annunciators/master_warning
+alarm clutch blink slow amber red "Master caution" > 0 sim/cockpit2/annunciators/master_caution
+alarm t1 alternate slow red amber "Low fuel" > 0 sim/cockpit2/annunciators/fuel_quantity
+alarm t3 blink fast red amber "Overspeed" > 0 sim/flightmodel/failures/over_vne
+page flt "Flight"
+row flt value "IAS" "%.0f kt" sim/cockpit2/gauges/indicators/airspeed_kts_pilot
+row flt value "Alt" "%.0f ft" sim/cockpit2/gauges/indicators/altitude_ft_pilot
+row flt value "VS" "%.0f fpm" sim/cockpit2/gauges/indicators/vvi_fpm_pilot
+row flt value "Hdg" "%.0f deg" sim/cockpit2/gauges/indicators/heading_AHARS_deg_mag_pilot
+row flt value "Mach" "%.2f" sim/cockpit2/gauges/indicators/mach_pilot
+row flt value "G" "%.1f" sim/flightmodel2/misc/gforce_normal
+row flt value "AoA" "%.1f deg" sim/flightmodel2/misc/AoA_angle_degrees
+row flt value "OAT" "%.0f C" sim/cockpit2/temperature/outside_air_temp_degc
+page eng "Engine"
+row eng value "N1 L" "%.1f" sim/cockpit2/engine/indicators/N1_percent[0]
+row eng value "N1 R" "%.1f" sim/cockpit2/engine/indicators/N1_percent[1]
+row eng value "Oil T" "%.0f C" sim/cockpit2/engine/indicators/oil_temperature_deg_C[0]
+row eng value "Oil P" "%.0f psi" sim/cockpit2/engine/indicators/oil_pressure_psi[0]
+page fuel "Fuel"
+row fuel value "Total" "%.0f kg" sim/flightmodel/weight/m_fuel_total
+row fuel value "Left" "%.0f kg" sim/cockpit2/fuel/fuel_quantity[0]
+row fuel value "Right" "%.0f kg" sim/cockpit2/fuel/fuel_quantity[1]
+master screen == 1 sim/cockpit2/switches/avionics_power_on
+master lights == 1 sim/cockpit2/switches/avionics_power_on
+bind 1 any press "Guns" cmd:sim/weapons/fire_guns
+bind 2 any press "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
+bind 3 any press "Gear up/down" cmd:sim/flight_controls/landing_gear_toggle
+bind 4 any press "Flaps up" cmd:sim/flight_controls/flaps_up
+bind 5 any press "Flaps down" cmd:sim/flight_controls/flaps_down
+bind 6 any press "Brakes (hold)" cmd:sim/flight_controls/brakes_regular
+bind 15 any press "Fire weapon" cmd:sim/weapons/fire_any_armed
+bind 16 any press "Cockpit view" cmd:sim/view/3d_cockpit_cmnd_look
+bind 20 any press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
+bind 21 any press "Rudder trim R" cmd:sim/flight_controls/rudder_trim_right
+bind 22 any press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
+bind 23 any press "Rudder trim L" cmd:sim/flight_controls/rudder_trim_left
+bind 35 any press "Screen page -" cmd:x52pro/mfd_page_prev
+bind 36 any press "Screen page +" cmd:x52pro/mfd_page_next
+bind 37 any press "Screen cursor up" cmd:x52pro/mfd_up
+bind 38 any press "Screen cursor down" cmd:x52pro/mfd_down
+bind 39 any press "Screen select" cmd:x52pro/mfd_select
+bind 7 1 press "Landing lights" cmd:sim/lights/landing_lights_toggle
+bind 8 1 press "Strobes" cmd:sim/lights/strobe_lights_toggle
+bind 9 1 press "Battery on" cmd:sim/electrical/battery_1_on
+bind 10 1 press "Battery off" cmd:sim/electrical/battery_1_off
+bind 11 1 press "Avionics on" cmd:sim/systems/avionics_on
+bind 12 1 press "Avionics off" cmd:sim/systems/avionics_off
+bind 13 1 press "Canopy open" cmd:sim/flight_controls/canopy_open
+bind 14 1 press "Canopy close" cmd:sim/flight_controls/canopy_close
+bind 17 1 press "Zoom in" cmd:sim/general/zoom_in
+bind 18 1 press "Zoom out" cmd:sim/general/zoom_out
+bind 19 1 press "Chase view" cmd:sim/view/chase
+bind 24 1 press "Nav lights on" cmd:sim/lights/nav_lights_on
+bind 25 1 press "Taxi light on" cmd:sim/lights/taxi_lights_on
+bind 26 1 press "Nav lights off" cmd:sim/lights/nav_lights_off
+bind 27 1 press "Taxi light off" cmd:sim/lights/taxi_lights_off
+bind 7 2 press "Speedbrake" cmd:sim/flight_controls/speed_brakes_toggle
+bind 8 2 press "Tail hook" cmd:sim/flight_controls/tailhook_toggle
+bind 9 2 press "Landing lt on" cmd:sim/lights/landing_lights_on
+bind 10 2 press "Landing lt off" cmd:sim/lights/landing_lights_off
+bind 13 2 press "Pitot heat on" cmd:sim/ice/pitot_heat0_on
+bind 14 2 press "Pitot heat off" cmd:sim/ice/pitot_heat0_off
+bind 17 2 press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
+bind 18 2 press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
+bind 19 2 press "Take-off trim" cmd:sim/flight_controls/pitch_trim_takeoff
+bind 24 2 press "Speedbrake in" cmd:sim/flight_controls/speed_brakes_up_one
+bind 26 2 press "Speedbrake out" cmd:sim/flight_controls/speed_brakes_down_one
+bind 7 3 press "Master arm on" cmd:sim/weapons/master_arm_on
+bind 8 3 press "Master arm off" cmd:sim/weapons/master_arm_off
+bind 9 3 press "Weapon next" cmd:sim/weapons/weapon_select_up
+bind 10 3 press "Weapon prev" cmd:sim/weapons/weapon_select_down
+bind 11 3 press "Flares" cmd:sim/weapons/deploy_flares
+bind 12 3 press "Chaff" cmd:sim/weapons/deploy_chaff
+bind 13 3 press "Fire mode +" cmd:sim/weapons/fire_mode_up
+bind 14 3 press "Fire mode -" cmd:sim/weapons/fire_mode_down
+bind 17 3 press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
+bind 18 3 press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
+bind 19 3 press "Take-off trim" cmd:sim/flight_controls/pitch_trim_takeoff
+bind 24 3 press "Target next" cmd:sim/weapons/weapon_target_up
+bind 25 3 press "Circle view" cmd:sim/view/circle
+bind 26 3 press "Target prev" cmd:sim/weapons/weapon_target_down
+bind 27 3 press "Chase view" cmd:sim/view/chase

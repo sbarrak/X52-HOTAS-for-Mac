@@ -3,9 +3,14 @@
 //   x52probe --watch 60      same, watching for 60 s
 //   x52probe --text A B C    write three lines on the stick's screen
 //   x52probe --leds red      set every two-colour light (off|green|amber|red)
+//   x52probe --led throttle green   set one light by its name (fire a b d e t1 t2 t3 pov clutch throttle)
+//   x52probe --led-id 0x10 on|off   set one light by its raw wire id (to find lights not in the list)
+//   x52probe --led-sweep    light every wire id 0x01..0x1f for 3 s each, printing the id, then switch them off
 //   x52probe --identify      show each pressed button's name on the stick's screen (10 min)
 //   x52probe --clear         blank the screen
 #include <cstdio>
+#include <cstdlib>
+#include <unistd.h>
 #include <cstdlib>
 #include <algorithm>
 #include <cstring>
@@ -49,6 +54,43 @@ int main(int argc, char** argv) {
             cmds.insert(cmds.end(), l.begin(), l.end());
         }
         return sendAndReport(cmds, "screen clear");
+    }
+    if (argc >= 4 && !strcmp(argv[1], "--led")) {
+        int led = -1;
+        for (int l = 0; l < kLedCount; ++l)
+            if (!strcmp(argv[2], ledName(l))) led = l;
+        Color c = Color::Off;
+        bool known = false;
+        for (int i = 0; i < 4; ++i)
+            if (!strcmp(argv[3], colorName((Color)i))) {
+                c = (Color)i;
+                known = true;
+            }
+        if (led < 0 || !known) {
+            printf("usage: --led <fire|a|b|d|e|t1|t2|t3|pov|clutch|throttle> <off|green|amber|red>\n");
+            return 2;
+        }
+        std::vector<UsbCmd> cmds;
+        packLed(led, c, cmds);
+        for (const UsbCmd& u : cmds) printf("  index 0x%02x value 0x%04x\n", u.index, u.value);
+        return sendAndReport(cmds, argv[2]);
+    }
+    if (argc >= 4 && !strcmp(argv[1], "--led-id")) {
+        int id = (int)strtol(argv[2], nullptr, 0);
+        std::vector<UsbCmd> cmds = {{0xb8, (uint16_t)(((id & 0xff) << 8) | (!strcmp(argv[3], "on") ? 1 : 0))}};
+        return sendAndReport(cmds, argv[2]);
+    }
+    if (argc >= 2 && !strcmp(argv[1], "--led-sweep")) {
+        for (int id = 1; id < 0x20; ++id) {
+            printf("wire id 0x%02x ON (3 s)\n", id);
+            fflush(stdout);
+            std::vector<UsbCmd> on = {{0xb8, (uint16_t)((id << 8) | 1)}};
+            sendAndReport(on, "on");
+            sleep(3);
+            std::vector<UsbCmd> off = {{0xb8, (uint16_t)(id << 8)}};
+            sendAndReport(off, "off");
+        }
+        return 0;
     }
     if (argc >= 3 && !strcmp(argv[1], "--leds")) {
         Color c = Color::Off;

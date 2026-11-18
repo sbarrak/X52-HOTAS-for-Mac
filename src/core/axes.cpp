@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 
 namespace x52 {
 
@@ -29,6 +30,20 @@ AxisCurve& axisCurve(AxisSettings& s, int usage) {
     }
 }
 const AxisCurve& axisCurve(const AxisSettings& s, int usage) { return axisCurve(const_cast<AxisSettings&>(s), usage); }
+
+AxisCurve* dialCurve(AxisSettings& s, int usage) {
+    switch (usage) {
+        case 0x33: return &s.lowerRotary;
+        case 0x34: return &s.upperRotary;
+        case 0x36: return &s.slider;
+        default: return nullptr;
+    }
+}
+
+long steadyValue(long shown, long value, long min, long max, int pct) {
+    if (value <= min || value >= max) return value;
+    return labs(value - shown) * 100 > (long)pct * (max - min) ? value : shown;
+}
 
 double normalizeAxis(long value, long min, long max, bool centred) {
     if (max <= min) return centred ? 0.0 : 0.0;

@@ -13,6 +13,8 @@ struct AxisCurve {
 struct AxisSettings {
     bool overrideXPlane = false;   // true: the plugin writes the axes into X-Plane, replacing its own joystick reading
     AxisCurve roll, pitch, yaw, throttle;
+    // The dials and the slider: only a "steady" percentage (deadzone field), so a value that flickers by a hair stays put.
+    AxisCurve lowerRotary = {2, 0, false}, upperRotary = {2, 0, false}, slider = {2, 0, false};
 };
 
 // The X-Plane value a stick axis replaces.
@@ -27,6 +29,11 @@ struct AxisTarget {
 const AxisTarget* axisTarget(int usagePage, int usage);   // nullptr: not a flight axis
 AxisCurve& axisCurve(AxisSettings& s, int usage);          // the curve for a flight axis usage (roll when unknown)
 const AxisCurve& axisCurve(const AxisSettings& s, int usage);
+
+// The curve of a dial (0x33 lower rotary, 0x34 upper rotary, 0x36 slider); nullptr for anything else.
+AxisCurve* dialCurve(AxisSettings& s, int usage);
+// The value to show: `shown` stays until `value` is more than pct % of the travel away; the ends are always reached.
+long steadyValue(long shown, long value, long min, long max, int pct);
 
 // Raw value -> -1..1 (centred) or 0..1.
 double normalizeAxis(long value, long min, long max, bool centred);

@@ -1282,6 +1282,23 @@ struct AxisCurveRow: View {
     }
 }
 
+struct DialSteadyRow: View {
+    @ObservedObject var m: Model
+    let title: String
+    let key: String
+    let usage: Int
+    var body: some View {
+        let st = Binding<Int>(get: { m.get("steady_\(key)") }, set: { m.set("steady_\(key)", $0) })
+        let row = m.axes.first { $0.usage == usage }
+        HStack(spacing: 12) {
+            Text(title).frame(width: 120, alignment: .leading).foregroundStyle(row?.moving == true ? Color.green : Color.primary)
+            ProgressView(value: Double(row?.percent ?? 0), total: 100).frame(width: 110)
+            Text(row.map { "\($0.percent) %" } ?? "-").frame(width: 48, alignment: .trailing).monospacedDigit()
+            Stepper("Steady \(st.wrappedValue) %", value: st, in: 0...20).frame(width: 170, alignment: .leading)
+        }
+    }
+}
+
 struct AxesTab: View {
     @ObservedObject var m: Model
     var body: some View {
@@ -1298,6 +1315,11 @@ struct AxesTab: View {
             AxisCurveRow(m: m, title: "Stick fwd/back", key: "pitch", usage: 0x31)
             AxisCurveRow(m: m, title: "Stick twist", key: "yaw", usage: 0x35)
             AxisCurveRow(m: m, title: "Throttle", key: "throttle", usage: 0x32)
+            Text("Dials and slider: a change smaller than Steady is ignored, so the value does not flicker. Saved in the aircraft's profile.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            DialSteadyRow(m: m, title: "Lower rotary (i)", key: "lower", usage: 0x33)
+            DialSteadyRow(m: m, title: "Upper rotary (E)", key: "upper", usage: 0x34)
+            DialSteadyRow(m: m, title: "Slider", key: "slider", usage: 0x36)
             Divider()
             let moving = m.axes.first { $0.moving }
             Text(moving.map { "Moving now: \($0.name)   \($0.text)" } ?? "Moving now: move a control to see which one it is")

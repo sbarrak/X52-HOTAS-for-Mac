@@ -214,14 +214,27 @@ void Agent::clearText() { haveText_ = false; }
 std::vector<Agent::AxisView> Agent::axes() const {
     std::vector<AxisView> out;
     for (const AxisEvent& e : input_.latestAxes())
-        out.push_back({e.usagePage, e.usage, e.value, e.min, e.max, axisMoved_ == std::make_pair(e.usagePage, e.usage)});
+    {
+        long v = e.value;
+        auto it = axisSteady_.find({e.usagePage, e.usage});
+        if (it != axisSteady_.end()) v = it->second;
+        out.push_back({e.usagePage, e.usage, v, e.min, e.max, axisMoved_ == std::make_pair(e.usagePage, e.usage)});
+    }
     return out;
 }
 
 std::string Agent::held() const {
     std::string s;
     for (int b = 1; b <= kMaxButton; ++b)
-        if (engine_.isDown(b)) s += (s.empty() ? "" : ", ") + std::to_string(b) + " " + buttonName(b);
+        if (engine_.isDown(b) && !(b >= 20 && b <= 23)) s += (s.empty() ? "" : ", ") + std::to_string(b) + " " + buttonName(b);
+    // POV 2 is four buttons: two together are a diagonal
+    std::string d = povButtonsText(engine_.isDown(20), engine_.isDown(21), engine_.isDown(22), engine_.isDown(23));
+    if (!d.empty()) s += (s.empty() ? "" : ", ") + std::string("POV 2: ") + d;
+    for (const AxisEvent& e : input_.latestAxes()) {   // POV 1 is a hat switch, not buttons
+        if (e.usagePage != 0x01 || e.usage != 0x39) continue;
+        std::string d = controlValueText(e.usagePage, e.usage, e.value, e.min, e.max);
+        if (d != "centre") s += (s.empty() ? "" : ", ") + std::string(controlName(e.usagePage, e.usage)) + ": " + d;
+    }
     return s;
 }
 
@@ -236,6 +249,10 @@ void Agent::tick() {
 
     for (const AxisEvent& e : input_.latestAxes()) {
         auto key = std::make_pair(e.usagePage, e.usage);
+        if (AxisCurve* dial = e.usagePage == 0x01 ? dialCurve(profile_.axes, e.usage) : nullptr) {
+            auto st = axisSteady_.find(key);
+            axisSteady_[key] = st == axisSteady_.end() ? e.value : steadyValue(st->second, e.value, e.min, e.max, dial->deadzone);
+        }
         auto it = axisRef_.find(key);
         if (it == axisRef_.end()) {   // where a control rests is not news
             axisRef_[key] = e.value;

@@ -11,7 +11,7 @@ namespace {
 
 const char* const kLedNames[kLedCount] = {"fire", "a", "b", "d", "e", "t1", "t2", "t3", "pov", "clutch", "throttle"};
 const char* const kLedTitles[kLedCount] = {"Fire button", "Button A", "Button B", "Button D", "Button E",
-                                           "Toggle T1/T2", "Toggle T3/T4", "Toggle T5/T6", "POV hat 2",
+                                           "Toggle T1/T2", "Toggle T3/T4", "Toggle T5/T6", "POV 2",
                                            "Clutch (i)", "Throttle"};
 const char* const kColorNames[4] = {"off", "green", "amber", "red"};
 
@@ -21,7 +21,7 @@ const char* const kButtonNames[kMaxButton + 1] = {
     "Trigger", "Fire", "A", "B", "C", "Pinkie", "D", "E",
     "Toggle 1 up", "Toggle 1 down", "Toggle 2 up", "Toggle 2 down", "Toggle 3 up", "Toggle 3 down",
     "Trigger 2nd stage", "Mouse button", "Scroll wheel fwd", "Scroll wheel back", "Scroll wheel click",
-    "Stick hat up", "Stick hat right", "Stick hat down", "Stick hat left",
+    "POV 2 up", "POV 2 right", "POV 2 down", "POV 2 left",
     "Throttle hat up", "Throttle hat right", "Throttle hat down", "Throttle hat left",
     "Mode 1", "Mode 2", "Mode 3", "Clutch (i)",
     "MFD Function", "MFD Start/Stop", "MFD Reset", "MFD Page up", "MFD Page down",
@@ -476,6 +476,10 @@ std::string serialize(const Profile& p) {
         const AxisCurve& c = axisCurve(p.axes, u);
         o << "axis_" << axisTarget(0x01, u)->name << " = " << c.deadzone << " " << c.expo << " " << (c.invert ? 1 : 0) << "\n";
     }
+    o << "# steady_<lower|upper|slider> = a dial or slider ignores changes smaller than this % of its travel\n";
+    o << "steady_lower = " << p.axes.lowerRotary.deadzone << "\n";
+    o << "steady_upper = " << p.axes.upperRotary.deadzone << "\n";
+    o << "steady_slider = " << p.axes.slider.deadzone << "\n";
     o << "dial_accel = " << (p.dial.on ? 1 : 0) << "\n";
     o << "dial_slow_ms = " << p.dial.slowMs << "\n";
     o << "dial_fast_ms = " << p.dial.fastMs << "\n";
@@ -875,6 +879,9 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
             p.clock12h[2] = n != 0;
         } else if (key == "com_833") {
             p.com833 = n != 0;
+        } else if (key == "steady_lower" || key == "steady_upper" || key == "steady_slider") {
+            AxisCurve& c = key == "steady_lower" ? p.axes.lowerRotary : key == "steady_upper" ? p.axes.upperRotary : p.axes.slider;
+            c.deadzone = clampInt((int)n, 0, 20);
         } else if (key == "axis_override") {
             p.axes.overrideXPlane = n != 0;
         } else if (key == "dial_accel") {

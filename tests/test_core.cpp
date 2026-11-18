@@ -677,7 +677,7 @@ TEST(moving_controls_are_named_as_found_on_the_real_stick) {
     CHECK_EQ(std::string(controlName(0x01, 0x33)), std::string("Lower rotary (i)"));
     CHECK_EQ(std::string(controlName(0x01, 0x34)), std::string("Upper rotary (E)"));
     CHECK_EQ(std::string(controlName(0x01, 0x36)), std::string("Slider"));
-    CHECK_EQ(std::string(controlName(0x01, 0x39)), std::string("POV hat"));
+    CHECK_EQ(std::string(controlName(0x01, 0x39)), std::string("POV 1 (hat switch)"));
     CHECK_EQ(std::string(controlName(0x05, 0x24)), std::string("Mouse nub L/R"));
     CHECK_EQ(std::string(controlName(0x7f, 0x01)), std::string("Unknown control"));
 }
@@ -1701,4 +1701,46 @@ TEST(axis_settings_start_with_x_plane_in_charge_and_are_saved_in_the_profile) {
     Profile old;   // a profile written before the axes existed
     CHECK(parse("x52pro-profile 3\nname = old\n", old, &err));
     CHECK(!old.axes.overrideXPlane);
+}
+
+TEST(pov_1_is_the_hat_switch_and_pov_2_is_the_four_buttons) {
+    CHECK_EQ(std::string(ledTitle(LedPov)), std::string("POV 2"));
+    CHECK_EQ(std::string(controlName(0x01, 0x39)), std::string("POV 1 (hat switch)"));
+    CHECK_EQ(std::string(buttonName(20)), std::string("POV 2 up"));
+    CHECK_EQ(std::string(buttonName(23)), std::string("POV 2 left"));
+}
+
+TEST(two_pov_buttons_held_together_read_as_a_diagonal) {
+    CHECK_EQ(povButtonsText(true, false, false, false), std::string("up"));
+    CHECK_EQ(povButtonsText(true, true, false, false), std::string("up-right"));
+    CHECK_EQ(povButtonsText(false, true, true, false), std::string("down-right"));
+    CHECK_EQ(povButtonsText(false, false, true, true), std::string("down-left"));
+    CHECK_EQ(povButtonsText(true, false, false, true), std::string("up-left"));
+    CHECK_EQ(povButtonsText(false, false, false, false), std::string(""));
+}
+
+TEST(a_dial_holds_its_value_until_it_moves_more_than_the_steady_percentage) {
+    CHECK_EQ(steadyValue(100, 103, 0, 255, 2), 100L);    // 1.2 % of travel: jitter
+    CHECK_EQ(steadyValue(100, 110, 0, 255, 2), 110L);    // 3.9 %: real
+    CHECK_EQ(steadyValue(100, 140, 0, 255, 0), 140L);    // 0: no filtering
+    CHECK_EQ(steadyValue(254, 255, 0, 255, 5), 255L);    // the ends are always reachable
+    CHECK_EQ(steadyValue(1, 0, 0, 255, 5), 0L);
+}
+
+TEST(dial_steadiness_is_saved_in_the_profile) {
+    Profile p;
+    CHECK_EQ(p.axes.lowerRotary.deadzone, 2);
+    p.axes.lowerRotary.deadzone = 7;
+    p.axes.upperRotary.deadzone = 4;
+    p.axes.slider.deadzone = 0;
+    Profile q;
+    std::string err;
+    CHECK(parse(serialize(p), q, &err));
+    CHECK_EQ(q.axes.lowerRotary.deadzone, 7);
+    CHECK_EQ(q.axes.upperRotary.deadzone, 4);
+    CHECK_EQ(q.axes.slider.deadzone, 0);
+    CHECK(dialCurve(q.axes, 0x33) == &q.axes.lowerRotary);
+    CHECK(dialCurve(q.axes, 0x34) == &q.axes.upperRotary);
+    CHECK(dialCurve(q.axes, 0x36) == &q.axes.slider);
+    CHECK(dialCurve(q.axes, 0x30) == nullptr);
 }
