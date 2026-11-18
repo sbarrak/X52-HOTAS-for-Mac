@@ -72,13 +72,20 @@ $(XPL): $(PLUGIN) $(CORE) $(MAC) $(HEADERS)
 
 # The menu bar app: C++ compiled to one object, linked with the Swift window code.
 app: $(APPBIN)
-$(APPBIN): src/app/main.swift src/app/Info.plist $(APPSRC) $(HEADERS) $(XPL)
+build/AppIcon.icns: tools/make_icon.swift
+	@mkdir -p build
+	rm -rf build/AppIcon.iconset
+	swift tools/make_icon.swift build/AppIcon.iconset
+	iconutil -c icns build/AppIcon.iconset -o $@
+
+$(APPBIN): src/app/main.swift src/app/Info.plist $(APPSRC) $(HEADERS) $(XPL) build/AppIcon.icns
 	@mkdir -p "$(APP)/Contents/MacOS" build/appobj
 	cd build/appobj && $(CXX) $(CXXFLAGS) -mmacosx-version-min=13.0 -c $(addprefix ../../,$(APPSRC))
 	swiftc -O -target arm64-apple-macos13.0 -import-objc-header src/app/bridge.h src/app/main.swift \
 		build/appobj/*.o -lc++ $(FRAMEWORKS) -o "$(APPBIN)"
 	mkdir -p "$(APP)/Contents/Resources"
 	cp $(XPL) "$(APP)/Contents/Resources/X52Pro.xpl"
+	cp build/AppIcon.icns "$(APP)/Contents/Resources/AppIcon.icns"
 	cp src/app/Info.plist "$(APP)/Contents/Info.plist"
 	codesign --force --sign - "$(APP)"
 

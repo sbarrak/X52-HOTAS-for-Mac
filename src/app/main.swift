@@ -74,6 +74,8 @@ final class Model: ObservableObject {
     @Published var isStandard = false            // the profile being edited is ready-made (never changed)
     @Published var standardKeys: Set<String> = []
     private var askingCopy = false
+    private var copyDeclined = false        // the name was just refused: drop the rest of that gesture
+    private var ignoreCopyUntil = Date.distantPast
 
     private var timer: Timer?
     private var slow = 0
@@ -124,9 +126,19 @@ final class Model: ObservableObject {
         set(\.revision, Int(x52_revision()))
         set(\.isStandard, x52_standard() != 0)
         if x52_copy_needed() != 0 && !askingCopy {
-            askingCopy = true
-            DispatchQueue.main.async { [weak self] in self?.askCopyName() }
+            if Date() < ignoreCopyUntil || (copyDeclined && NSEvent.pressedMouseButtons != 0) {
+                // Still the gesture that was just cancelled (a stepper or slider keeps repeating while the
+                // mouse is held): drop it rather than ask again, which used to loop.
+                x52_copy_cancel()
+            } else if NSEvent.pressedMouseButtons != 0 {
+                // Wait for the mouse to come up, so the control that made the change stops tracking first.
+            } else {
+                copyDeclined = false
+                askingCopy = true
+                DispatchQueue.main.async { [weak self] in self?.askCopyName() }
+            }
         }
+        if copyDeclined && NSEvent.pressedMouseButtons == 0 && Date() >= ignoreCopyUntil { copyDeclined = false }
         if tab == 7 { set(\.axes, parseAxes(str(x52_axes()))) }   // changes constantly: only while it is shown
         set(\.liveStatus, statusMap())
         set(\.tried, Int(x52_alarm_tried()))
@@ -175,6 +187,7 @@ final class Model: ObservableObject {
     }
     // A change to a ready-made profile: ask for the name of the copy it goes into (or drop it).
     func askCopyName() {
+        guard x52_copy_needed() != 0 else { askingCopy = false; return }
         var name = str(x52_copy_suggest())
         var problem = ""
         while true {
@@ -182,16 +195,21 @@ final class Model: ObservableObject {
             alert.messageText = "Save as a new profile"
             alert.informativeText = "“\(profileTitle(key))” is a ready-made profile: it is never changed, so you can always go back to it. "
                 + "Your change goes into a new profile of yours, which is used from now on instead (pick the ready-made one again to go back)."
+                + "\n\nCancel (or Escape) drops the change."
                 + (problem.isEmpty ? "" : "\n\n" + problem)
             let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
             field.stringValue = name
             alert.accessoryView = field
             alert.addButton(withTitle: "Save")
-            alert.addButton(withTitle: "Cancel")
+            let cancel = alert.addButton(withTitle: "Cancel")
+            cancel.keyEquivalent = "\u{1b}"   // Escape
             alert.window.initialFirstResponder = field
             NSApp.activate(ignoringOtherApps: true)
             if alert.runModal() != .alertFirstButtonReturn {
                 x52_copy_cancel()
+                // Whatever the same click or key repeat still sends is dropped too, not asked about again.
+                copyDeclined = true
+                ignoreCopyUntil = Date().addingTimeInterval(0.6)
                 break
             }
             name = field.stringValue
@@ -255,6 +273,19 @@ final class Model: ObservableObject {
         return "Stick connected, \(layerText)"
     }
 }
+
+// Asks before a change that cannot be undone. Escape cancels.
+func confirm(_ title: String, _ message: String, _ action: String) -> Bool {
+    let alert = NSAlert()
+    alert.messageText = title
+    alert.informativeText = message
+    alert.alertStyle = .warning
+    alert.addButton(withTitle: action).hasDestructiveAction = true
+    alert.addButton(withTitle: "Cancel").keyEquivalent = "\u{1b}"
+    return alert.runModal() == .alertFirstButtonReturn
+}
+
+func plural(_ n: Int, _ word: String) -> String { n == 1 ? "1 \(word)" : "\(n) \(word)s" }
 
 func profileTitle(_ key: String) -> String {
     key == "default" ? "Default (all aircraft)" : key.hasPrefix("aircraft-") ? String(key.dropFirst(9)) : key
@@ -585,6 +616,8 @@ struct LiveTab: View {
                     m.tick()
                 }
                 Button("Remove selected") {
+                    guard confirm("Remove \(plural(m.liveChecked.count, "live light rule"))?",
+                                  "The lights go back to their colours on the Lights tab.", "Remove") else { return }
                     for i in m.liveChecked.sorted(by: >) { x52_rule_remove(Int32(i)) }
                     m.liveChecked = []
                     m.liveOpen = []
@@ -739,6 +772,8 @@ struct AlarmsTab: View {
                     m.tick()
                 }
                 Button("Remove selected") {
+                    guard confirm("Remove \(plural(m.alarmChecked.count, "alarm"))?",
+                                  "Their settings and tests are lost.", "Remove") else { return }
                     for i in m.alarmChecked.sorted(by: >) { x52_alarm_remove(Int32(i)) }
                     m.alarmChecked = []
                     m.alarmOpen = []
@@ -1141,7 +1176,11 @@ struct ButtonsTab: View {
                 Divider()
                 StepList(m: m, hold: 1, title: "When held longer than 0.4 s (optional)")
                 Divider()
-                Button("Clear this button in \(str(x52_layer_name(l)))") { x52_bind_clear(b, l); m.tick() }
+                Button("Clear this button in \(str(x52_layer_name(l)))") {
+                    guard confirm("Clear button \(m.btn) in \(str(x52_layer_name(l)))?",
+                                  "Its commands, keys and name on the screen are removed.", "Clear") else { return }
+                    x52_bind_clear(b, l); m.tick()
+                }
                     .disabled(x52_bind_exists(b, l) == 0)
             }
         }
@@ -1736,6 +1775,8 @@ struct PageListButtons: View {
                 Button { move(1, wheelToken, sel) } label: { Image(systemName: "chevron.down") }
                     .disabled(!canMove).help("Move down")
                 Button("Remove") {
+                    guard confirm("Remove the page “\(pageName(sel))”?",
+                                  "The pages inside it go too, and links to them are cleared.", "Remove") else { return }
                     x52_page_remove(Int32(sel))
                     m.pageSel = pageOutline().first.map { str(x52_page_id(Int32($0.0))) } ?? ""
                     m.tick()
@@ -1895,7 +1936,7 @@ struct SettingsView: View {
             // A scrolling strip of tabs, so a narrow window never hides some behind a ">>" menu.
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    ForEach(tabList, id: \.0) { entry in
+                    ForEach(Array(tabList.enumerated()), id: \.element.0) { n, entry in
                         let on = m.tab == entry.0
                         Button { m.tab = entry.0 } label: {
                             Text(entry.1).lineLimit(1).padding(.horizontal, 12).frame(height: 26)
@@ -1905,6 +1946,8 @@ struct SettingsView: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .keyboardShortcut(KeyEquivalent(Character(String(n + 1))), modifiers: .command)
+                        .help("\(entry.1) (Command-\(n + 1))")
                     }
                 }
             }
@@ -1950,7 +1993,7 @@ struct SettingsView: View {
             }
         }
         .padding(16)
-        .frame(width: 900, height: 720)
+        .frame(minWidth: 900, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
     }
 }
 
@@ -1978,6 +2021,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(statusLine)
         menu.addItem(.separator())
         menu.addItem(withTitle: "Open settings...", action: #selector(openSettings), keyEquivalent: ",").target = self
+        menu.addItem(withTitle: "Open pages editor...", action: #selector(openPagesEditor), keyEquivalent: "").target = self
         loginLine.target = self
         menu.addItem(loginLine)
         menu.addItem(.separator())
@@ -1989,14 +2033,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if !CommandLine.arguments.contains("--background") && !launchedAsLoginItem() { openSettings() }
     }
 
-    // An app without a Dock icon has no main menu, and without one Command+C, V, X, A and Z do nothing in a
-    // text field. The menu is never shown; its key equivalents are what the fields respond to.
+    // The menu bar while a window is open (the app is then in the Dock and in Command+Tab). It also gives
+    // the text fields Command+C, V, X, A and Z. Command+Q only puts the app back in the menu bar: the stick
+    // keeps being driven. "Quit Completely" here, or Quit in the menu bar icon's menu, stops it.
     func installEditMenu() {
         let main = NSMenu()
         let appItem = NSMenuItem()
         main.addItem(appItem)
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        appMenu.addItem(withTitle: "Settings...", action: #selector(openSettings), keyEquivalent: ",").target = self
+        appMenu.addItem(withTitle: "Pages Editor...", action: #selector(openPagesEditor), keyEquivalent: "e").target = self
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Hide X52 Pro", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        let others = appMenu.addItem(withTitle: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        others.keyEquivalentModifierMask = [.command, .option]
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Quit X52 Pro (keeps running in the menu bar)", action: #selector(backToMenuBar), keyEquivalent: "q").target = self
+        appMenu.addItem(withTitle: "Quit Completely", action: #selector(quit), keyEquivalent: "").target = self
         appItem.submenu = appMenu
         let editItem = NSMenuItem()
         main.addItem(editItem)
@@ -2010,7 +2063,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editItem.submenu = edit
+        let windowItem = NSMenuItem()
+        main.addItem(windowItem)
+        let windows = NSMenu(title: "Window")
+        windows.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windows.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        windowItem.submenu = windows
+        NSApp.windowsMenu = windows
         NSApp.mainMenu = main
+    }
+
+    // In the Dock and Command+Tab while there is a window to switch to; menu bar only otherwise.
+    func showInDock() {
+        if NSApp.activationPolicy() != .regular { NSApp.setActivationPolicy(.regular) }
+    }
+
+    // Command+Q (and Quit in the Dock): close the windows and leave only the menu bar icon.
+    @objc func backToMenuBar() {
+        for w in [window, pagesWindow] { w?.performClose(nil) }
+        NSApp.setActivationPolicy(.accessory)
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if reallyQuit { return .terminateNow }
+        // Log out, restart and shut down must still be able to end the app.
+        if let event = NSAppleEventManager.shared().currentAppleEvent, event.eventID == kAEQuitApplication,
+           let reason = event.attributeDescriptor(forKeyword: kAEQuitReason)?.enumCodeValue,
+           [kAELogOut, kAEReallyLogOut, kAEShowRestartDialog, kAERestart, kAEShowShutdownDialog, kAEShutDown].map({ OSType($0) }).contains(reason) {
+            return .terminateNow
+        }
+        backToMenuBar()
+        return .terminateCancel
+    }
+
+    // Clicking the Dock icon with no window open brings the settings back.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { openSettings() }
+        return true
     }
 
     func launchedAsLoginItem() -> Bool {
@@ -2029,14 +2118,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func openSettings() {
         if window == nil {
-            let w = NSWindow(contentRect: .zero, styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+            let w = NSWindow(contentRect: .zero, styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                             backing: .buffered, defer: false)
             w.title = "X52 Pro"
             w.contentView = NSHostingView(rootView: SettingsView(m: model))
             w.isReleasedWhenClosed = false
-            w.setContentSize(NSSize(width: 720, height: 640))
-            w.center()
+            w.setContentSize(NSSize(width: 900, height: 720))
+            w.contentMinSize = NSSize(width: 900, height: 600)
+            w.setFrameAutosaveName("X52ProSettings")   // comes back where it was left
+            if !w.setFrameUsingName("X52ProSettings") { w.center() }
             window = w
         }
+        showInDock()
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
     }
@@ -2052,7 +2145,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             w.isReleasedWhenClosed = false
             w.setContentSize(NSSize(width: 1320, height: 760))
             w.contentMinSize = NSSize(width: 980, height: 560)
-            w.center()
+            w.setFrameAutosaveName("X52ProPages")
+            if !w.setFrameUsingName("X52ProPages") { w.center() }
             NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: w, queue: .main) { [weak self] _ in
                 self?.model.pagesOpen = false
                 x52_pages_watch(0)
@@ -2061,11 +2155,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         model.pagesOpen = true
         x52_pages_watch(1)
+        showInDock()
         NSApp.activate(ignoringOtherApps: true)
         pagesWindow?.makeKeyAndOrderFront(nil)
     }
 
-    @objc func quit() { NSApp.terminate(nil) }
+    var reallyQuit = false
+    @objc func quit() {
+        reallyQuit = true
+        NSApp.terminate(nil)
+    }
 
     func applicationWillTerminate(_ note: Notification) { model.stop() }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
