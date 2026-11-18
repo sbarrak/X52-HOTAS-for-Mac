@@ -1,13 +1,28 @@
+<div align="center">
+
 # X52 Pro for X-Plane 12 on Apple Silicon
 
-**Your X52 Pro, fully programmable, on a Mac.** Version 1.0.
+**Your X52 Pro, fully programmable, on a Mac.**
+
+[![Version](https://img.shields.io/badge/version-1.0.0-2f6fed)](VERSION)
+[![Platform](https://img.shields.io/badge/macOS-Apple%20Silicon-000000?logo=apple&logoColor=white)](#install)
+[![X-Plane 12](https://img.shields.io/badge/X--Plane-12-1d6fa5)](#install)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+<img src="docs/images/app-buttons.png" alt="The X52 Pro app: programming a button" width="780">
+
+**Modes · Pinkie shift · Macros · Radio pages on the stick's screen · Live lights · Ready-made profiles**
+
+</div>
+
+---
+
+Version 1.0.
 
 Logitech's programming software and X-Plane plugin for the Saitek / Logitech X52 and X52 Pro only ever ran on
 Windows. X52 Pro is a new, native Apple Silicon program that does the same job on a Mac: a plugin that runs
 inside X-Plane 12 and a menu bar app that works with or without the simulator. Give every button up to six jobs,
 write macros, put radios and autopilot on the throttle's screen, and have the lights follow the aircraft.
-
-![The X52 Pro app: programming a button](docs/images/app-buttons.png)
 
 ## What you get
 
@@ -396,6 +411,23 @@ The same tool from a terminal:
 ```bash
 make
 ```
+
+## License, credits and trademarks
+
+- Released under the [MIT License](LICENSE). Copyright (c) 2026 Sergio Barrak.
+- Uses the X-Plane Plugin SDK; its licence and notices are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+- USB protocol knowledge comes from the open-source [libx52](https://github.com/nirenjan/libx52) project.
+- X-Plane is a trademark of Laminar Research. Logitech, Saitek and X52 are trademarks of Logitech International S.A.
+  This project is independent and not affiliated with either company.
+
+## Found it useful?
+
+If this brings your X52 back to life on a Mac, a star on GitHub helps other simmers find it.
+Bug reports and profile contributions are welcome in the Issues tab; for security problems see [SECURITY.md](SECURITY.md).
+
+<p align="center"><sub>
+#x52 #x52pro #xplane #xplane12 #hotas #saitek #logitech #joystick #flightsim #macos #applesilicon
+</sub></p>
 
 Builds everything into `bin/` and runs the tests: `tests/test_core.cpp` (profiles, modes, hold,
 macros, screen pages and cursor, screen and light protocol), `tests/test_plugin.cpp`
