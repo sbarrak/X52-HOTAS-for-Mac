@@ -525,6 +525,44 @@ TEST(the_left_wheels_order_is_edited_from_the_app_and_saved) {
     x52_stop();
 }
 
+TEST(the_pages_editor_sets_the_radio_layout_and_a_mode_order) {
+    std::string xp = freshDir("mode_wheel_xp");
+    mkdir((xp + "/Output").c_str(), 0755);
+    mkdir((xp + "/Output/preferences").c_str(), 0755);
+    x52_start(xp.c_str(), "", "default");
+    x52_pages_restore_default();
+    std::string file = xp + "/Output/preferences/X52Pro/default.x52";
+    x52_set("radio_side", 1);
+    CHECK_EQ(x52_get("radio_side"), 1);
+    CHECK(has(slurp(file), "radio_layout = side\n"));
+    CHECK(has(x52_wheel_entries(), "com1\tCOM 1+2\t0\t1\n"));
+    CHECK(has(x52_builtin_preview("com1", 0), "[COM1]"));
+    x52_set("radio_side", 0);
+    CHECK(!has(slurp(file), "radio_layout"));
+    x52_wheel_edit_mode(2);
+    CHECK_EQ(x52_wheel_mode_own(2), 0);
+    x52_wheel_move("ap", -1);                                  // makes mode 2's order its own
+    CHECK_EQ(x52_wheel_mode_own(2), 1);
+    CHECK(has(slurp(file), "wheel_order.2 = com1 com2 adf dme ap xpdr"));
+    CHECK(!has(slurp(file), "wheel_order ="));                 // the shared order is untouched
+    CHECK(has(x52_wheel_entries(), "ap\tAutopilot\t0\t1\nxpdr\t"));
+    int r = x52_page_add("Radio", "");
+    x52_wheel_hide("@radio", 1);
+    CHECK(has(slurp(file), "wheel_hidden.2 = @radio\n"));
+    x52_page_remove(r);
+    CHECK(!has(slurp(file), "@radio"));                        // gone from mode 2's lists too
+    x52_wheel_edit_mode(0);
+    CHECK(has(x52_wheel_entries(), "xpdr\tTransponder\t0\t1\nap\t"));   // every mode: the usual order
+    x52_wheel_set_mode_own(3, 1);
+    CHECK(has(slurp(file), "wheel_order.3 = com1"));
+    x52_pages_restore_default();
+    CHECK(!has(slurp(file), "wheel_"));
+    x52_wheel_set_mode_own(2, 1);
+    x52_wheel_set_mode_own(2, 0);
+    CHECK(!has(slurp(file), "wheel_order.2"));
+    x52_stop();
+}
+
 TEST(a_change_to_a_ready_made_profile_is_saved_as_a_new_profile) {
     std::string dir = freshDir("standard");
     {

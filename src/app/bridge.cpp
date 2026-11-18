@@ -63,6 +63,7 @@ bool* flag(Profile& p, const std::string& n) {
     if (n == "dial_accel") return &p.dial.on;
     if (n == "axis_override") return &p.axes.overrideXPlane;
     if (n == "slider_flaps") return &p.axes.sliderFlaps;
+    if (n == "radio_side") return &p.radioSide;
     if (n == "throttle_plugin") return &p.axes.pluginThrottle;
     if (n == "slider_invert") return &p.axes.slider.invert;
     for (int u : {0x30, 0x31, 0x35, 0x32})
@@ -936,7 +937,8 @@ void x52_page_remove(int i) {
         for (UserPage& pg : t.pages)
             for (PageRow& r : pg.rows)
                 if (r.kind == RowKind::Link && isGone(r.target)) r.target.clear();
-        for (std::vector<std::string>* v : {&p.wheelOrder, &p.wheelHidden})
+        for (std::vector<std::string>* v : {&p.wheelOrder, &p.wheelHidden, &p.modeWheel[0].order, &p.modeWheel[0].hidden,
+                                            &p.modeWheel[1].order, &p.modeWheel[1].hidden, &p.modeWheel[2].order, &p.modeWheel[2].hidden})
             v->erase(std::remove_if(v->begin(), v->end(), [&](const std::string& tok) { return tok.size() > 1 && tok[0] == '@' && isGone(tok.substr(1)); }),
                      v->end());
     });
@@ -1038,6 +1040,7 @@ void x52_pages_restore_default(void) {
             p.pages = PageTree();
             p.wheelOrder.clear();
             p.wheelHidden.clear();
+            for (WheelSet& w : p.modeWheel) w = WheelSet();
         });
 }
 
@@ -1099,14 +1102,55 @@ const char* x52_format_example(const char* format, double value) {
 
 // ---- the left wheel's order
 
+namespace {
+int gWheelMode = 0;   // the order being edited: 0 every mode, 1..3 that mode's own
+
+void makeModeOwn(Profile& p, int mode) {
+    WheelSet w;
+    for (const WheelEntry& e : wheelEntries(p)) w.order.push_back(e.token);
+    w.hidden = p.wheelHidden;
+    w.own = true;
+    p.modeWheel[mode - 1] = w;
+}
+
+// The lists the wheel calls change: the shared ones, or the edited mode's own (given one first).
+std::vector<std::string>& editedOrder(Profile& p) {
+    if (gWheelMode < 1) return p.wheelOrder;
+    if (!p.modeWheel[gWheelMode - 1].own) makeModeOwn(p, gWheelMode);
+    return p.modeWheel[gWheelMode - 1].order;
+}
+std::vector<std::string>& editedHidden(Profile& p) {
+    if (gWheelMode < 1) return p.wheelHidden;
+    if (!p.modeWheel[gWheelMode - 1].own) makeModeOwn(p, gWheelMode);
+    return p.modeWheel[gWheelMode - 1].hidden;
+}
+}  // namespace
+
+void x52_wheel_edit_mode(int mode) { gWheelMode = mode >= 1 && mode <= 3 ? mode : 0; }
+
+int x52_wheel_mode_own(int mode) {
+    return agent && mode >= 1 && mode <= 3 && agent->profile().modeWheel[mode - 1].own ? 1 : 0;
+}
+
+void x52_wheel_set_mode_own(int mode, int own) {
+    if (!agent || mode < 1 || mode > 3) return;
+    agent->change([&](Profile& p) {
+        if (own) {
+            if (!p.modeWheel[mode - 1].own) makeModeOwn(p, mode);
+        } else {
+            p.modeWheel[mode - 1] = WheelSet();
+        }
+    });
+}
+
 const char* x52_wheel_entries(void) {
     static std::string s;
     s.clear();
     if (!agent) return s.c_str();
     const Profile& p = agent->profile();
-    for (const WheelEntry& e : wheelEntries(p)) {
+    for (const WheelEntry& e : wheelEntries(p, gWheelMode)) {
         bool builtin = e.page < kPageCount;
-        std::string title = builtin ? pageName(e.page) : "";
+        std::string title = builtin ? pageName(e.page, p.radioSide) : "";
         if (!builtin) {
             int i = p.pages.find(e.token.substr(1));
             title = i >= 0 ? p.pages.pages[i].title : e.token;
@@ -1121,13 +1165,13 @@ void x52_wheel_move(const char* token, int dir) {
     if (!agent || tok.empty() || (dir != -1 && dir != 1)) return;
     agent->change([&](Profile& p) {
         std::vector<std::string> order;
-        for (const WheelEntry& e : wheelEntries(p)) order.push_back(e.token);
+        for (const WheelEntry& e : wheelEntries(p, gWheelMode)) order.push_back(e.token);
         auto it = std::find(order.begin(), order.end(), tok);
         if (it == order.end()) return;
         int a = (int)(it - order.begin()), b = a + dir;
         if (b < 0 || b >= (int)order.size()) return;
         std::swap(order[a], order[b]);
-        p.wheelOrder = order;
+        editedOrder(p) = order;
     });
 }
 
@@ -1135,7 +1179,7 @@ void x52_wheel_hide(const char* token, int hidden) {
     std::string tok = token ? token : "";
     if (!agent || tok.empty()) return;
     agent->change([&](Profile& p) {
-        std::vector<std::string>& h = p.wheelHidden;
+        std::vector<std::string>& h = editedHidden(p);
         h.erase(std::remove(h.begin(), h.end(), tok), h.end());
         if (hidden) h.push_back(tok);
     });
@@ -1154,7 +1198,7 @@ const char* x52_builtin_preview(const char* token, int line) {
     if (page == PageButtons) l = formatButtonsPage(p.name, "", 1, false);
     else if (page == PageBrightness)
         l = formatBrightnessPage(p.mfdBrightness, p.ledBrightness, p.brightScreen.active(), p.brightLights.active(), PageCursor());
-    else l = formatSimPage(page, SimData(), PageCursor());
+    else l = formatSimPage(page, SimData(), PageCursor(), p.radioSide);
     s = l.l[line];
     return s.c_str();
 }

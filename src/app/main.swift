@@ -65,6 +65,7 @@ final class Model: ObservableObject {
     @Published var testLines = ["", "", ""]   // text typed on the Test tab
     @Published var axes: [AxisRow] = []       // every analog control, while the Axes tab is showing
     @Published var pageSel = ""         // id of the page selected on the Pages tab and in the pages editor
+    @Published var wheelMode = 0        // the left wheel's order being edited: 0 every mode, 1..3 that mode's own
     @Published var pageNote = ""        // why a page change was refused
     @Published var pagesConfirm = false // asking before "Restore default pages"
     @Published var pagesOpen = false    // the pages editor window is open
@@ -1537,6 +1538,22 @@ struct WheelList: View {
         let outline = pageOutline()
         ScrollView {
             VStack(alignment: .leading, spacing: 2) {
+                Picker("Order for", selection: Binding(get: { m.wheelMode }, set: {
+                    m.wheelMode = $0; x52_wheel_edit_mode(Int32($0)); m.tick()
+                })) {
+                    Text("Every mode").tag(0)
+                    Text("Mode 1").tag(1)
+                    Text("Mode 2").tag(2)
+                    Text("Mode 3").tag(3)
+                }
+                .labelsHidden().pickerStyle(.segmented).padding(.horizontal, 6)
+                if m.wheelMode != 0 {
+                    Toggle("Same as every mode", isOn: Binding(get: { x52_wheel_mode_own(Int32(m.wheelMode)) == 0 }, set: {
+                        x52_wheel_set_mode_own(Int32(m.wheelMode), $0 ? 0 : 1); m.tick()
+                    }))
+                    .toggleStyle(.checkbox).padding(.leading, 6)
+                    .help("Off: this mode has its own order, and turning the mode dial to it opens its first page")
+                }
                 Text("The left wheel, in order. The eye: shown or skipped. A lock: a built-in page.")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).padding(.leading, 6)
                 ForEach(wheelEntryRows(), id: \.token) { e in
@@ -1816,6 +1833,11 @@ struct PagesTab: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Screen pages of your own: rows of text, live dataref values, and links to more pages. The list is the left wheel's order: move any page, built-in ones too, or skip it with the eye.")
                 .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Picker("Radio screens:", selection: Binding(get: { m.get("radio_side") }, set: { m.set("radio_side", $0) })) {
+                Text("Classic: one radio per screen (COM1 / NAV1, COM2 / NAV2, ADF)").tag(0)
+                Text("Side by side: COM 1+2, NAV 1+2, ADF 1+2").tag(1)
+            }
+            .pickerStyle(.radioGroup)
             HStack(spacing: 10) {
                 Button("Open pages editor...") { m.openPagesEditor() }.keyboardShortcut(.defaultAction)
                 RestorePagesButton(m: m)
