@@ -1539,7 +1539,8 @@ struct WheelList: View {
         // The mode choice sits above the scrolling list at a fixed width: inside the ScrollView the segmented
         // picker and the list kept re-measuring each other and the list jumped sideways.
         VStack(alignment: .leading, spacing: 4) {
-            Picker("Order for", selection: Binding(get: { m.wheelMode }, set: {
+            // A menu, not segments: four segments are wider than the list at larger text sizes.
+            Picker("Order for:", selection: Binding(get: { m.wheelMode }, set: {
                 m.wheelMode = $0; x52_wheel_edit_mode(Int32($0)); m.tick()
             })) {
                 Text("Every mode").tag(0)
@@ -1547,7 +1548,7 @@ struct WheelList: View {
                 Text("Mode 2").tag(2)
                 Text("Mode 3").tag(3)
             }
-            .labelsHidden().pickerStyle(.segmented).frame(maxWidth: .infinity).padding(.horizontal, 6).padding(.top, 6)
+            .pickerStyle(.menu).fixedSize().padding(.horizontal, 6).padding(.top, 6)
             if m.wheelMode != 0 {
                 Toggle("Same as every mode", isOn: Binding(get: { x52_wheel_mode_own(Int32(m.wheelMode)) == 0 }, set: {
                     x52_wheel_set_mode_own(Int32(m.wheelMode), $0 ? 0 : 1); m.tick()
