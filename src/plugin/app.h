@@ -43,6 +43,8 @@ struct App : Host {
     int pageTotal() const;       // built-in pages plus the user's top-level ones
     std::vector<int> pageOrder() const;
     void stepPage(int direction);   // left wheel: +1 next, -1 previous
+    void showFirstPage();           // the first page of the current mode's order, cursor reset
+    int pageMode = 1;               // the mode whose order the left wheel was last following
     std::string pageTitle(int p) const;
     const std::string* userPageId(int p) const;   // id of a user page's top-level page, or nullptr for a built-in one
     Lines userPageLines(double now);
