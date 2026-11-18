@@ -466,7 +466,10 @@ std::string serialize(const Profile& p) {
     o << "mfd_brightness = " << p.mfdBrightness << "\n";
     o << "led_brightness = " << p.ledBrightness << "\n";
     o << "clutch_latched = " << (p.clutchLatched ? 1 : 0) << "\n";
-    o << "# clocks: clock 1 is GMT; clock 2 and 3 are minutes from GMT. date_format: 0 DD-MM-YY, 1 MM-DD-YY, 2 YY-MM-DD\n";
+    o << "# clocks: clock1_source 0 GMT, 1 simulator local time, 2 Mac local time, 3 GMT + clock1_offset minutes.\n";
+    o << "# clock 2 and 3 are minutes from GMT. date_format: 0 DD-MM-YY, 1 MM-DD-YY, 2 YY-MM-DD\n";
+    o << "clock1_source = " << p.clock1Source << "\n";
+    o << "clock1_offset = " << p.clock1Offset << "\n";
     o << "clock2_offset = " << p.clockOffset[0] << "\n";
     o << "clock3_offset = " << p.clockOffset[1] << "\n";
     for (int c = 0; c < 3; ++c) o << "clock" << (c + 1) << "_12h = " << (p.clock12h[c] ? 1 : 0) << "\n";
@@ -907,6 +910,10 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
             p.ledBrightness = clampInt(n, 0, 127);
         } else if (key == "clutch_latched") {
             p.clutchLatched = n != 0;
+        } else if (key == "clock1_source") {
+            p.clock1Source = clampInt(n, ClockGmt, ClockFixed);
+        } else if (key == "clock1_offset") {
+            p.clock1Offset = clampInt(n, kClockOffsetMin, kClockOffsetMax);
         } else if (key == "clock2_offset") {
             p.clockOffset[0] = clampInt(n, kClockOffsetMin, kClockOffsetMax);
         } else if (key == "clock3_offset") {

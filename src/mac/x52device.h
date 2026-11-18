@@ -24,7 +24,7 @@ struct DeviceState {
     int mfdBrightness = 127;
     int ledBrightness = 127;
     bool clockValid = false;
-    int hour = 0, minute = 0, day = 1, month = 1, year2 = 0;   // clock 1 (GMT)
+    int hour = 0, minute = 0, day = 1, month = 1, year2 = 0;   // clock 1, as it is shown (GMT unless the profile picks another time)
     bool blink = false;               // clutch and POV lights flash
     int clockOffset[2] = {0, 0};      // clock 2 and 3, minutes from clock 1
     bool h12[3] = {false, false, false};

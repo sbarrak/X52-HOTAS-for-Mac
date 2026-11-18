@@ -607,3 +607,77 @@ TEST(a_change_to_a_ready_made_profile_is_saved_as_a_new_profile) {
     CHECK(!a.copyNeeded());
     CHECK_EQ(slurp(dir + "/aircraft-Cirrus SR22.x52"), before);
 }
+
+TEST(clock_1_can_be_set_from_the_app) {
+    std::string dir = freshDir("clock1");
+    x52_start("", dir.c_str(), "default");
+    CHECK_EQ(x52_get("clock1_source"), 0);
+    x52_set("clock1_source", 3);
+    x52_set("clock1_offset", -300);
+    x52_set("clock1_source", 9);   // kept inside the allowed range
+    CHECK_EQ(x52_get("clock1_source"), 3);
+    std::string file = slurp(dir + "/default.x52");
+    CHECK(has(file, "clock1_source = 3\n"));
+    CHECK(has(file, "clock1_offset = -300\n"));
+    x52_stop();
+}
+
+TEST(a_profile_of_mine_can_be_deleted_and_brought_back_but_never_default_or_a_ready_made_one) {
+    std::string dir = freshDir("delete");
+    {
+        Profile p = defaultProfile();
+        p.name = "Cirrus SR22";
+        p.standard = true;
+        std::ofstream f(dir + "/aircraft-Cirrus SR22.x52");
+        f << serialize(p);
+    }
+    Agent a;
+    a.open(dir, "aircraft-Cirrus SR22");
+    std::string err;
+    CHECK(!a.deleteProfile("aircraft-Cirrus SR22", &err));   // ready-made
+    CHECK(has(err, "ready-made"));
+    CHECK(!a.deleteProfile("default", &err));
+    CHECK(!a.deleteProfile("nothing here", &err));
+    a.askCopy();
+    CHECK(a.saveCopy("My SR22", &err));
+    CHECK(has(slurp(dir + "/profile-choices.txt"), "aircraft-Cirrus SR22\tMy SR22\n"));
+    CHECK(a.deleteProfile("My SR22", &err));                  // the one in use
+    CHECK_EQ(a.key(), std::string("aircraft-Cirrus SR22"));   // back to the profile it came from
+    CHECK(!has(slurp(dir + "/profile-choices.txt"), "My SR22"));   // X-Plane uses the ready-made one again
+    std::vector<std::string> keys = a.profiles();
+    CHECK(std::find(keys.begin(), keys.end(), "My SR22") == keys.end());
+    CHECK(a.restoreProfile("My SR22"));                       // undo
+    keys = a.profiles();
+    CHECK(std::find(keys.begin(), keys.end(), "My SR22") != keys.end());
+    CHECK_EQ(a.key(), std::string("My SR22"));
+}
+
+TEST(a_blank_profile_has_nothing_programmed_but_keeps_the_axes_and_screen_controls) {
+    std::string dir = freshDir("blank");
+    Agent a;
+    a.open(dir, "default");
+    CHECK(a.change([](Profile& p) {
+        p.axes.overrideXPlane = true;
+        p.axes.pluginThrottle = true;
+        p.edit(1, kLayerAny).press.push_back({StepKind::Command, "sim/gear_toggle", 0});
+        p.rules.push_back(LightRule());
+        p.alarms.push_back(Alarm());
+        p.ledAt(1, false, LedA) = Color::Red;
+    }));
+    std::string err;
+    CHECK(!a.createBlank("  ", &err));
+    CHECK(!a.createBlank("default", &err));
+    CHECK(a.createBlank("Scratch", &err));
+    CHECK_EQ(a.key(), std::string("Scratch"));
+    const Profile& p = a.profile();
+    CHECK_EQ(p.name, std::string("Scratch"));
+    CHECK(p.exact(1, kLayerAny) == nullptr);
+    CHECK(p.exact(37, kLayerAny) != nullptr);                // screen cursor on the wheel
+    CHECK(p.rules.empty());
+    CHECK(p.alarms.empty());
+    CHECK(p.ledAt(1, false, LedA) == Color::Green);
+    CHECK(p.axes.overrideXPlane);                            // the aircraft still flies
+    CHECK(p.axes.pluginThrottle);
+    CHECK(!p.standard);
+    CHECK(p.basedOn.empty());
+}

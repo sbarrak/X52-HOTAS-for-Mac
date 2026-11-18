@@ -40,6 +40,7 @@ final class Model: ObservableObject {
     @Published var moved = ""
     @Published var screen = ["", "", ""]
     @Published var profiles: [String] = ["default"]
+    @Published var lastDeleted = ""             // the profile "Undo delete" brings back
     @Published var key = "default"
     @Published var folder = ""
     @Published var xplane = ""          // the X-Plane 12 folder in use ("" when none was found)
@@ -229,9 +230,61 @@ final class Model: ObservableObject {
     }
     func select(_ k: String) {
         x52_select(k)
+        keyChanged()
+    }
+    // After the profile in use changed: remember it, and list the profiles again now rather than in a few seconds.
+    private func keyChanged() {
         UserDefaults.standard.set(str(x52_key()), forKey: "profileKey")
         key = str(x52_key())
+        profiles = str(x52_profiles()).split(separator: "\n").map(String.init)
+        standardKeys = Set(profiles.filter { x52_profile_standard($0) != 0 })
         tick()
+    }
+    // "New blank profile...": asks for a name, then makes and uses it.
+    func newBlank() {
+        var name = str(x52_blank_suggest())
+        var problem = ""
+        while true {
+            let alert = NSAlert()
+            alert.messageText = "New blank profile"
+            alert.informativeText = "Starts from scratch: no buttons, live lights or alarms, plain green lights and the built-in screen pages. "
+                + "The axis settings of “\(profileTitle(key))” are kept so the aircraft still flies. The profile in use now is not changed."
+                + (problem.isEmpty ? "" : "\n\n" + problem)
+            let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+            field.stringValue = name
+            alert.accessoryView = field
+            alert.addButton(withTitle: "Create")
+            alert.addButton(withTitle: "Cancel").keyEquivalent = "\u{1b}"
+            alert.window.initialFirstResponder = field
+            NSApp.activate(ignoringOtherApps: true)
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            name = field.stringValue
+            problem = str(x52_blank_create(name))
+            if problem.isEmpty { break }
+        }
+        lastDeleted = ""
+        keyChanged()
+    }
+    var canDelete: Bool { key != "default" && !standardKeys.contains(key) }
+    func deleteCurrent() {
+        let k = key
+        guard confirm("Delete “\(profileTitle(k))”?",
+                      "The profile goes away from the list. Undo delete brings it back until you delete another one.", "Delete")
+        else { return }
+        let problem = str(x52_delete_profile(k))
+        if problem.isEmpty {
+            lastDeleted = k
+        } else {
+            let alert = NSAlert()
+            alert.messageText = "Not deleted"
+            alert.informativeText = problem
+            alert.runModal()
+        }
+        keyChanged()
+    }
+    func undoDelete() {
+        if x52_restore_profile(lastDeleted) != 0 { lastDeleted = "" }
+        keyChanged()
     }
     var bundledPlugin: String { (Bundle.main.resourcePath ?? "") + "/X52Pro.xpl" }
     func refreshPlugin() {
@@ -835,6 +888,20 @@ func offsetLabel(_ minutes: Int) -> String {
     return minutes == 0 ? "GMT" : String(format: "GMT %@%d:%02d", minutes < 0 ? "-" : "+", a / 60, a % 60)
 }
 
+// Minutes from GMT, in half hours (an odd value from the file is kept and shown too).
+struct OffsetPicker: View {
+    @ObservedObject var m: Model
+    let name: String
+    var body: some View {
+        let offset = Binding<Int>(get: { m.get(name) }, set: { m.set(name, $0) })
+        Picker("", selection: offset) {
+            ForEach(Array(stride(from: -720, through: 840, by: 30)), id: \.self) { Text(offsetLabel($0)).tag($0) }
+            if m.get(name) % 30 != 0 { Text(offsetLabel(m.get(name))).tag(m.get(name)) }
+        }
+        .labelsHidden().frame(width: 150)
+    }
+}
+
 struct ClockRow: View {
     @ObservedObject var m: Model
     let number: Int
@@ -843,15 +910,17 @@ struct ClockRow: View {
         HStack {
             Text("Clock \(number)").frame(width: 130, alignment: .leading)
             if number == 1 {
-                Text("GMT (fixed)").frame(width: 150, alignment: .leading).foregroundStyle(.secondary)
-            } else {
-                let name = "clock\(number)_offset"
-                let offset = Binding<Int>(get: { m.get(name) }, set: { m.set(name, $0) })
-                Picker("", selection: offset) {
-                    ForEach(Array(stride(from: -720, through: 840, by: 30)), id: \.self) { Text(offsetLabel($0)).tag($0) }
-                    if m.get(name) % 30 != 0 { Text(offsetLabel(m.get(name))).tag(m.get(name)) }
+                let source = Binding<Int>(get: { m.get("clock1_source") }, set: { m.set("clock1_source", $0) })
+                Picker("", selection: source) {
+                    Text("GMT").tag(0)
+                    Text("Simulator local time").tag(1)
+                    Text("Mac local time").tag(2)
+                    Text("Fixed time zone").tag(3)
                 }
-                .labelsHidden().frame(width: 150)
+                .labelsHidden().frame(width: 190)
+                if source.wrappedValue == 3 { OffsetPicker(m: m, name: "clock1_offset") }
+            } else {
+                OffsetPicker(m: m, name: "clock\(number)_offset")
             }
             Toggle("12-hour", isOn: h12)
         }
@@ -876,7 +945,7 @@ struct ScreenTab: View {
                 }
                 .labelsHidden().frame(width: 190)
             }
-            Text("On the stick, the Start/Stop and Reset buttons under the screen switch between the three clocks. Function switches to the stopwatch. Inside X-Plane, Clock 1 follows the simulator's GMT.")
+            Text("On the stick, the Start/Stop and Reset buttons under the screen switch between the three clocks. Function switches to the stopwatch. Clock 2 and 3 are always set from GMT, whatever Clock 1 shows. Simulator local time follows X-Plane's clock; while X-Plane is not running, Clock 1 shows the Mac's local time instead, and GMT the Mac's GMT.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Divider()
             Toggle("Latched clutch: one press of the clutch (i) turns safe mode on, the next turns it off", isOn: latched)
@@ -1077,7 +1146,7 @@ struct ButtonsTab: View {
         let layer = Binding<Int>(get: { m.btnLayer }, set: { m.btnLayer = $0 })
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("To use the buttons here, start from an empty profile (the profile menu at the top), or import what X-Plane has on the stick's buttons into a new profile. Each button you program here must then be set to Do nothing in X-Plane's Settings > Joystick, or X-Plane and the plugin both act on it.")
+                Text("To use the buttons here, start from a blank profile (New blank profile in the menu next to the profile picker), or import what X-Plane has on the stick's buttons into a new profile. Each button you program here must then be set to Do nothing in X-Plane's Settings > Joystick, or X-Plane and the plugin both act on it.")
                     .font(.callout).fixedSize(horizontal: false, vertical: true)
                 if m.importOpen {
                     let names = str(x52_xplane_profiles()).split(separator: "\n").map(String.init)
@@ -1948,10 +2017,24 @@ struct SettingsView: View {
                 Circle().fill(m.pluginActive ? Color.blue : m.connected ? Color.green : Color.gray).frame(width: 9, height: 9)
                 Text(m.statusText)
                 Spacer()
+                if !m.lastDeleted.isEmpty {
+                    Button("Undo delete") { m.undoDelete() }
+                        .help("Brings back “\(profileTitle(m.lastDeleted))”")
+                }
                 Picker("Profile", selection: Binding(get: { m.key }, set: { m.select($0) })) {
                     ForEach(m.profiles, id: \.self) { Text(pickerTitle($0, m.standardKeys)).tag($0) }
                 }
                 .frame(width: 280)
+                Menu {
+                    Button("New blank profile...") { m.newBlank() }
+                    Button("Save as new profile...") { x52_copy_ask(); m.tick() }
+                    Divider()
+                    Button("Delete this profile...") { m.deleteCurrent() }.disabled(!m.canDelete)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .menuStyle(.borderlessButton).fixedSize()
+                .help(m.canDelete ? "New, copy or delete a profile" : "New or copy a profile (Default and ready-made profiles are never deleted)")
             }
             if m.pluginActive {
                 Text("Changes you make here are saved, and X-Plane applies them within a second.")

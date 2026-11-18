@@ -35,11 +35,14 @@ int* field(Profile& p, const std::string& n, int& lo, int& hi) {
     if (n == "mfd_brightness") return &p.mfdBrightness;
     lo = kClockOffsetMin;
     hi = kClockOffsetMax;
+    if (n == "clock1_offset") return &p.clock1Offset;
     if (n == "clock2_offset") return &p.clockOffset[0];
     if (n == "clock3_offset") return &p.clockOffset[1];
     lo = 0;
     hi = 2;
     if (n == "date_format") return &p.dateFormat;
+    hi = 3;
+    if (n == "clock1_source") return &p.clock1Source;   // ClockSource
     lo = 2;
     hi = 50;
     if (n == "dial_factor") return &p.dial.factor;
@@ -788,6 +791,27 @@ const char* x52_key(void) { return agent ? agent->key().c_str() : "default"; }
 void x52_select(const char* key) {
     if (agent && key) agent->select(key);
 }
+const char* x52_blank_suggest(void) {
+    static std::string s;
+    if (!agent) return "";
+    Store st;
+    st.dir = agent->dir();
+    s = st.freeKey("New profile");
+    return s.c_str();
+}
+const char* x52_blank_create(const char* name) {
+    static std::string s;
+    s.clear();
+    if (agent && !agent->createBlank(name ? name : "", &s) && s.empty()) s = "Could not make the new profile.";
+    return s.c_str();
+}
+const char* x52_delete_profile(const char* key) {
+    static std::string s;
+    s.clear();
+    if (agent && !agent->deleteProfile(key ? key : "", &s) && s.empty()) s = "Could not delete the profile.";
+    return s.c_str();
+}
+int x52_restore_profile(const char* key) { return agent && key && agent->restoreProfile(key) ? 1 : 0; }
 
 const char* x52_screen(int line) {
     return agent && line >= 0 && line < kMfdLines ? agent->screen().l[line].c_str() : "";

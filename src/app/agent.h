@@ -48,6 +48,15 @@ public:
     void select(const std::string& key);
     // Writes a new profile file and switches to it. Never replaces a profile that exists (false, see error).
     bool createProfile(const std::string& key, const Profile& p, std::string* error);
+    // A new profile `name` with nothing programmed (no buttons, light rules or alarms, plain lights and the built-in
+    // pages) that keeps this profile's axis settings, so the aircraft still flies; switched to. False (see error)
+    // when the name is taken or empty.
+    bool createBlank(const std::string& name, std::string* error);
+    // Sets a profile of the user's aside (<key>.x52.deleted, see Store::trash) so restoreProfile can bring it back.
+    // Default and ready-made profiles are never deleted. If it is in use, the ready-made profile it was copied from
+    // (or Default) is used instead; a copy that stood in for a ready-made profile no longer does.
+    bool deleteProfile(const std::string& key, std::string* error);
+    bool restoreProfile(const std::string& key);   // brings a deleted profile back and switches to it
 
     const Profile& profile() const { return profile_; }
     const std::string& key() const { return key_; }

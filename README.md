@@ -56,8 +56,9 @@ This builds `X52 Pro.app` and copies it to `/Applications`. Open it once; it the
 in the menu bar (game controller icon): **Open settings...**, **Start at login**, **Quit**.
 
 - **Lights** – a colour for every light in each of the three modes, and brightness.
-- **Screen and clock** – screen brightness, Clock 2 and 3 time zones, 12/24 hour, date
-  order, latched clutch.
+- **Screen and clock** – screen brightness, what Clock 1 shows (GMT, the simulator's local time, the Mac's
+  local time or a fixed time zone), Clock 2 and 3 time zones (always from GMT), 12/24 hour, date order,
+  latched clutch.
 - **Test** – what is held or moved right now, and three lines of your own on the screen.
 
 The stick forgets its lights when it loses power, so the app sends them again whenever
@@ -86,6 +87,10 @@ one is selected, and the profile pickers mark them "(ready-made)".
   "<aircraft> mine". **Delete my copy** sets your copy aside and the ready-made profile is used again; a
   ready-made profile itself cannot be deleted.
 - Profiles you make yourself (an import, a copy, an aircraft profile made in X-Plane) save as you change them.
+- The menu next to the app's profile picker has **New blank profile...** (no buttons, live lights or alarms,
+  the built-in pages; the axis settings of the profile in use are kept so the aircraft still flies) and
+  **Delete this profile...** for a profile of yours. Default and ready-made profiles are never deleted. A
+  deleted profile is set aside as `<name>.x52.deleted`: **Undo delete** brings it back.
 
 **How X-Plane is found:** the app reads the install list X-Plane keeps in
 `~/Library/Preferences/x-plane_install_12.txt`, then Steam's library list, then the usual

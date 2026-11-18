@@ -33,6 +33,21 @@ std::vector<UsbCmd> packDate(int day, int month, int year2, int format);
 UsbCmd packClockOffset(int clock, int minutes, bool h24);
 UsbCmd packBlink(bool on);         // flashes the clutch and POV lights
 
+// A time and date for clock 1.
+struct ClockTime {
+    int hour = 0, minute = 0, day = 1, month = 1, year2 = 0;
+};
+// The GMT time moved by `minutes`, the date following past midnight.
+ClockTime shiftClock(const ClockTime& gmt, int minutes);
+// What the stick needs for clock 2 or 3 (minutes from clock 1) when it is `fromGmt` and clock 1 is `firstFromGmt`
+// minutes from GMT: the same time of day, between -720 and 719.
+int clockOffsetFromFirst(int fromGmt, int firstFromGmt);
+// How far a local time is from GMT, between -720 and 719 minutes (the two may be on different days).
+int localMinusGmt(int localHour, int localMinute, int gmtHour, int gmtMinute);
+// Clock 1's minutes from GMT for this profile. macLocal: the Mac's local time's; simLocal: the simulator's
+// (simKnown false: X-Plane is not running, the Mac's is used).
+int clock1FromGmt(const Profile& p, int macLocal, bool simKnown, int simLocal);
+
 // Values read from the simulator for the radio / autopilot pages.
 struct SimData {
     int com1 = 0, com1s = 0, com2 = 0, com2s = 0;   // kHz, e.g. 118000

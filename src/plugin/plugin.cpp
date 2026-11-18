@@ -43,7 +43,7 @@ struct Refs {
     XPLMDataRef dme1has, dme1nm, dme1kt, dme2has, dme2nm, dme2kt;
     XPLMDataRef xpdrCode, xpdrMode;
     XPLMDataRef apHdg, apAlt, apVs, apIas, apOn, fdMode, obs1, obs2;
-    XPLMDataRef zuluH, zuluM, day, month;
+    XPLMDataRef zuluH, zuluM, localH, localM, day, month;
 } refs;
 
 void findRefs() {
@@ -78,6 +78,8 @@ void findRefs() {
     refs.obs2 = f("sim/cockpit2/radios/actuators/nav2_obs_deg_mag_pilot");
     refs.zuluH = f("sim/cockpit2/clock_timer/zulu_time_hours");
     refs.zuluM = f("sim/cockpit2/clock_timer/zulu_time_minutes");
+    refs.localH = f("sim/cockpit2/clock_timer/local_time_hours");
+    refs.localM = f("sim/cockpit2/clock_timer/local_time_minutes");
     refs.day = f("sim/cockpit2/clock_timer/current_day");
     refs.month = f("sim/cockpit2/clock_timer/current_month");
 }
@@ -256,19 +258,32 @@ void updateDevice(App& a, double now) {
         s.ledBrightness = 0;
         s.blink = false;
     }
-    for (int c = 0; c < 2; ++c) s.clockOffset[c] = a.profile.clockOffset[c];
     for (int c = 0; c < 3; ++c) s.h12[c] = a.profile.clock12h[c];
     s.dateFormat = a.profile.dateFormat;
     if (refs.zuluH && refs.zuluM) {
-        s.clockValid = true;
-        s.hour = geti(refs.zuluH);
-        s.minute = geti(refs.zuluM);
-        s.day = refs.day ? geti(refs.day) : 1;
-        s.month = refs.month ? geti(refs.month) : 1;
+        ClockTime gmt;
+        gmt.hour = geti(refs.zuluH);
+        gmt.minute = geti(refs.zuluM);
+        gmt.day = refs.day ? geti(refs.day) : 1;
+        gmt.month = refs.month ? geti(refs.month) : 1;
         time_t t = time(nullptr);
         struct tm tmv;
         gmtime_r(&t, &tmv);
-        s.year2 = tmv.tm_year % 100;
+        gmt.year2 = tmv.tm_year % 100;
+        localtime_r(&t, &tmv);
+        bool simKnown = refs.localH && refs.localM;
+        int simLocal = simKnown ? localMinusGmt(geti(refs.localH), geti(refs.localM), gmt.hour, gmt.minute) : 0;
+        int first = clock1FromGmt(a.profile, (int)(tmv.tm_gmtoff / 60), simKnown, simLocal);
+        ClockTime c1 = shiftClock(gmt, first);
+        s.clockValid = true;
+        s.hour = c1.hour;
+        s.minute = c1.minute;
+        s.day = c1.day;
+        s.month = c1.month;
+        s.year2 = c1.year2;
+        for (int c = 0; c < 2; ++c) s.clockOffset[c] = clockOffsetFromFirst(a.profile.clockOffset[c], first);
+    } else {
+        for (int c = 0; c < 2; ++c) s.clockOffset[c] = a.profile.clockOffset[c];
     }
     a.device.setState(s);
 }

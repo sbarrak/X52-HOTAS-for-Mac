@@ -827,6 +827,65 @@ TEST(second_and_third_clock_are_offsets_from_the_first) {
     CHECK_EQ(packClockOffset(2, 0, false), (UsbCmd{0xc1, 0}));
 }
 
+TEST(clock_1_moves_away_from_gmt_and_carries_into_the_date) {
+    ClockTime g;
+    g.hour = 23, g.minute = 30, g.day = 31, g.month = 12, g.year2 = 26;
+    ClockTime t = shiftClock(g, 90);                 // past midnight on New Year's Eve
+    CHECK_EQ(t.hour, 1);
+    CHECK_EQ(t.minute, 0);
+    CHECK_EQ(t.day, 1);
+    CHECK_EQ(t.month, 1);
+    CHECK_EQ(t.year2, 27);
+    g.hour = 2, g.minute = 0, g.day = 1, g.month = 3, g.year2 = 28;   // 2028 is a leap year
+    t = shiftClock(g, -180);
+    CHECK_EQ(t.hour, 23);
+    CHECK_EQ(t.day, 29);
+    CHECK_EQ(t.month, 2);
+    t = shiftClock(g, 0);
+    CHECK_EQ(t.hour, 2);
+    CHECK_EQ(t.day, 1);
+}
+
+TEST(clock_2_and_3_keep_their_meaning_when_clock_1_is_not_gmt) {
+    CHECK_EQ(clockOffsetFromFirst(60, 0), 60);       // clock 1 GMT: as before
+    CHECK_EQ(clockOffsetFromFirst(0, 60), -60);      // clock 2 GMT, clock 1 one hour ahead
+    CHECK_EQ(clockOffsetFromFirst(-720, 840), -120); // 26 hours behind shows the same as 2 hours behind, and fits the stick
+    CHECK_EQ(clockOffsetFromFirst(840, -720), 120);
+    CHECK(clockOffsetFromFirst(840, -300) >= -720 && clockOffsetFromFirst(840, -300) < 720);
+    CHECK_EQ(localMinusGmt(1, 0, 23, 0), 120);       // local 01:00, GMT 23:00 the day before
+    CHECK_EQ(localMinusGmt(20, 30, 1, 0), -270);
+}
+
+TEST(clock_1_source_picks_how_far_it_is_from_gmt) {
+    Profile p;
+    CHECK_EQ(clock1FromGmt(p, 60, true, 120), 0);    // GMT, the usual
+    p.clock1Source = ClockSimLocal;
+    CHECK_EQ(clock1FromGmt(p, 60, true, 120), 120);
+    CHECK_EQ(clock1FromGmt(p, 60, false, 0), 60);    // no simulator: the Mac's local time
+    p.clock1Source = ClockMacLocal;
+    CHECK_EQ(clock1FromGmt(p, 60, true, 120), 60);
+    p.clock1Source = ClockFixed;
+    p.clock1Offset = -300;
+    CHECK_EQ(clock1FromGmt(p, 60, true, 120), -300);
+}
+
+TEST(clock_1_source_survives_save_and_load_and_older_files_stay_gmt) {
+    Profile p;
+    p.clock1Source = ClockFixed;
+    p.clock1Offset = 330;
+    Profile q;
+    std::string err;
+    CHECK(parse(serialize(p), q, &err));
+    CHECK_EQ(q.clock1Source, (int)ClockFixed);
+    CHECK_EQ(q.clock1Offset, 330);
+    Profile r;
+    CHECK(parse("x52pro-profile 3\nclock2_offset = 60\n", r, &err));
+    CHECK_EQ(r.clock1Source, (int)ClockGmt);
+    CHECK(parse("x52pro-profile 3\nclock1_source = 9\nclock1_offset = 99999\n", r, &err));
+    CHECK_EQ(r.clock1Source, (int)ClockFixed);
+    CHECK_EQ(r.clock1Offset, kClockOffsetMax);
+}
+
 TEST(flashing_the_clutch_lights_has_its_own_request) {
     CHECK_EQ(packBlink(true), (UsbCmd{0xb4, 0x51}));
     CHECK_EQ(packBlink(false), (UsbCmd{0xb4, 0x50}));
