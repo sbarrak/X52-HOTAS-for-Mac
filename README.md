@@ -423,7 +423,7 @@ make
 ## Found it useful?
 
 If this brings your X52 back to life on a Mac, a star on GitHub helps other simmers find it.
-Bug reports and profile contributions are welcome in the Issues tab; for security problems see [SECURITY.md](SECURITY.md).
+Found a bug? Open an issue. For security problems see [SECURITY.md](SECURITY.md).
 
 <p align="center"><sub>
 #x52 #x52pro #xplane #xplane12 #hotas #saitek #logitech #joystick #flightsim #macos #applesilicon
