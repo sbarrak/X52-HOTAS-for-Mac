@@ -696,6 +696,30 @@ TEST(text_fields_have_a_cursor_selection_and_clipboard) {
     CHECK(sim().clickText("Buttons", 0, true));
 }
 
+TEST(tab_moves_to_the_next_text_field_and_escape_cancels_the_command_search) {
+    gApp->profile.rules.clear();
+    CHECK(sim().clickText("Live lights", 0, true));
+    CHECK(sim().clickText("Add rule", 0, true));
+    CHECK(sim().clickText("name[3] for one item"));
+    sim().type("sim/foo");
+    sim().key(0, XPLM_VK_TAB);                                // on to the number field
+    CHECK(sim().hasKeyboardFocus);
+    sim().key('7', XPLM_VK_7);
+    CHECK_EQ(gApp->profile.rules[0].dataref, std::string("sim/foo"));
+    CHECK_EQ(gApp->profile.rules[0].value, 0.57);   // typed after the 0.5 already there
+    sim().key(0, XPLM_VK_TAB, xplm_ShiftFlag);                // and back
+    sim().type("x");
+    CHECK_EQ(gApp->profile.rules[0].dataref, std::string("sim/foox"));
+    sim().key(0, XPLM_VK_RETURN);
+    gApp->profile.rules.clear();
+    CHECK(sim().clickText("Buttons", 0, true));
+    CHECK(sim().clickText("+ Command"));
+    CHECK(sim().sees("Choose a command for"));
+    sim().key(0, XPLM_VK_ESCAPE);
+    CHECK(!sim().sees("Choose a command for"));
+    CHECK(!sim().hasKeyboardFocus);
+}
+
 TEST(live_rule_says_what_x_plane_makes_of_the_dataref) {
     CHECK(datarefReport("").empty());
     CHECK(has(datarefReport("sim/nope/nothing"), "Not found"));
