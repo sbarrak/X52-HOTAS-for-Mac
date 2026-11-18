@@ -955,7 +955,9 @@ PLUGIN_API int XPluginEnable(void) {
     a.loadForAircraft(currentAircraft());
     a.loadButtonMap();
     a.lock.tryHold(a.store.dir);
+#ifndef X52_NO_HID   // the tests feed buttons themselves: a real stick plugged in would mix its own in
     a.input.start();
+#endif
     a.device.start();
     uiCreate();
     XPLMRegisterFlightLoopCallback(flightLoop, -1.0f, nullptr);

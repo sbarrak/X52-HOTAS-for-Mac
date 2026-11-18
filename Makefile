@@ -38,7 +38,7 @@ build/test_core: tests/test_core.cpp tests/check.h $(CORE) $(HEADERS)
 
 build/test_plugin: tests/test_plugin.cpp tests/fake_xplm.cpp tests/fake_xplm.h tests/check.h $(PLUGIN) $(CORE) $(MAC) $(HEADERS)
 	@mkdir -p build
-	$(CXX) $(CXXFLAGS) $(XPDEFS) $(XPINC) -DX52_NO_GL -o $@ tests/test_plugin.cpp tests/fake_xplm.cpp \
+	$(CXX) $(CXXFLAGS) $(XPDEFS) $(XPINC) -DX52_NO_GL -DX52_NO_HID -o $@ tests/test_plugin.cpp tests/fake_xplm.cpp \
 		$(PLUGIN) $(CORE) $(MAC) $(FRAMEWORKS)
 
 build/test_agent: tests/test_agent.cpp tests/check.h $(AGENT) src/app/bridge.cpp $(CORE) $(MAC) $(HEADERS)
