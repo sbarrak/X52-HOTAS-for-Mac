@@ -1,0 +1,105 @@
+x52pro-profile 3
+# X52 Pro profile for the BETA Technologies Alia-250 (ready-made, see profiles/README.md).
+name = ALIA-250
+pinkie_shift = 0
+shift_button = 6
+mode_buttons = 28 29 30
+clutch_safe = 1
+clutch_button = 31
+hold_ms = 400
+mode_settle_ms = 100
+mfd_brightness = 127
+led_brightness = 127
+clutch_latched = 0
+clock2_offset = 0
+clock3_offset = 0
+clock1_12h = 0
+clock2_12h = 0
+clock3_12h = 0
+date_format = 0
+com_833 = 0
+leds 1 = fire:green a:green b:green d:green e:green t1:green t2:green t3:green pov:green clutch:green throttle:green
+leds 2 = fire:green a:green b:green d:amber e:amber t1:amber t2:amber t3:amber pov:amber clutch:green throttle:green
+leds 3 = fire:green a:green b:green d:red e:red t1:red t2:red t3:red pov:red clutch:green throttle:green
+ledsp 1 = fire:green a:green b:green d:green e:green t1:green t2:green t3:green pov:green clutch:green throttle:green
+ledsp 2 = fire:green a:green b:green d:amber e:amber t1:amber t2:amber t3:amber pov:amber clutch:green throttle:green
+ledsp 3 = fire:green a:green b:green d:red e:red t1:red t2:red t3:red pov:red clutch:green throttle:green
+rule fire > 0.5 green off sim/cockpit2/controls/parking_brake_ratio
+rule a > 0.5 green mode sim/cockpit2/switches/landing_lights_on
+rule b > 0.01 amber green sim/cockpit2/controls/flap_ratio
+rule throttle > 0 green off sim/cockpit2/autopilot/servos_on
+alarm fire blink fast red amber "Engine fire" > 0 sim/cockpit2/annunciators/engine_fires[0]
+alarm pov blink fast red amber "Stall" > 0 sim/cockpit2/annunciators/stall_warning
+alarm t1 alternate slow red amber "Low fuel" > 0 sim/cockpit2/annunciators/fuel_quantity
+alarm t2 blink fast amber red "Autopilot disconnect" > 0 sim/cockpit2/annunciators/autopilot_disconnect
+alarm t3 blink fast red amber "Overspeed" > 0 sim/flightmodel/failures/over_vne
+page flt "Flight"
+row flt value "IAS" "%.0f kt" sim/cockpit2/gauges/indicators/airspeed_kts_pilot
+row flt value "Alt" "%.0f ft" sim/cockpit2/gauges/indicators/altitude_ft_pilot
+row flt value "VS" "%.0f fpm" sim/cockpit2/gauges/indicators/vvi_fpm_pilot
+row flt value "Hdg" "%.0f deg" sim/cockpit2/gauges/indicators/heading_AHARS_deg_mag_pilot
+row flt value "OAT" "%.0f C" sim/cockpit2/temperature/outside_air_temp_degc
+page eng "Engine"
+row eng value "Prop" "%.0f rpm" sim/cockpit2/engine/indicators/prop_speed_rpm[0]
+master screen == 1 sim/cockpit2/switches/avionics_power_on
+master lights == 1 sim/cockpit2/switches/avionics_power_on
+bind 1 any press "AP disconnect" cmd:sim/autopilot/servos_off_any
+bind 2 any press "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
+bind 3 any press "Landing light" cmd:sim/lights/landing_lights_toggle
+bind 4 any press "Flaps up" cmd:sim/flight_controls/flaps_up
+bind 5 any press "Flaps down" cmd:sim/flight_controls/flaps_down
+bind 6 any press "Brakes (hold)" cmd:sim/flight_controls/brakes_regular
+bind 15 any press "Contact ATC" cmd:sim/operation/contact_atc
+bind 16 any press "Cockpit view" cmd:sim/view/3d_cockpit_cmnd_look
+bind 20 any press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
+bind 21 any press "Rudder trim R" cmd:sim/flight_controls/rudder_trim_right
+bind 22 any press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
+bind 23 any press "Rudder trim L" cmd:sim/flight_controls/rudder_trim_left
+bind 35 any press "Screen page -" cmd:x52pro/mfd_page_prev
+bind 36 any press "Screen page +" cmd:x52pro/mfd_page_next
+bind 37 any press "Screen cursor up" cmd:x52pro/mfd_up
+bind 38 any press "Screen cursor down" cmd:x52pro/mfd_down
+bind 39 any press "Screen select" cmd:x52pro/mfd_select
+bind 7 1 press "Taxi light" cmd:sim/lights/taxi_lights_toggle
+bind 8 1 press "Strobes" cmd:sim/lights/strobe_lights_toggle
+bind 9 1 press "Battery on" cmd:sim/electrical/battery_1_on
+bind 10 1 press "Battery off" cmd:sim/electrical/battery_1_off
+bind 11 1 press "Avionics on" cmd:sim/systems/avionics_on
+bind 12 1 press "Avionics off" cmd:sim/systems/avionics_off
+bind 13 1 press "Beacon on" cmd:sim/lights/beacon_lights_on
+bind 14 1 press "Beacon off" cmd:sim/lights/beacon_lights_off
+bind 17 1 press "Zoom in" cmd:sim/general/zoom_in
+bind 18 1 press "Zoom out" cmd:sim/general/zoom_out
+bind 19 1 press "Chase view" cmd:sim/view/chase
+bind 24 1 press "Nav lights on" cmd:sim/lights/nav_lights_on
+bind 25 1 press "Taxi light on" cmd:sim/lights/taxi_lights_on
+bind 26 1 press "Nav lights off" cmd:sim/lights/nav_lights_off
+bind 27 1 press "Taxi light off" cmd:sim/lights/taxi_lights_off
+bind 7 2 press "Taxi light" cmd:sim/lights/taxi_lights_toggle
+bind 8 2 press "AP approach" cmd:sim/autopilot/approach
+bind 9 2 press "AP NAV" cmd:sim/autopilot/NAV
+bind 10 2 press "AP HDG" cmd:sim/autopilot/heading
+bind 13 2 press "Pitot heat on" cmd:sim/ice/pitot_heat0_on
+bind 14 2 press "Pitot heat off" cmd:sim/ice/pitot_heat0_off
+bind 17 2 press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
+bind 18 2 press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
+bind 19 2 press "Take-off trim" cmd:sim/flight_controls/pitch_trim_takeoff
+bind 24 2 press "Nav lights on" cmd:sim/lights/nav_lights_on
+bind 25 2 press "Taxi light on" cmd:sim/lights/taxi_lights_on
+bind 26 2 press "Nav lights off" cmd:sim/lights/nav_lights_off
+bind 27 2 press "Taxi light off" cmd:sim/lights/taxi_lights_off
+bind 7 3 press "AP on/off" cmd:sim/autopilot/servos_toggle
+bind 8 3 press "Flight director" cmd:sim/autopilot/fdir_toggle
+bind 9 3 press "AP HDG" cmd:sim/autopilot/heading
+bind 10 3 press "AP NAV" cmd:sim/autopilot/NAV
+bind 11 3 press "AP ALT hold" cmd:sim/autopilot/altitude_hold
+bind 12 3 press "AP VS" cmd:sim/autopilot/vertical_speed
+bind 13 3 press "AP FLC" cmd:sim/autopilot/level_change
+bind 14 3 press "AP approach" cmd:sim/autopilot/approach
+bind 17 3 press "HDG bug +" cmd:sim/autopilot/heading_up
+bind 18 3 press "HDG bug -" cmd:sim/autopilot/heading_down
+bind 19 3 press "HDG sync" cmd:sim/autopilot/heading_sync
+bind 24 3 press "ALT select +" cmd:sim/autopilot/altitude_up
+bind 25 3 press "VS +" cmd:sim/autopilot/vertical_speed_up
+bind 26 3 press "ALT select -" cmd:sim/autopilot/altitude_down
+bind 27 3 press "VS -" cmd:sim/autopilot/vertical_speed_down

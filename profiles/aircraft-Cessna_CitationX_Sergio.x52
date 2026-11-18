@@ -1,0 +1,62 @@
+x52pro-profile 3
+# X52 Pro button profile. Written by the X52 Pro plugin; safe to edit by hand.
+name = Cessna_CitationX
+pinkie_shift = 1
+shift_button = 6
+mode_buttons = 28 29 30
+clutch_safe = 0
+clutch_button = 31
+hold_ms = 400
+mode_settle_ms = 100
+mfd_brightness = 89
+led_brightness = 127
+clutch_latched = 0
+# clocks: clock 1 is GMT; clock 2 and 3 are minutes from GMT. date_format: 0 DD-MM-YY, 1 MM-DD-YY, 2 YY-MM-DD
+clock2_offset = 0
+clock3_offset = 0
+clock1_12h = 0
+clock2_12h = 0
+clock3_12h = 0
+date_format = 0
+com_833 = 0
+leds 1 = fire:green a:green b:green d:green e:green t1:green t2:green t3:green pov:green clutch:green throttle:green
+leds 2 = fire:green a:green b:green d:green e:green t1:green t2:green t3:green pov:amber clutch:green throttle:green
+leds 3 = fire:green a:green b:green d:green e:green t1:green t2:green t3:green pov:amber clutch:green throttle:green
+# leds with the pinkie held, per mode
+ledsp 1 = fire:green a:amber b:red d:amber e:amber t1:amber t2:amber t3:amber pov:green clutch:amber throttle:green
+ledsp 2 = fire:green a:green b:green d:green e:green t1:green t2:green t3:green pov:amber clutch:green throttle:green
+ledsp 3 = fire:green a:green b:green d:green e:green t1:red t2:red t3:red pov:amber clutch:green throttle:green
+# rule <light> <op> <number> <colour if true> <colour if not> [not] <dataref> [and|or [not] <op> <number> <dataref>]
+#   colours: off green amber red mode. One rule per light; the first rule that has a colour wins. A dataref of - is not chosen yet.
+rule clutch > 0.5 amber red sim/flightmodel2/engines/thrust_reverser_deploy_ratio
+# alarm <light> <steady|blink|alternate> <slow|fast> <colour> <colour 2> "name" [not] <op> <number> <dataref> [and|or [not] <op> <number> <dataref>]
+#   alarms beat the rules above and the mode colours; the first alarm that is triggered wins, one that is not leaves the light to the next.
+# page <id> "<title>" [in <parent id>]    pages of the stick's screen; a page without 'in' is reached with the left wheel
+# row <page id> text "<words>" | value "<label>" "<format, e.g. %.0f kg>" <dataref> | link "<label>" <page id>
+page fly "Flight"
+row fly value "Alt" "%.0f ft" sim/cockpit2/gauges/indicators/altitude_ft_pilot
+row fly value "IAS" "%.0f kt" sim/cockpit2/gauges/indicators/airspeed_kts_pilot
+row fly link "Fuel" fuel
+page fuel "Fuel" in fly
+row fuel value "Total" "%.0f kg" sim/flightmodel/weight/m_fuel_total
+row fuel value "Tank 1" "%.0f kg" sim/cockpit2/fuel/fuel_quantity[0]
+# master <screen|lights> [not] <op> <number> <dataref> [and|or [not] <op> <number> <dataref>]
+#   the screen (or every light) is on only while this is true, e.g. avionics power. No master line: always on.
+# brightness <screen|lights> <value at dim> <value at bright> <dim 0..127> <bright 0..127> <dataref>
+#   the brightness follows the dataref between those two points. No line: the fixed brightness above.
+brightness lights 0 1 10 127 sim/cockpit2/electrical/instrument_brightness_ratio[0]
+# bind <button> <any|1..6> <press|hold> "label" step ; step ...
+#   layers 1-3 = mode 1-3, 4-6 = mode 1-3 with the pinkie held
+#   steps: cmd:<x-plane command>   key:<combo e.g. shift+f1>   wait:<milliseconds>
+#          set:<dataref>=<value>   toggle:<dataref>=<a>,<b>   add:<dataref>=<amount>[,<min>,<max>]
+bind 3 any press "" cmd:sim/flight_controls/brakes_toggle_regular
+bind 7 any press "" cmd:sim/flight_controls/brakes_toggle_regular
+bind 20 any press "" cmd:sim/view/quick_look_0
+bind 22 any press "" cmd:sim/view/quick_look_1
+bind 31 any press "" cmd:sim/engines/thrust_reverse_toggle
+bind 31 1 press "" cmd:sim/engines/thrust_reverse_toggle
+bind 35 any press "Screen page -" cmd:x52pro/mfd_page_prev
+bind 36 any press "Screen page +" cmd:x52pro/mfd_page_next
+bind 37 any press "Screen cursor up" cmd:x52pro/mfd_up
+bind 38 any press "Screen cursor down" cmd:x52pro/mfd_down
+bind 39 any press "Screen select" cmd:x52pro/mfd_select

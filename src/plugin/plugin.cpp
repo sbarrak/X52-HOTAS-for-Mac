@@ -495,7 +495,8 @@ void App::trackAxes(double t) {
             continue;
         }
         AxisLive& l = it->second;
-        l.value = e.value;
+        const AxisCurve* dial = dialCurve(profile.axes, e.usage);
+        l.value = dial && e.usagePage == 0x01 ? steadyValue(l.value, e.value, e.min, e.max, dial->deadzone) : e.value;
         l.min = e.min;
         l.max = e.max;
         if (controlMoved(e.usagePage, e.usage, l.reference, e.value, e.min, e.max)) {

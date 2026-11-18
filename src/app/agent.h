@@ -137,6 +137,7 @@ private:
     std::string moved_;
     std::map<std::pair<int, int>, long> axisRef_;   // value when each control last counted as moving
     std::pair<int, int> axisMoved_{0, 0};
+    std::map<std::pair<int, int>, long> axisSteady_;   // what dials and the slider show (small flicker held back)
 };
 
 }  // namespace x52

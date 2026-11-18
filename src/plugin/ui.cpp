@@ -1229,6 +1229,25 @@ void drawAxesTab(const Rect& area) {
         (void)t;
         rc.t -= kRow + kGap;
     }
+    for (int usage : {0x33, 0x34, 0x36}) {   // dials and slider: only a steady percentage
+        AxisCurve* c = dialCurve(a.profile.axes, usage);
+        auto live = a.axisLive.find({0x01, usage});
+        rc.x = area.l;
+        Rect name = rc.take(110);
+        text(name.l, name, controlName(0x01, usage), a.axisMoved == std::make_pair(0x01, usage) ? kGreen : kWhite);
+        Rect bar = rc.take(100);
+        fill({bar.l, bar.t - 4, bar.r, bar.b + 4}, cField);
+        std::string val = "-";
+        if (live != a.axisLive.end()) {
+            int pc = std::max(0, std::min(100, percent(live->second)));
+            fill({bar.l, bar.t - 4, bar.l + bar.w() * pc / 100, bar.b + 4}, cSelected);
+            val = std::to_string(pc) + " %";
+        }
+        Rect vr = rc.take(46);
+        text(vr.l, vr, val);
+        stepper("Steady", c->deadzone, " %", 0, 20, 1, &c->deadzone);
+        rc.t -= kRow + kGap;
+    }
     rc.t -= kGap;
 
     std::string moving = "Moving now: -";

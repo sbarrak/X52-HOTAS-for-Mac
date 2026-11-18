@@ -399,3 +399,17 @@ TEST(the_app_lists_every_control_and_names_the_one_that_moves) {
     CHECK_EQ(movingCount, 1);
     ag.stop();
 }
+
+TEST(the_pov_1_hat_switch_is_listed_as_held_while_it_is_pushed) {
+    std::string dir = freshDir("hat_held");
+    Agent ag;
+    ag.open(dir, "default");
+    ag.start();
+    ag.pushAxisForTest({0x01, 0x39, 0, 1, 8});   // centred
+    ag.tick();
+    CHECK(ag.held().find("POV 1") == std::string::npos);
+    ag.pushAxisForTest({0x01, 0x39, 4, 1, 8});   // down-right
+    ag.tick();
+    CHECK(ag.held().find("POV 1 (hat switch): down-right") != std::string::npos);
+    ag.stop();
+}

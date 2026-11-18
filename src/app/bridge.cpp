@@ -48,6 +48,9 @@ int* field(Profile& p, const std::string& n, int& lo, int& hi) {
         if (n == base + "deadzone") { lo = 0; hi = 40; return &axisCurve(p.axes, u).deadzone; }
         if (n == base + "expo") { lo = 0; hi = 100; return &axisCurve(p.axes, u).expo; }
     }
+    if (n == "steady_lower") { lo = 0; hi = 20; return &p.axes.lowerRotary.deadzone; }
+    if (n == "steady_upper") { lo = 0; hi = 20; return &p.axes.upperRotary.deadzone; }
+    if (n == "steady_slider") { lo = 0; hi = 20; return &p.axes.slider.deadzone; }
     return nullptr;
 }
 
