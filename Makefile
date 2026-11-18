@@ -3,7 +3,7 @@
 #   make test         run the unit tests
 #   make install-app  put the app in /Applications (it installs the plugin into X-Plane itself)
 #   make install      copy the plugin straight into X-Plane
-#   make release      bin/X52-Pro.zip, ready to share
+#   make release      bin/X52-Pro-<version>.zip, ready to share (the version is in the VERSION file)
 # Built programs land in bin/, intermediate files and test programs in build/.
 
 # X-Plane keeps a list of its installs; use the first one, or set XPLANE="/path/to/X-Plane 12".
@@ -11,7 +11,8 @@ XPLANE ?= $(shell sed -n '1{p;q;}' "$$HOME/Library/Preferences/x-plane_install_1
 SDK     = third_party/XPSDK
 ARCH    = -arch arm64 -mmacosx-version-min=12.0
 CXX     = clang++
-CXXFLAGS = -std=c++17 -O2 -Wall -Wextra $(ARCH) -fvisibility=hidden
+VERSION  = $(shell cat VERSION)
+CXXFLAGS = -std=c++17 -O2 -Wall -Wextra $(ARCH) -fvisibility=hidden -DX52_VERSION='"$(VERSION)"'
 
 CORE   = src/core/profile.cpp src/core/mfd.cpp src/core/pages.cpp src/core/sidepages.cpp src/core/keys.cpp src/core/engine.cpp src/core/catalog.cpp src/core/xpjoy.cpp src/core/pagetree.cpp src/core/pageview.cpp src/core/axes.cpp
 MAC    = src/mac/x52device.cpp src/mac/x52input.cpp src/mac/keysend.cpp src/mac/xplane.cpp src/mac/simlink.cpp
@@ -64,7 +65,7 @@ $(BIN)/x52probe: tools/x52probe.cpp $(CORE) $(MAC) $(HEADERS)
 	@mkdir -p $(BIN)
 	$(CXX) $(CXXFLAGS) -o $@ tools/x52probe.cpp $(CORE) $(MAC) $(FRAMEWORKS)
 
-$(XPL): $(PLUGIN) $(CORE) $(MAC) $(HEADERS)
+$(XPL): $(PLUGIN) $(CORE) $(MAC) $(HEADERS) VERSION
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(XPDEFS) $(XPINC) -bundle -o $@ $(PLUGIN) $(CORE) $(MAC) \
 		-F$(SDK)/Libraries/Mac -framework XPLM $(FRAMEWORKS) -framework OpenGL
@@ -78,7 +79,7 @@ build/AppIcon.icns: tools/make_icon.swift
 	swift tools/make_icon.swift build/AppIcon.iconset
 	iconutil -c icns build/AppIcon.iconset -o $@
 
-$(APPBIN): src/app/main.swift src/app/Info.plist $(APPSRC) $(HEADERS) $(XPL) build/AppIcon.icns
+$(APPBIN): src/app/main.swift src/app/Info.plist $(APPSRC) $(HEADERS) $(XPL) build/AppIcon.icns VERSION
 	@mkdir -p "$(APP)/Contents/MacOS" build/appobj
 	cd build/appobj && $(CXX) $(CXXFLAGS) -mmacosx-version-min=13.0 -c $(addprefix ../../,$(APPSRC))
 	swiftc -O -target arm64-apple-macos13.0 -import-objc-header src/app/bridge.h src/app/main.swift \
@@ -87,6 +88,7 @@ $(APPBIN): src/app/main.swift src/app/Info.plist $(APPSRC) $(HEADERS) $(XPL) bui
 	cp $(XPL) "$(APP)/Contents/Resources/X52Pro.xpl"
 	cp build/AppIcon.icns "$(APP)/Contents/Resources/AppIcon.icns"
 	cp src/app/Info.plist "$(APP)/Contents/Info.plist"
+	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" -c "Set :CFBundleVersion $(VERSION)" "$(APP)/Contents/Info.plist"
 	codesign --force --sign - "$(APP)"
 
 install-app: app
@@ -104,9 +106,9 @@ install: $(XPL)
 	@echo "Installed to $(XPLANE)/Resources/plugins/X52Pro"
 
 release: app
-	rm -f $(BIN)/X52-Pro.zip
-	cd $(BIN) && rm -rf "X52 Pro.app" && cp -R X52Pro.app "X52 Pro.app" && ditto -c -k --keepParent "X52 Pro.app" X52-Pro.zip && rm -rf "X52 Pro.app"
-	@echo "Made $(BIN)/X52-Pro.zip"
+	rm -f $(BIN)/X52-Pro*.zip
+	cd $(BIN) && rm -rf "X52 Pro.app" && cp -R X52Pro.app "X52 Pro.app" && ditto -c -k --keepParent "X52 Pro.app" X52-Pro-$(VERSION).zip && rm -rf "X52 Pro.app"
+	@echo "Made $(BIN)/X52-Pro-$(VERSION).zip"
 
 clean:
 	rm -rf build $(BIN)

@@ -1,34 +1,85 @@
 # X52 Pro for X-Plane 12 on Apple Silicon
 
-A native arm64 X-Plane plugin that does what Logitech's Windows-only programming
-software and X-Plane plugin do, from inside the simulator:
+**Your X52 Pro, fully programmable, on a Mac.** Version 1.0.
 
-- **Modes and pinkie shift** – the mode dial (1/2/3) and the pinkie switch give every
-  button up to six different jobs.
-- **Macros** – one press runs several commands and keystrokes in a row, with waits.
+Logitech's programming software and X-Plane plugin for the Saitek / Logitech X52 and X52 Pro only ever ran on
+Windows. X52 Pro is a new, native Apple Silicon program that does the same job on a Mac: a plugin that runs
+inside X-Plane 12 and a menu bar app that works with or without the simulator. Give every button up to six jobs,
+write macros, put radios and autopilot on the throttle's screen, and have the lights follow the aircraft.
+
+![The X52 Pro app: programming a button](docs/images/app-buttons.png)
+
+## What you get
+
+**Buttons that do more**
+
+- **Three modes and a pinkie shift** – the mode dial (1/2/3) and the pinkie switch give every button up to six
+  different jobs.
+- **Macros** – one press runs several commands and keystrokes in a row, with waits between them.
 - **Tap versus hold** – a short press and a long press can do different things.
-- **Keyboard keystrokes** – a button can type a key or shortcut.
-- **Screen and lights** – the throttle's screen shows the profile, mode and the name of
-  the button you pressed, or radio / autopilot pages; button lights change colour by mode.
-- **Live lights** – a button light can follow the simulator instead of the mode: for
-  example Button E red while the parking brake is on, green while it is off.
-- **Alarms** – lights that flash or alternate colours when something is wrong (stall, gear
-  unsafe, low fuel, overspeed, autopilot disconnect). They override live lights, which
-  override the plain mode colours.
-- **A window in X-Plane** to set all of this up, with one profile for all aircraft and
-  optional profiles per aircraft.
+- **Commands, datarefs and keystrokes** – a button can run any X-Plane command, set, toggle or add to a dataref, or
+  type a key or shortcut. Searches use X-Plane's own command and dataref lists, so the app works without the sim.
+- **Import what X-Plane has** – start from the buttons X-Plane already has on the stick instead of from nothing.
 
-- **A menu bar app** (outside X-Plane) to set and save the lights, screen and clocks,
-  which keeps them applied in the background.
+**Lights that tell you something**
 
-It is a new program, not a conversion: the Logitech installer contains no source code.
+- **Mode colours** – every light has a colour per mode, and another per mode while the pinkie is held.
+- **Live lights** – a light follows the simulator: Button E red while the parking brake is on, green while it is off.
+  Rules can combine two tests with AND, OR and NOT.
+- **Alarms** – lights that blink or alternate colours for stall, gear unsafe, fire, low fuel, overspeed or autopilot
+  disconnect. They override live lights, which override the mode colours.
+- **Master switch** – keep the screen and the lights on only while a dataref has the value you choose, for example
+  while the avionics are powered.
+
+![Light colours for each mode, with and without the pinkie](docs/images/app-lights.png)
+
+**A screen that is a cockpit panel**
+
+- **Radio and autopilot pages** – COM1/NAV1, COM2/NAV2, ADF, DME, transponder, autopilot and OBS/heading, driven by
+  the two wheels. Fast turns jump in bigger steps for heading, altitude and speed.
+- **Two radio layouts** – classic, one radio per screen (COM1 / NAV1, COM2 / NAV2, ADF), or side by side, with COM 1 and
+  2, NAV 1 and 2 and ADF 1 and 2 together on one screen.
+- **A page order for each mode** – put the autopilot first in mode 3 and the radios first in mode 1; skip the pages
+  you never use.
+- **Your own pages** – a tree of pages with text, live dataref values and links, built in a pages editor with a
+  live preview of the three-line screen.
+- **Clocks and brightness** – three clocks (GMT, the simulator's time, the Mac's time or any time zone), stopwatch,
+  and screen and light brightness you can change from the stick itself.
+
+![The pages editor, with a preview of the stick's screen](docs/images/app-pages-editor.png)
+
+**Flying**
+
+- **Axes** – dead zone, expo curve and inversion for the stick, twist and throttle; the slider as a flap lever; the
+  rotaries; a view of every control the stick reports.
+- **Clutch safe mode** – while the clutch (i) is held, buttons only show their name, so you can look at the stick
+  without doing anything.
+- **Test mode** – the screen names whatever you move or press.
+
+**Profiles you can trust**
+
+- **Ready-made profiles** for the aircraft that come with X-Plane 12 (see `profiles/README.md`). They are never
+  changed: edit one and the app saves your change as a new profile of yours.
+- **One profile for all aircraft, or one per aircraft.** Pick a profile in the app, in the X-Plane window, or on the
+  stick itself with the clutch and the POV hat.
+- **Plain text files** you can read, edit by hand, copy and share.
+- **Set aside, not deleted** – a deleted profile can be brought back with Undo delete.
+
+**Two ways to work**
+
+- **A window inside X-Plane** (Plugins > X52 Pro) to program buttons while you fly.
+- **A menu bar app** outside X-Plane that holds the lights, screen and clocks (it sends them again whenever the stick
+  is plugged in) and edits everything else without starting the simulator.
+
+It is a new program, not a conversion: the Logitech installer contains no source code. The full
+[manual (Word)](docs/manual/X52-Pro-Manual.docx) describes the app, every window and the X-Plane plugin.
 
 ## Install
 
 You need an Apple Silicon Mac (M1 or later), macOS 13 or newer, X-Plane 12 and an X52 or
 X52 Pro stick.
 
-**From a download (`X52-Pro.zip`)**
+**From a download (`X52-Pro-1.0.0.zip`)**
 
 1. Unzip it and drag **X52 Pro** into **Applications**.
 2. Open it. The first time, right-click it and choose **Open**, because the app is not
@@ -350,20 +401,25 @@ Builds everything into `bin/` and runs the tests: `tests/test_core.cpp` (profile
 macros, screen pages and cursor, screen and light protocol), `tests/test_plugin.cpp`
 (the real plugin driven through a stand-in for X-Plane: window clicks, typing, button
 presses) `tests/test_agent.cpp` (the menu bar app's saving rules) and `tests/test_xplane.cpp`
-(finding X-Plane and installing the plugin). `make release` makes `bin/X52-Pro.zip`.
+(finding X-Plane and installing the plugin). `make release` makes `bin/X52-Pro-<version>.zip`; the version comes from the `VERSION` file.
+
+**Pictures and manual.** The pictures in `docs/images` are drawn by the app itself: `bin/X52Pro.app/Contents/MacOS/X52Pro
+--snapshot <folder> --profile aircraft-Cessna_CitationX` writes one PNG per tab. The Word manual is made from them by
+`node docs/manual/build_manual.js` (it needs the `docx` npm package).
 
 ## Layout
 
 | Folder | What |
 |---|---|
 | `Install.command`, `Test Stick.command` | Double-click installer and hardware test. |
+| `VERSION` | The version number (shown in the app, in X-Plane and in the download's name). |
 | `src/core` | Profile format, button engine, screen/light protocol. No macOS or X-Plane code. |
 | `src/mac` | USB output (IOKit), button input (HID manager), keystrokes (Quartz), finding X-Plane. |
 | `src/plugin` | X-Plane glue and the programming window. |
 | `src/app` | Menu bar app: C++ agent, C bridge, Swift window. |
 | `tools` | `x52probe`, the hardware check tool. |
 | `tests` | Unit tests. |
-| `docs` | Design notes. |
+| `docs` | The manual (`docs/manual`), pictures (`docs/images`), wording for the page (`docs/taglines-and-keywords.md`) and design notes. |
 | `third_party/XPSDK` | X-Plane plugin SDK 4.2.0 (headers and Mac link libraries). |
 | `bin` | Built programs: `X52Pro.app`, `X52Pro.xpl`, `x52probe` (made by `make`). |
 

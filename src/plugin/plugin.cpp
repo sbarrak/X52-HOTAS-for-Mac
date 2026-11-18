@@ -1,6 +1,7 @@
 // X52 Pro plugin for X-Plane 12 (macOS, arm64).
 // Glue between X-Plane (commands, datarefs, flight loop, menu) and the engine + hardware.
 #include <algorithm>
+#include "../core/version.h"
 #include <cmath>
 #include <cctype>
 #include <chrono>
@@ -927,11 +928,12 @@ void App::layerChanged(int mode, bool) {
 using namespace x52;
 
 PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc) {
-    strcpy(outName, "X52 Pro");
+    strcpy(outName, "X52 Pro " X52_VERSION);
     strcpy(outSig, "serbar.x52pro");
-    strcpy(outDesc, "Modes, pinkie shift, macros, keystrokes, screen and lights for the X52 Pro HOTAS.");
+    strcpy(outDesc, "Version " X52_VERSION ". Modes, pinkie shift, macros, keystrokes, screen and lights for the X52 Pro HOTAS.");
     XPLMEnableFeature("XPLM_USE_NATIVE_PATHS", 1);
 
+    logLine("version " X52_VERSION);
     gApp = new App();
 
     char buf[1024] = "";

@@ -2,6 +2,7 @@
 // text and OpenGL rectangles: every frame draws the whole window and records which
 // rectangles are clickable; a mouse click runs the action of the rectangle it lands on.
 #include <OpenGL/gl.h>
+#include "../core/version.h"
 
 #include <algorithm>
 #include <cctype>
@@ -1642,7 +1643,7 @@ void uiCreate() {
     win = XPLMCreateWindowEx(&p);
     XPLMSetWindowPositioningMode(win, xplm_WindowPositionFree, -1);
     XPLMSetWindowResizingLimits(win, 820, 560, 1600, 1200);
-    XPLMSetWindowTitle(win, "X52 Pro - Program buttons");
+    XPLMSetWindowTitle(win, "X52 Pro " X52_VERSION " - Program buttons");
 }
 
 void uiDestroy() {
