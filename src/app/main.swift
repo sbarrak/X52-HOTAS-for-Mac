@@ -376,6 +376,49 @@ let swatch: [Color] = [
 ]
 let colorNames = ["Off", "Green", "Amber", "Red"]
 
+// MARK: - Keyboard navigation
+
+// macOS 14 and newer can give a custom control one Tab stop and read the arrow keys. On macOS 13 the
+// plain buttons inside stay separate Tab stops, so nothing becomes unreachable.
+let hasKeyPress: Bool = { if #available(macOS 14, *) { return true } else { return false } }()
+
+// One Tab stop for a group of controls: the arrows (and Space / Return) act on the group.
+struct ArrowKeys: ViewModifier {
+    var left: (() -> Void)? = nil
+    var right: (() -> Void)? = nil
+    var up: (() -> Void)? = nil
+    var down: (() -> Void)? = nil
+    var activate: (() -> Void)? = nil
+    func body(content: Content) -> some View {
+        if #available(macOS 14, *) {
+            content.focusable().onKeyPress(keys: [.leftArrow, .rightArrow, .upArrow, .downArrow, .space, .return]) { press in
+                let fn: (() -> Void)?
+                switch press.key {
+                case .leftArrow: fn = left
+                case .rightArrow: fn = right
+                case .upArrow: fn = up
+                case .downArrow: fn = down
+                default: fn = activate
+                }
+                guard let fn else { return .ignored }
+                fn()
+                return .handled
+            }
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func arrowKeys(left: (() -> Void)? = nil, right: (() -> Void)? = nil, up: (() -> Void)? = nil,
+                   down: (() -> Void)? = nil, activate: (() -> Void)? = nil) -> some View {
+        modifier(ArrowKeys(left: left, right: right, up: up, down: down, activate: activate))
+    }
+    // The buttons inside a group that handles the arrows are not Tab stops of their own (macOS 14 and newer).
+    func insideStop() -> some View { focusable(!hasKeyPress) }
+}
+
 struct LightCell: View {
     @ObservedObject var m: Model
     let mode: Int
@@ -394,12 +437,14 @@ struct LightCell: View {
                         .overlay(Circle().stroke(Color.primary, lineWidth: current == c ? 2 : 0).padding(-3))
                         .overlay(Circle().stroke(Color.secondary.opacity(0.5), lineWidth: 0.5))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.plain).insideStop()
                 .help(single && c == 1 ? "On" : colorNames[c])
                 .accessibilityLabel("\(str(x52_led_title(Int32(led)))), mode \(mode), \(single && c == 1 ? "on" : colorNames[c])")
             }
         }
         .frame(width: 110, alignment: .leading)
+        .arrowKeys(left: { m.setLed(mode, led, max(0, current - 1)) },
+                   right: { m.setLed(mode, led, min(single ? 1 : 3, current + 1)) })
     }
 }
 
@@ -568,11 +613,12 @@ struct FixedSegments: View {
                         .foregroundStyle(on ? Color.white : Color.primary)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.plain).insideStop()
             }
         }
         .background(Color.secondary.opacity(0.15))
         .clipShape(RoundedRectangle(cornerRadius: 6))
+        .arrowKeys(left: { selection = max(0, selection - 1) }, right: { selection = min(names.count - 1, selection + 1) })
     }
 }
 
@@ -1601,8 +1647,37 @@ func wheelEntryRows() -> [WheelEntryRow] {
     }
 }
 
+// The ids the list shows, top to bottom (the same values as `pageSel`), for the arrow keys.
+func pageSelectionOrder() -> [String] {
+    let outline = pageOutline()
+    var out: [String] = []
+    for e in wheelEntryRows() {
+        out.append(e.builtin ? "#" + e.token : String(e.token.dropFirst()))
+        if e.builtin { continue }
+        let top = String(e.token.dropFirst())
+        guard let s = outline.firstIndex(where: { str(x52_page_id(Int32($0.0))) == top && $0.1 == 0 }) else { continue }
+        for row in outline[(s + 1)...].prefix(while: { $0.1 > 0 }) { out.append(str(x52_page_id(Int32(row.0)))) }
+    }
+    return out
+}
+
 struct WheelList: View {
     @ObservedObject var m: Model
+    // Up / Down move the selection; Space or Return shows or skips the selected page on the left wheel.
+    private func step(_ d: Int) {
+        let order = pageSelectionOrder()
+        guard !order.isEmpty else { return }
+        let at = order.firstIndex(of: m.pageSel) ?? (d > 0 ? -1 : order.count)
+        m.pageSel = order[max(0, min(order.count - 1, at + d))]
+        m.pageNote = ""
+        m.tick()
+    }
+    private func toggleSkip() {
+        guard let e = wheelEntryRows().first(where: { ($0.builtin ? "#" + $0.token : String($0.token.dropFirst())) == m.pageSel })
+        else { return }
+        x52_wheel_hide(e.token, e.hidden ? 0 : 1)
+        m.tick()
+    }
     var body: some View {
         let outline = pageOutline()
         // The mode choice sits above the scrolling list at a fixed width: inside the ScrollView the segmented
@@ -1625,6 +1700,7 @@ struct WheelList: View {
                 .toggleStyle(.checkbox).padding(.leading, 6)
                 .help("Off: this mode has its own order, and turning the mode dial to it opens its first page")
             }
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 2) {
                 Text("The left wheel, in order. The eye: shown or skipped. A lock: a built-in page.")
@@ -1636,7 +1712,7 @@ struct WheelList: View {
                         Button { x52_wheel_hide(e.token, e.hidden ? 0 : 1); m.tick() } label: {
                             Image(systemName: e.hidden ? "eye.slash" : "eye").frame(width: 18)
                         }
-                        .buttonStyle(.plain).foregroundStyle(e.hidden ? Color.secondary : Color.primary)
+                        .buttonStyle(.plain).insideStop().foregroundStyle(e.hidden ? Color.secondary : Color.primary)
                         .help(e.hidden ? "Skipped by the left wheel: click to show it" : "Shown by the left wheel: click to skip it")
                         Button { m.pageSel = sel; m.pageNote = ""; m.tick() } label: {
                             HStack(spacing: 6) {
@@ -1654,12 +1730,16 @@ struct WheelList: View {
                             .foregroundStyle(on ? Color.white : e.hidden || e.builtin ? Color.secondary : Color.primary)
                             .clipShape(RoundedRectangle(cornerRadius: 5)).contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.plain).insideStop()
                     }
+                    .id(sel)
                     if !e.builtin { SubPageRows(m: m, outline: outline, topId: String(e.token.dropFirst())) }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .arrowKeys(up: { step(-1) }, down: { step(1) }, activate: toggleSkip)
+        .onChange(of: m.pageSel) { id in withAnimation { proxy.scrollTo(id) } }
         }
         }
     }
@@ -1687,7 +1767,7 @@ struct SubPageRows: View {
                 .foregroundStyle(on ? Color.white : Color.primary)
                 .clipShape(RoundedRectangle(cornerRadius: 5)).contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.plain).insideStop().id(id)
         }
     }
 }
@@ -2011,6 +2091,10 @@ let tabList: [(Int, String)] = [(6, "Buttons"), (0, "Lights"), (1, "Live lights"
 
 struct SettingsView: View {
     @ObservedObject var m: Model
+    private func stepTab(_ d: Int) {
+        guard let i = tabList.firstIndex(where: { $0.0 == m.tab }) else { return }
+        m.tab = tabList[max(0, min(tabList.count - 1, i + d))].0
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -2056,11 +2140,12 @@ struct SettingsView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 6))
                                 .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.plain).insideStop()
                         .keyboardShortcut(KeyEquivalent(Character(String(n + 1))), modifiers: .command)
                         .help("\(entry.1) (Command-\(n + 1))")
                     }
                 }
+                .arrowKeys(left: { stepTab(-1) }, right: { stepTab(1) })
             }
             Group {
                 switch m.tab {
@@ -2280,6 +2365,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationWillTerminate(_ note: Notification) { model.stop() }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 }
+
+// Tab reaches every control (buttons, check boxes, radio buttons, menus), as with "Keyboard navigation" on in
+// System Settings, but for this app only. Space or Return opens a menu or presses a button; the arrows choose.
+UserDefaults.standard.set(2, forKey: "AppleKeyboardUIMode")
 
 let app = NSApplication.shared
 let delegate = AppDelegate()

@@ -58,6 +58,12 @@ const float cTag[4] = {0.18f, 0.20f, 0.24f, 1.0f};
 
 XPLMWindowID win = nullptr;
 std::vector<Hit> hits;
+// The text fields drawn in the last frame, in drawing order: Tab moves from one to the next.
+struct FieldSlot {
+    int id;
+    std::function<void()> enter;
+};
+std::vector<FieldSlot> fieldSlots;
 std::vector<ScrollArea> scrolls;
 int fontH = 10;
 
@@ -235,6 +241,11 @@ void field(const Rect& r, int id, std::function<std::string()> get, std::functio
         fill({cx, r.t - 3, cx + 1, r.b + 3}, cButtonOn);
     }
     int tx = r.l + 6;
+    fieldSlots.push_back({id, [id, get, set, onFocus, tx] {
+        if (onFocus) onFocus();
+        setFocus(id, get, set);
+        fieldTextX = tx;
+    }});
     click(r, [id, get, set, onFocus, tx] {
         if (onFocus) onFocus();
         setFocus(id, get, set);
@@ -1311,6 +1322,7 @@ void drawAxesTab(const Rect& area) {
 void draw(XPLMWindowID w, void*) {
     App& a = *gApp;
     hits.clear();
+    fieldSlots.clear();
     scrolls.clear();
     int L, T, R, B;
     XPLMGetWindowGeometry(w, &L, &T, &R, &B);
@@ -1501,7 +1513,17 @@ void key(XPLMWindowID, char ch, XPLMKeyFlags flags, char vkey, void*, int losing
     }
 
     if (!focusId || !focusGet || !focusSet) return;
-    if (vk == XPLM_VK_RETURN || vk == XPLM_VK_ENTER || vk == XPLM_VK_ESCAPE || vk == XPLM_VK_TAB) {
+    if (vk == XPLM_VK_TAB) {   // on to the next field (Shift: the one before); stays here if there is no other
+        int at = -1, count = (int)fieldSlots.size();
+        for (int i = 0; i < count; ++i)
+            if (fieldSlots[i].id == focusId) at = i;
+        if (at < 0 || count < 2) return;
+        auto enter = fieldSlots[(at + ((flags & xplm_ShiftFlag) ? count - 1 : 1)) % count].enter;
+        enter();   // setFocus resets the cursor to the end of that field's text
+        return;
+    }
+    if (vk == XPLM_VK_ESCAPE && focusId == 9000) pickerOpen = false;   // Escape in the command search is Cancel
+    if (vk == XPLM_VK_RETURN || vk == XPLM_VK_ENTER || vk == XPLM_VK_ESCAPE) {
         clearFocus();
         return;
     }
