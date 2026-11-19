@@ -2376,11 +2376,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func showAbout() {
         NSApp.activate(ignoringOtherApps: true)
+        let para = NSMutableParagraphStyle()
+        para.alignment = .center
+        let base: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.labelColor, .paragraphStyle: para]
+        let credits = NSMutableAttributedString(string: "Modes, macros, screen and lights for the Saitek / Logitech X52 and X52 Pro on Apple Silicon Macs, for X-Plane 12.\n\nDeveloped by Sergio Barrak\n", attributes: base)
+        let url = "https://github.com/sbarrak/X52-HOTAS-for-Mac"
+        var link = base
+        link[.link] = URL(string: url)!
+        credits.append(NSAttributedString(string: url, attributes: link))
+        credits.append(NSAttributedString(string: "\n\nMIT licence. Not affiliated with Laminar Research, Logitech or Saitek.", attributes: base))
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationName: "X52 Pro",
             .applicationVersion: appVersion,
             .version: "",
-            .credits: NSAttributedString(string: "Modes, macros, screen and lights for the Saitek / Logitech X52 and X52 Pro on Apple Silicon Macs, for X-Plane 12.\n\nMIT licence. Not affiliated with Laminar Research, Logitech or Saitek.")
+            .credits: credits
         ])
     }
 
