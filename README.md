@@ -8,6 +8,7 @@
 [![Platform](https://img.shields.io/badge/macOS-Apple%20Silicon-000000?logo=apple&logoColor=white)](#install)
 [![X-Plane 12](https://img.shields.io/badge/X--Plane-12-1d6fa5)](#install)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Donate](https://img.shields.io/badge/Donate-PayPal-00457C?logo=paypal&logoColor=white)](https://paypal.me/sbarrak)
 
 <img src="docs/images/app-buttons.png" alt="The X52 Pro app: programming a button" width="780">
 
