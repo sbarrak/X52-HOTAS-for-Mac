@@ -140,7 +140,7 @@ Without X-Plane installed, profiles live in `~/Library/Application Support/X52Pr
 **Ready-made profiles are never changed.** The profiles that come with this project (Default and one for each
 X-Plane aircraft, see `profiles/README.md`) say `standard = 1`, and the app and the plugin never write them, so
 you can always go back to the original. The settings window shows a lock and **Save as new profile...** while
-one is selected, and the profile pickers mark them "(ready-made)".
+one is selected, and the profile pickers list them in their own **Ready-made profiles** group.
 
 - Change anything on a ready-made profile in the app (lights, alarms, buttons, screen pages, axes) and it asks
   for a name first: your change, and any after it, go into a new profile of yours, which the app switches to.
@@ -366,7 +366,9 @@ Other things to know:
   `override_joystick` / `override_throttles`, and releases them when you untick it). The throttle is only
   taken over once it has moved. Test mode on the Settings tab also names moving controls on the stick's screen.
 - **Picking a profile in the window:** **Change profile...** (top right, next to the tabs) lists every profile,
-  including ones you imported, and **Automatic** to go back to the aircraft's own or Default. A profile picked
+  in two groups, **Your profiles** and **Ready-made profiles**, that fold open with **[+]** and shut with **[-]**
+  (the group of the current profile starts open; a long list scrolls), and **Automatic** to go back to the
+  aircraft's own or Default. A profile picked
   here, like one picked on the stick, stays until the aircraft changes; the window says "(picked)".
 - **Picking a profile on the stick:** hold the clutch, push the main POV hat up or down
   to scroll the profiles, right to use the one shown, left to go back to automatic.

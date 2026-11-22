@@ -271,6 +271,8 @@ struct Drop {
     Rect anchor{0, 0, 0, 0};
     std::vector<std::string> items;
     int current = -1;
+    int scroll = 0;        // first visible row, when the list is taller than the window
+    Rect box{0, 0, 0, 0};  // where the list was drawn last frame
     bool anyTab = false;   // stays open on every tab (the profile picker); other lists only live on the Live lights tab
     std::function<void(int)> pick;
 } drop;
@@ -278,10 +280,51 @@ struct Drop {
 void openDrop(const Rect& anchor, std::vector<std::string> items, int current, std::function<void(int)> pick) {
     drop.open = true;
     drop.anyTab = false;
+    drop.scroll = 0;
     drop.anchor = anchor;
     drop.items = std::move(items);
     drop.current = current;
     drop.pick = std::move(pick);
+}
+
+// The profile dropdown: "Automatic", then two groups (the user's own, the ready-made ones) that fold open with [+] and
+// shut with [-]. Clicking a group row rebuilds the list in place; picking a profile closes it. A fresh open unfolds the
+// group of the current profile.
+void openProfileDrop(const Rect& anchor, bool fresh) {
+    static bool openMine = true, openReady = false;
+    std::vector<std::string> keys = gApp->store.list();
+    std::vector<std::string> mine, ready;
+    for (const std::string& k : keys) (gApp->store.isStandard(k) ? ready : mine).push_back(k);
+    if (fresh) {
+        bool inReady = !gApp->manualKey.empty() && gApp->store.isStandard(gApp->manualKey);
+        openMine = !inReady || ready.empty();
+        openReady = inReady || mine.empty();
+    }
+    std::vector<std::string> items = {"Automatic (aircraft, else Default)"};
+    std::vector<std::string> target = {""};   // the profile each row picks; "\x01mine" / "\x01ready" fold a group
+    int current = gApp->manualKey.empty() ? 0 : -1;
+    auto add = [&](const char* title, const std::vector<std::string>& group, bool open, const char* fold) {
+        if (group.empty()) return;
+        items.push_back(std::string(open ? "[-] " : "[+] ") + title + " (" + std::to_string(group.size()) + ")");
+        target.push_back(fold);
+        if (!open) return;
+        for (const std::string& k : group) {
+            items.push_back(std::string("      ") + (k == "default" ? "Default (all aircraft)" : App::profileTitle(k)));
+            target.push_back(k);
+            if (k == gApp->manualKey) current = (int)items.size() - 1;
+        }
+    };
+    add("Your profiles", mine, openMine, "\x01mine");
+    add("Ready-made profiles", ready, openReady, "\x01ready");
+    int keep = drop.scroll;
+    openDrop(anchor, items, current, [anchor, target](int i) {
+        const std::string& t = target[i];
+        if (t == "\x01mine") { openMine = !openMine; openProfileDrop(anchor, false); }
+        else if (t == "\x01ready") { openReady = !openReady; openProfileDrop(anchor, false); }
+        else gApp->chooseProfile(t);
+    });
+    drop.anyTab = true;
+    if (!fresh) drop.scroll = keep;
 }
 
 // Drawn last so it sits on top and its rectangles are hit first; a press anywhere else just closes it.
@@ -290,13 +333,21 @@ void drawDrop(int L, int T, int R, int B) {
     click({L, T, R, B}, [] { drop.open = false; });
     int w = drop.anchor.w();
     for (const std::string& it : drop.items) w = std::max(w, textW(it) + 24);
-    int h = (int)drop.items.size() * kRow;
-    int top = drop.anchor.b - 1;
-    if (top - h < B + kPad) top = std::min(T - kPad, drop.anchor.t + h);   // no room below: open upwards
+    int all = (int)drop.items.size();
+    int below = (drop.anchor.b - 1) - (B + kPad), above = (T - kPad) - drop.anchor.t;
+    bool up = all * kRow > below && above > below;   // not enough room below, and more above: open upwards
+    int rows = std::max(1, std::min(all, (up ? above : below) / kRow));   // taller than that: scroll
+    int maxScroll = all - rows;
+    drop.scroll = std::max(0, std::min(drop.scroll, maxScroll));
+    int h = rows * kRow;
+    int top = up ? drop.anchor.t + h : drop.anchor.b - 1;
     Rect box{drop.anchor.l, top, drop.anchor.l + w, top - h};
+    drop.box = box;
+    if (maxScroll > 0) scrolls.push_back({box, &drop.scroll, maxScroll});
     fill({box.l - 1, box.t + 1, box.r + 1, box.b - 1}, kDim4);
-    for (int i = 0; i < (int)drop.items.size(); ++i) {
-        Rect row{box.l, box.t - i * kRow, box.r, box.t - (i + 1) * kRow};
+    for (int r = 0; r < rows; ++r) {
+        int i = drop.scroll + r;
+        Rect row{box.l, box.t - r * kRow, box.r, box.t - (r + 1) * kRow};
         button(row, drop.items[i], [i] {
             auto pick = drop.pick;
             drop.open = false;
@@ -1401,15 +1452,7 @@ void draw(XPLMWindowID w, void*) {
     {
         Rect pick{area.r - 190, area.t - kRow - kGap, area.r, area.t - 2 * kRow - kGap};
         button(pick, "Change profile...", [pick] {
-            std::vector<std::string> keys = gApp->store.list();
-            std::vector<std::string> items = {"Automatic (aircraft, else Default)"};
-            int current = gApp->manualKey.empty() ? 0 : -1;
-            for (size_t i = 0; i < keys.size(); ++i) {
-                items.push_back(keys[i] == "default" ? "Default (all aircraft)" : App::profileTitle(keys[i]));
-                if (keys[i] == gApp->manualKey) current = (int)i + 1;
-            }
-            openDrop(pick, items, current, [keys](int i) { gApp->chooseProfile(i == 0 ? "" : keys[i - 1]); });
-            drop.anyTab = true;
+            openProfileDrop(pick, true);
         });
     }
 
@@ -1471,6 +1514,10 @@ int mouse(XPLMWindowID, int x, int y, XPLMMouseStatus status, void*) {
 }
 
 int wheel(XPLMWindowID, int x, int y, int, int clicks, void*) {
+    if (drop.open && drop.box.has(x, y)) {   // a long dropdown scrolls itself
+        drop.scroll = std::max(0, drop.scroll - clicks * 2);   // drawDrop clamps the upper end
+        return 1;
+    }
     drop.open = false;   // the rows move under it
     for (const ScrollArea& s : scrolls)
         if (s.r.has(x, y)) *s.value = std::max(0, std::min(s.max, *s.value - clicks * 2));

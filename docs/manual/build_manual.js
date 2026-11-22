@@ -239,7 +239,7 @@ add(h1("4  The app and its windows"));
 add(p("Open the window from the menu bar icon (**Open settings...**, Command-comma). It has a bar at the top, a row of tabs, and a status area at the bottom. The pages editor opens in a window of its own."));
 add(h2("4.1  The top bar"));
 add(bullet("**Status line**: whether the stick is connected, the mode it is in (\"Mode 2\", or \"Pinkie + 2\" while the pinkie is held), and whether the plugin is driving it. The dot is green for the app, blue when the plugin is active, grey when no stick is found."));
-add(bullet("**Profile**: the profile being edited. Ready-made ones are marked \"(ready-made)\"."));
+add(bullet("**Profile**: the profile being edited. Click it to open a list with two groups, **Your profiles** and **Ready-made profiles**; the **+** / **-** in front of a group unfolds or folds it, and the list grows to fit but never past the window (it scrolls). Below it, one line is kept free for messages (an error, or the notice that a ready-made profile is selected), so the window does not jump."));
 add(bullet("**The menu (three dots)**: New blank profile, Save as new profile, Delete this profile."));
 add(bullet("**Undo delete**: appears after you delete a profile."));
 add(bullet("**The blue bar**: shown while a ready-made profile is selected, with **Save as new profile...**."));
@@ -352,7 +352,7 @@ add(bullet("The screen as the stick shows it right now, what is held, and the pr
 add(h3("Axes"));
 add(p("The same as the app's Axes tab (section 4.9): every control the stick reports, the two switches that let the plugin process the flight axes, and the dead zone, expo and steady values."));
 add(h2("5.3  Picking a profile"));
-add(bullet("**In the window:** **Change profile...** lists every profile, including ones you imported, and **Automatic** to go back to the aircraft's own profile or Default. A profile picked here stays until the aircraft changes; the window says \"(picked)\"."));
+add(bullet("**In the window:** **Change profile...** lists every profile in two groups, **Your profiles** and **Ready-made profiles** (click **[+]** / **[-]** to unfold or fold a group; a long list scrolls), including ones you imported, and **Automatic** to go back to the aircraft's own profile or Default. A profile picked here stays until the aircraft changes; the window says \"(picked)\"."));
 add(bullet("**On the stick:** hold the clutch, push the main POV hat up or down to scroll through the profiles, right to use the one shown, left to go back to automatic. (X-Plane also sees the hat, so the view may move while you do this.)"));
 add(bullet("**In the app:** the **Profile** picker. The app's choice is used when X-Plane is not running."));
 add(h2("5.4  The stick while you fly"));

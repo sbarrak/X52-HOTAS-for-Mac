@@ -826,11 +826,26 @@ TEST(the_window_has_a_profile_picker) {
     other.name = "Other";
     std::string err;
     CHECK(gApp->store.save("Other", other, &err));
+    {   // a ready-made profile next to it, so the dropdown has both groups
+        Profile ready = defaultProfile();
+        ready.name = "Readymade";
+        CHECK(gApp->store.save("Readymade", ready, &err));
+        std::ofstream f(gApp->store.pathFor("Readymade"), std::ios::app);
+        f << "standard = 1\n";
+    }
     CHECK(gApp->manualKey.empty());
     CHECK(sim().clickText("Change profile...", 0, true));
     sim().frame();
     CHECK(sim().sees("Automatic (aircraft, else Default)"));
-    CHECK(sim().clickText("Other", 0, true));
+    CHECK(sim().sees("[-] Your profiles ("));                 // the user's group starts unfolded, the ready-made one folded
+    CHECK(sim().sees("[+] Ready-made profiles ("));
+    CHECK(!sim().sees("      Readymade"));
+    CHECK(sim().clickText("[+] Ready-made profiles (", 0, false));   // unfolding keeps the list open
+    CHECK(sim().sees("[-] Ready-made profiles ("));
+    CHECK(sim().sees("      Readymade"));
+    CHECK(sim().clickText("[-] Ready-made profiles (", 0, false));
+    CHECK(!sim().sees("      Readymade"));
+    CHECK(sim().clickText("      Other", 0, true));
     CHECK_EQ(gApp->manualKey, std::string("Other"));
     CHECK_EQ(gApp->profile.name, std::string("Other"));
     sim().frame();
@@ -842,6 +857,7 @@ TEST(the_window_has_a_profile_picker) {
     CHECK(gApp->manualKey.empty());
     CHECK_EQ(gApp->profile.name, gApp->usingAircraftProfile ? gApp->aircraft : std::string("default"));
     gApp->store.remove("Other");
+    gApp->store.remove("Readymade");
 }
 
 TEST(the_brightness_page_changes_and_saves_the_screen_and_light_brightness) {

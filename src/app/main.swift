@@ -346,26 +346,131 @@ func profileTitle(_ key: String) -> String {
     key == "default" ? "Default (all aircraft)" : key.hasPrefix("aircraft-") ? String(key.dropFirst(9)) : key
 }
 
-// The picker's line for a profile: ready-made ones say so.
-func pickerTitle(_ key: String, _ standard: Set<String>) -> String {
-    profileTitle(key) + (standard.contains(key) ? "  (ready-made)" : "")
+// A profile dropdown whose two groups (the user's own, and the ready-made ones) fold open with a + and shut with a -.
+// Opening it shows the group of the current profile unfolded; picking a profile closes it.
+final class PickerState: ObservableObject {
+    @Published var shown = false
+    @Published var openMine = true
+    @Published var openReady = false
+    @Published var contentH: CGFloat = 60
+    @Published var maxH: CGFloat = 420
+}
+
+private struct PickerHeight: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+struct ProfilePicker: View {
+    @ObservedObject var m: Model
+    var onSelect: (String) -> Void
+    @StateObject private var ui = PickerState()
+
+    private var mine: [String] { m.profiles.filter { !m.standardKeys.contains($0) } }
+    private var ready: [String] { m.profiles.filter { m.standardKeys.contains($0) } }
+
+    var body: some View {
+        Button {
+            let inReady = m.standardKeys.contains(m.key)
+            ui.openMine = !inReady || ready.isEmpty
+            ui.openReady = inReady || mine.isEmpty
+            // never taller than the window; the list scrolls beyond that
+            let winH = NSApp.keyWindow?.contentView?.bounds.height ?? 600
+            ui.maxH = max(120, winH - 60)
+            ui.shown = true
+        } label: {
+            HStack(spacing: 6) {
+                Text(profileTitle(m.key)).lineLimit(1).truncationMode(.tail)
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.up.chevron.down").font(.caption2).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .popover(isPresented: $ui.shown, arrowEdge: .bottom) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    group("Your profiles", mine, $ui.openMine)
+                    group("Ready-made profiles", ready, $ui.openReady)
+                }
+                .padding(8)
+                .background(GeometryReader { g in Color.clear.preference(key: PickerHeight.self, value: g.size.height) })
+            }
+            .onPreferenceChange(PickerHeight.self) { ui.contentH = $0 }
+            .frame(width: 280, height: min(ui.contentH, ui.maxH))
+        }
+    }
+
+    @ViewBuilder private func group(_ title: String, _ keys: [String], _ open: Binding<Bool>) -> some View {
+        if !keys.isEmpty {
+            Button { open.wrappedValue.toggle() } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: open.wrappedValue ? "minus.square" : "plus.square")
+                    Text(title).fontWeight(.semibold)
+                    Text("(\(keys.count))").foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.vertical, 3)
+            if open.wrappedValue {
+                ForEach(keys, id: \.self) { k in
+                    Button { ui.shown = false; onSelect(k) } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark").opacity(k == m.key ? 1 : 0).frame(width: 14)
+                            Text(profileTitle(k)).lineLimit(1)
+                            Spacer()
+                        }
+                        .padding(.vertical, 2).padding(.horizontal, 4)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(k == m.key ? Color.accentColor.opacity(0.18) : Color.clear))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.leading, 16)
+                }
+            }
+        }
+    }
 }
 
 // Shown above the tabs while a ready-made profile is selected.
 struct StandardBanner: View {
     @ObservedObject var m: Model
     var body: some View {
-        if m.isStandard {
-            HStack(spacing: 10) {
-                Image(systemName: "lock.fill")
-                Text("Ready-made profile: it is never changed, so you can always go back to it. A change is saved as a new profile of yours.")
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 8)
-                Button("Save as new profile...") { x52_copy_ask(); m.tick() }
-            }
-            .padding(8)
-            .background(RoundedRectangle(cornerRadius: 6).fill(Color.accentColor.opacity(0.12)))
+        HStack(spacing: 10) {
+            Image(systemName: "lock.fill")
+            Text("Ready-made profile: never changed. A change is saved as a new profile of yours.").lineLimit(1)
+            Spacer(minLength: 8)
+            Button("Save as new profile...") { x52_copy_ask(); m.tick() }
         }
+        .padding(.horizontal, 8)
+        .frame(maxHeight: .infinity)
+        .background(RoundedRectangle(cornerRadius: 6).fill(Color.accentColor.opacity(0.12)))
+    }
+}
+
+// One line of status under the header, always the same height so nothing below it moves. It shows the most
+// important message: an error, else the ready-made notice, else (main window) the note about the plugin.
+struct StatusStrip: View {
+    @ObservedObject var m: Model
+    var pluginNote = false
+    static let height: CGFloat = 34
+    var body: some View {
+        Group {
+            if !m.error.isEmpty {
+                Text(m.error).foregroundStyle(.red).lineLimit(2).font(.callout)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            } else if m.isStandard {
+                StandardBanner(m: m)
+            } else if pluginNote && m.pluginActive {
+                Text("Changes you make here are saved, and X-Plane applies them within a second.")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            } else {
+                Color.clear
+            }
+        }
+        .frame(height: StatusStrip.height)
     }
 }
 
@@ -2016,17 +2121,12 @@ struct PagesEditor: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Pages of the profile").font(.headline)
-                Picker("", selection: Binding(get: { m.key }, set: { m.select($0); m.pageSel = ""; m.pageNote = "" })) {
-                    ForEach(m.profiles, id: \.self) { Text(pickerTitle($0, m.standardKeys)).tag($0) }
-                }
-                .labelsHidden().frame(width: 280)
+                ProfilePicker(m: m) { m.select($0); m.pageSel = ""; m.pageNote = "" }
+                    .frame(width: 280)
                 Spacer()
                 RestorePagesButton(m: m)
             }
-            if !m.error.isEmpty {
-                Text(m.error).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
-            }
-            StandardBanner(m: m)
+            StatusStrip(m: m)
             HStack(alignment: .top, spacing: 14) {
                 VStack(alignment: .leading, spacing: 8) {
                     PageList(m: m)
@@ -2106,10 +2206,8 @@ struct SettingsView: View {
                     Button("Undo delete") { m.undoDelete() }
                         .help("Brings back “\(profileTitle(m.lastDeleted))”")
                 }
-                Picker("Profile", selection: Binding(get: { m.key }, set: { m.select($0) })) {
-                    ForEach(m.profiles, id: \.self) { Text(pickerTitle($0, m.standardKeys)).tag($0) }
-                }
-                .frame(width: 280)
+                ProfilePicker(m: m) { m.select($0) }
+                    .frame(width: 280)
                 Menu {
                     Button("New blank profile...") { m.newBlank() }
                     Button("Save as new profile...") { x52_copy_ask(); m.tick() }
@@ -2121,14 +2219,7 @@ struct SettingsView: View {
                 .menuStyle(.borderlessButton).fixedSize()
                 .help(m.canDelete ? "New, copy or delete a profile" : "New or copy a profile (Default and ready-made profiles are never deleted)")
             }
-            if m.pluginActive {
-                Text("Changes you make here are saved, and X-Plane applies them within a second.")
-                    .font(.callout).foregroundStyle(.secondary)
-            }
-            if !m.error.isEmpty {
-                Text(m.error).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
-            }
-            StandardBanner(m: m)
+            StatusStrip(m: m, pluginNote: true)
             // A scrolling strip of tabs, so a narrow window never hides some behind a ">>" menu.
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
