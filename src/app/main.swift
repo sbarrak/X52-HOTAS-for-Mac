@@ -74,6 +74,8 @@ final class Model: ObservableObject {
     @Published var pagePreviewLive = false      // with numbers from X-Plane (otherwise made up)
     var openPagesEditor: () -> Void = {}
     @Published var isStandard = false            // the profile being edited is ready-made (never changed)
+    @Published var canUndo = false               // there is an edit to take back (never for a ready-made profile)
+    @Published var canRedo = false
     @Published var standardKeys: Set<String> = []
     private var askingCopy = false
     var snapshotMode = false            // drawing pictures for the project: never ask for a name
@@ -128,6 +130,8 @@ final class Model: ObservableObject {
         set(\.screen, (0..<3).map { str(x52_screen(Int32($0))) })
         set(\.revision, Int(x52_revision()))
         set(\.isStandard, x52_standard() != 0)
+        set(\.canUndo, x52_can_undo() != 0)
+        set(\.canRedo, x52_can_redo() != 0)
         if x52_copy_needed() != 0 && !askingCopy {
             if snapshotMode || Date() < ignoreCopyUntil || (copyDeclined && NSEvent.pressedMouseButtons != 0) {
                 // Still the gesture that was just cancelled (a stepper or slider keeps repeating while the
@@ -283,6 +287,8 @@ final class Model: ObservableObject {
         }
         keyChanged()
     }
+    func undo() { if x52_undo() != 0 { tick() } }
+    func redo() { if x52_redo() != 0 { tick() } }
     func undoDelete() {
         if x52_restore_profile(lastDeleted) != 0 { lastDeleted = "" }
         keyChanged()
@@ -344,6 +350,62 @@ func plural(_ n: Int, _ word: String) -> String { n == 1 ? "1 \(word)" : "\(n) \
 
 func profileTitle(_ key: String) -> String {
     key == "default" ? "Default (all aircraft)" : key.hasPrefix("aircraft-") ? String(key.dropFirst(9)) : key
+}
+
+// A tip that shows after the pointer has rested on the view for two seconds (the system's own help tag is faster
+// and cannot be set), under the view and above what follows it.
+final class TipState: ObservableObject {
+    @Published var show = false
+    var task: Task<Void, Never>?
+}
+
+struct DelayedTip: ViewModifier {
+    let text: String
+    @StateObject private var st = TipState()
+    func body(content: Content) -> some View {
+        content
+            .onHover { inside in
+                st.task?.cancel()
+                st.show = false
+                guard inside else { return }
+                st.task = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    if !Task.isCancelled { st.show = true }
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                if st.show {
+                    Text(text)
+                        .font(.caption)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(RoundedRectangle(cornerRadius: 5).fill(Color(nsColor: .windowBackgroundColor)))
+                        .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.secondary.opacity(0.5), lineWidth: 0.5))
+                        .shadow(radius: 2)
+                        .fixedSize()
+                        .offset(y: 32)
+                        .allowsHitTesting(false)
+                }
+            }
+    }
+}
+
+extension View {
+    func delayedTip(_ text: String) -> some View { modifier(DelayedTip(text: text)) }
+}
+
+// Undo and redo for the edits to the profile in use.
+struct UndoRedoButtons: View {
+    @ObservedObject var m: Model
+    var body: some View {
+        HStack(spacing: 2) {
+            Button { m.undo() } label: { Image(systemName: "arrow.uturn.backward") }
+                .disabled(!m.canUndo)
+                .delayedTip(m.canUndo ? "Undo the last change  (⌘Z)" : m.isStandard ? "Ready-made profiles are never changed" : "Nothing to undo")
+            Button { m.redo() } label: { Image(systemName: "arrow.uturn.forward") }
+                .disabled(!m.canRedo)
+                .delayedTip(m.canRedo ? "Redo  (⇧⌘Z)" : "Nothing to redo")
+        }
+    }
 }
 
 // A profile dropdown whose two groups (the user's own, and the ready-made ones) fold open with a + and shut with a -.
@@ -2206,6 +2268,7 @@ struct SettingsView: View {
                     Button("Undo delete") { m.undoDelete() }
                         .help("Brings back “\(profileTitle(m.lastDeleted))”")
                 }
+                UndoRedoButtons(m: m)
                 ProfilePicker(m: m) { m.select($0) }
                     .frame(width: 280)
                 Menu {
@@ -2219,6 +2282,7 @@ struct SettingsView: View {
                 .menuStyle(.borderlessButton).fixedSize()
                 .help(m.canDelete ? "New, copy or delete a profile" : "New or copy a profile (Default and ready-made profiles are never deleted)")
             }
+            .zIndex(1)
             StatusStrip(m: m, pluginNote: true)
             // A scrolling strip of tabs, so a narrow window never hides some behind a ">>" menu.
             ScrollView(.horizontal, showsIndicators: false) {
@@ -2290,7 +2354,7 @@ struct SettingsView: View {
 /// The version in the app's Info.plist (set from the VERSION file when the app is built).
 let appVersion: String = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "dev"
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation {
     let model = Model()
     var item: NSStatusItem!
     var window: NSWindow?
@@ -2414,6 +2478,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let event = NSAppleEventManager.shared().currentAppleEvent else { return false }
         return event.eventID == kAEOpenApplication
             && event.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
+    }
+
+    // Edit > Undo / Redo (Command+Z, Shift+Command+Z) when no text field is being edited: a field keeps its own.
+    @objc func undo(_ sender: Any?) { model.undo() }
+    @objc func redo(_ sender: Any?) { model.redo() }
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if item.action == #selector(undo(_:)) { return model.canUndo }
+        if item.action == #selector(redo(_:)) { return model.canRedo }
+        return true
     }
 
     func menuWillOpen(_ menu: NSMenu) {

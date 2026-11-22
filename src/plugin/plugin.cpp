@@ -377,7 +377,7 @@ float flightLoop(float, float, int, void*) {
 
 // ---- plugin commands and menu
 
-XPLMCommandRef cmdPageNext, cmdPagePrev, cmdWindow, cmdReload, cmdTest, cmdUp, cmdDown, cmdSelect;
+XPLMCommandRef cmdPageNext, cmdPagePrev, cmdWindow, cmdReload, cmdTest, cmdUp, cmdDown, cmdSelect, cmdUndo, cmdRedo;
 XPLMMenuID menu = nullptr;
 int menuItem = -1;
 
@@ -392,6 +392,8 @@ int onCommand(XPLMCommandRef cmd, XPLMCommandPhase phase, void*) {
     else if (cmd == cmdWindow) uiToggle();
     else if (cmd == cmdReload) a.reload();
     else if (cmd == cmdTest) a.setTestMode(!a.testMode);
+    else if (cmd == cmdUndo) a.undo();
+    else if (cmd == cmdRedo) a.redo();
     a.nextDeviceUpdate = 0;   // show the new page at once
     return 1;
 }
@@ -401,6 +403,8 @@ void onMenu(void*, void* item) {
     if (which == 1) uiToggle();
     else if (which == 2) gApp->reload();
     else if (which == 3) gApp->setTestMode(!gApp->testMode);
+    else if (which == 4) gApp->undo();
+    else if (which == 5) gApp->redo();
 }
 
 std::string currentAircraft() {
@@ -692,6 +696,47 @@ void App::profileChanged() {
         logLine(notice);
     }
     loadedStamp = store.stamp(profileKey());
+    trackHistory();
+}
+
+void App::trackHistory() {
+    std::string key = profileKey(), text = serialize(profile);
+    if (key != historyKey) {
+        historyKey = key;
+        history.reset(text);
+    } else if (!profile.standard) {
+        history.record(text, now());
+    }
+}
+
+// Puts a remembered state of the profile back: written to the file like any edit.
+static bool applyHistory(App& a, const std::string& text) {
+    Profile p;
+    std::string err;
+    if (!parse(text, p, &err)) return false;
+    if (a.saveBlocked) {
+        a.notice = "Not saved: the profile file has a mistake. Fix or delete it, then Plugins > X52 Pro > Reload.";
+        return false;
+    }
+    if (!a.store.save(a.profileKey(), p, &err)) {
+        a.notice = "Could not undo: " + err;
+        return false;
+    }
+    a.profile = p;
+    a.engine.setProfile(a.profile);
+    a.loadedStamp = a.store.stamp(a.profileKey());
+    a.history.adopt(serialize(a.profile));
+    return true;
+}
+
+bool App::undo() {
+    std::string text;
+    return canUndo() && history.undo(text) && applyHistory(*this, text);
+}
+
+bool App::redo() {
+    std::string text;
+    return canRedo() && history.redo(text) && applyHistory(*this, text);
 }
 
 // The aircraft's description as X-Plane keeps it ("Cessna Citation X"); the app uses it to find the aircraft's
@@ -751,6 +796,7 @@ void App::reload() {
     }
     engine.setProfile(profile);
     logLine("using profile '" + profile.name + "' (" + store.pathFor(key) + ")");
+    trackHistory();
 }
 
 void App::makeAircraftProfile() {
@@ -954,7 +1000,9 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc) {
     cmdUp = XPLMCreateCommand("x52pro/mfd_up", "X52 Pro: screen cursor up (or value up while editing)");
     cmdDown = XPLMCreateCommand("x52pro/mfd_down", "X52 Pro: screen cursor down (or value down while editing)");
     cmdSelect = XPLMCreateCommand("x52pro/mfd_select", "X52 Pro: screen select (swap active/standby, start or stop editing)");
-    for (XPLMCommandRef c : {cmdPageNext, cmdPagePrev, cmdWindow, cmdReload, cmdTest, cmdUp, cmdDown, cmdSelect})
+    cmdUndo = XPLMCreateCommand("x52pro/undo", "X52 Pro: undo the last change to the profile");
+    cmdRedo = XPLMCreateCommand("x52pro/redo", "X52 Pro: redo the change that was undone");
+    for (XPLMCommandRef c : {cmdPageNext, cmdPagePrev, cmdWindow, cmdReload, cmdTest, cmdUp, cmdDown, cmdSelect, cmdUndo, cmdRedo})
         XPLMRegisterCommandHandler(c, onCommand, 1, nullptr);
 
     menuItem = XPLMAppendMenuItem(XPLMFindPluginsMenu(), "X52 Pro", nullptr, 0);
@@ -962,6 +1010,8 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc) {
     XPLMAppendMenuItem(menu, "Program buttons...", (void*)1, 0);
     XPLMAppendMenuItem(menu, "Reload profile from disk", (void*)2, 0);
     XPLMAppendMenuItem(menu, "Test mode on/off (names controls on the stick's screen)", (void*)3, 0);
+    XPLMAppendMenuItem(menu, "Undo last profile change", (void*)4, 0);
+    XPLMAppendMenuItem(menu, "Redo profile change", (void*)5, 0);
 
     findRefs();
     return 1;
@@ -993,7 +1043,7 @@ PLUGIN_API void XPluginDisable(void) {
 }
 
 PLUGIN_API void XPluginStop(void) {
-    for (XPLMCommandRef c : {cmdPageNext, cmdPagePrev, cmdWindow, cmdReload, cmdTest, cmdUp, cmdDown, cmdSelect})
+    for (XPLMCommandRef c : {cmdPageNext, cmdPagePrev, cmdWindow, cmdReload, cmdTest, cmdUp, cmdDown, cmdSelect, cmdUndo, cmdRedo})
         XPLMUnregisterCommandHandler(c, onCommand, 1, nullptr);
     if (menu) XPLMDestroyMenu(menu);
     if (menuItem >= 0) XPLMRemoveMenuItem(XPLMFindPluginsMenu(), menuItem);

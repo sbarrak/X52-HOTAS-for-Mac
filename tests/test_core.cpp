@@ -10,6 +10,7 @@
 #include "../src/core/pagetree.h"
 #include "../src/core/pageview.h"
 #include "../src/core/engine.h"
+#include "../src/core/history.h"
 #include "../src/core/keys.h"
 #include "../src/core/mfd.h"
 #include "../src/core/pages.h"
@@ -2123,4 +2124,56 @@ TEST(a_mode_with_only_hidden_pages_is_its_own_and_hiding_everything_keeps_button
     std::vector<WheelEntry> e = wheelEntries(q, 3);
     CHECK_EQ(e[0].token, std::string("com1"));
     CHECK(e[0].hidden);
+}
+
+TEST(history_undoes_and_redoes_steps) {
+    History h;
+    h.reset("a");
+    CHECK(!h.canUndo() && !h.canRedo());
+    h.record("b", 10);
+    h.record("c", 20);
+    std::string t;
+    CHECK(h.undo(t));
+    CHECK_EQ(t, std::string("b"));
+    CHECK(h.undo(t));
+    CHECK_EQ(t, std::string("a"));
+    CHECK(!h.undo(t));
+    CHECK(h.redo(t));
+    CHECK_EQ(t, std::string("b"));
+    h.record("x", 30);                       // a new edit drops what could be redone
+    CHECK(!h.canRedo());
+    CHECK(h.undo(t));
+    CHECK_EQ(t, std::string("b"));
+}
+
+TEST(history_joins_quick_edits_into_one_step) {
+    History h;
+    h.reset("a");
+    h.record("b", 10.0);
+    h.record("c", 10.4);                     // a drag: edits within a second of each other
+    h.record("d", 11.0);
+    std::string t;
+    CHECK(h.undo(t));
+    CHECK_EQ(t, std::string("a"));           // all three at once
+    CHECK(!h.canUndo());
+    h.record("e", 12.0);
+    h.undo(t);                               // a step made by undo never joins the next edit
+    h.record("f", 12.1);
+    CHECK(h.undo(t));
+    CHECK_EQ(t, std::string("a"));
+}
+
+TEST(history_ignores_no_change_and_is_capped) {
+    History h;
+    h.reset("a");
+    h.record("a", 1);
+    CHECK(!h.canUndo());
+    for (int i = 1; i <= 80; ++i) h.record(std::to_string(i), i * 10.0);
+    int steps = 0;
+    std::string t;
+    while (h.undo(t)) ++steps;
+    CHECK_EQ(steps, (int)History::kMax);
+    h.reset("z");
+    CHECK(!h.canUndo());
+    CHECK_EQ(h.current(), std::string("z"));
 }

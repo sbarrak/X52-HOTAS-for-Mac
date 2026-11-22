@@ -365,6 +365,11 @@ Other things to know:
   expo curve and optional inversion, and writes the result into X-Plane (it sets X-Plane's
   `override_joystick` / `override_throttles`, and releases them when you untick it). The throttle is only
   taken over once it has moved. Test mode on the Settings tab also names moving controls on the stick's screen.
+- **Undo and redo:** the arrows next to the profile picker (and Edit > Undo / Redo, Command+Z and Shift+Command+Z)
+  take back and bring back your changes to the profile in use, up to 50 steps; quick edits such as a slider drag
+  count as one. In the X-Plane window the same are the **Undo** and **Redo** buttons beside **Change profile...**,
+  the items under Plugins > X52 Pro, and the commands `x52pro/undo` and `x52pro/redo`. Ready-made profiles are never
+  changed, so there is nothing to undo on them.
 - **Picking a profile in the window:** **Change profile...** (top right, next to the tabs) lists every profile,
   in two groups, **Your profiles** and **Ready-made profiles**, that fold open with **[+]** and shut with **[-]**
   (the group of the current profile starts open; a long list scrolls), and **Automatic** to go back to the

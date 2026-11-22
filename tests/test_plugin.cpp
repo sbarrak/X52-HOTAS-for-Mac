@@ -860,6 +860,50 @@ TEST(the_window_has_a_profile_picker) {
     gApp->store.remove("Readymade");
 }
 
+TEST(the_window_has_undo_and_redo_for_profile_changes) {
+    gApp->manualKey.clear();
+    gApp->reload();                                           // a fresh history for the profile in use
+    sim().frame();
+    CHECK(!gApp->canUndo());
+    CHECK(sim().sees("Undo") && sim().sees("Redo"));
+    int original = gApp->profile.ledBrightness;
+    gApp->profile.ledBrightness = original == 50 ? 60 : 50;
+    gApp->profileChanged();
+    int changed = gApp->profile.ledBrightness;
+    sim().frame();
+    CHECK(gApp->canUndo() && !gApp->canRedo());
+    CHECK(sim().clickText("Undo", 0, true));
+    CHECK_EQ(gApp->profile.ledBrightness, original);
+    CHECK(has(slurp(gApp->store.pathFor(gApp->profileKey())), "led_brightness = " + std::to_string(original)));
+    sim().frame();
+    CHECK(!gApp->canUndo() && gApp->canRedo());
+    CHECK(sim().clickText("Redo", 0, true));
+    CHECK_EQ(gApp->profile.ledBrightness, changed);
+    sim().key('z', 'Z', xplm_ControlFlag);                    // Command+Z while the window has the keyboard
+    CHECK_EQ(gApp->profile.ledBrightness, original);
+    sim().key('z', 'Z', xplm_ControlFlag | xplm_ShiftFlag);   // Shift+Command+Z
+    CHECK_EQ(gApp->profile.ledBrightness, changed);
+    gApp->undo();
+    gApp->reload();
+}
+
+TEST(the_undo_and_redo_buttons_show_a_tip_when_the_mouse_rests_on_them) {
+    gApp->reload();
+    gApp->history.reset(serialize(gApp->profile));            // nothing to undo or redo
+    sim().frame();
+    CHECK(!sim().sees("Nothing to redo"));
+    double saved = uiTipDelay;
+    uiTipDelay = 0;
+    CHECK(sim().hoverText("Redo", 0, true));
+    sim().frame();
+    sim().frame();
+    CHECK(sim().sees("Nothing to redo"));
+    uiTipDelay = 2.0;
+    sim().frame();
+    CHECK(!sim().sees("Nothing to redo"));                   // a longer wait: not yet
+    uiTipDelay = saved;
+}
+
 TEST(the_brightness_page_changes_and_saves_the_screen_and_light_brightness) {
     gApp->profile.pages = PageTree();
     gApp->profile.brightScreen = BrightnessLink();

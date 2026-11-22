@@ -205,6 +205,11 @@ const char* x52_profiles(void);                // keys, one per line
 // Ready-made profiles (standard) are never changed. Any change to one waits (x52_copy_needed) for a name:
 // x52_copy_save puts it, and the changes after it, into a new profile and switches to it ("" on success, else why);
 // x52_copy_cancel drops them. x52_copy_ask asks for a name without a change waiting ("Save as new profile").
+// Undo / redo of the edits to the profile in use (never for a ready-made one). x52_undo / x52_redo: 1 when a step was made.
+int x52_can_undo(void);
+int x52_can_redo(void);
+int x52_undo(void);
+int x52_redo(void);
 int x52_standard(void);                        // the profile being edited is a ready-made one
 int x52_profile_standard(const char* key);
 int x52_copy_needed(void);

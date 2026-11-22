@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "../core/engine.h"
+#include "../core/history.h"
 #include "../core/mfd.h"
 #include "../core/profile.h"
 #include "../mac/x52device.h"
@@ -37,6 +38,12 @@ public:
     // On a ready-made (standard) profile nothing is saved: the edit waits (copyNeeded()) until saveCopy() puts it,
     // and any after it, into a new profile, or cancelCopy() drops them.
     bool change(const std::function<void(Profile&)>& edit);
+    // Undo / redo of the edits made to the profile in use (here, in the plugin's window or by hand), as long as it
+    // stays the one in use. Not for ready-made profiles: they are never changed. Both write the file.
+    bool canUndo() const { return !profile_.standard && history_.canUndo(); }
+    bool canRedo() const { return !profile_.standard && history_.canRedo(); }
+    bool undo();
+    bool redo();
     bool copyNeeded() const { return copyAsked_; }
     void askCopy() { copyAsked_ = true; ++revision_; }        // "Save as new profile" without a change waiting
     // A new profile `name` made from this one with the waiting edits applied, switched to. False (see error) when the
@@ -130,6 +137,10 @@ private:
     std::unique_ptr<SimLink> link_;
     int simPort_ = kXPlaneUdpPort;
     Store store_;
+    History history_;
+    std::string historyKey_;                 // the profile the history belongs to
+    void observeHistory();                   // the profile may have changed: note it (or start over for a new profile)
+    bool applyHistory(const std::string& text);
     std::string key_ = "default";
     Profile profile_;
     Engine engine_;
