@@ -346,24 +346,76 @@ func profileTitle(_ key: String) -> String {
     key == "default" ? "Default (all aircraft)" : key.hasPrefix("aircraft-") ? String(key.dropFirst(9)) : key
 }
 
-// One profile menu with two labelled groups: the user's own profiles first, then the ready-made ones.
-// A group's header is left out when the other group is empty, so a menu with only one kind stays plain.
+// A profile dropdown whose two groups (the user's own, and the ready-made ones) fold open with a + and shut with a -.
+// Opening it shows the group of the current profile unfolded; picking a profile closes it.
+final class PickerState: ObservableObject {
+    @Published var shown = false
+    @Published var openMine = true
+    @Published var openReady = false
+}
+
 struct ProfilePicker: View {
     @ObservedObject var m: Model
-    var label: String = ""
     var onSelect: (String) -> Void
+    @StateObject private var ui = PickerState()
+
+    private var mine: [String] { m.profiles.filter { !m.standardKeys.contains($0) } }
+    private var ready: [String] { m.profiles.filter { m.standardKeys.contains($0) } }
+
     var body: some View {
-        let mine = m.profiles.filter { !m.standardKeys.contains($0) }
-        let ready = m.profiles.filter { m.standardKeys.contains($0) }
-        Picker(label, selection: Binding(get: { m.key }, set: onSelect)) {
-            if mine.isEmpty || ready.isEmpty {
-                ForEach(m.profiles, id: \.self) { Text(profileTitle($0)).tag($0) }
-            } else {
-                Section("Your profiles") {
-                    ForEach(mine, id: \.self) { Text(profileTitle($0)).tag($0) }
+        Button {
+            let inReady = m.standardKeys.contains(m.key)
+            ui.openMine = !inReady || ready.isEmpty
+            ui.openReady = inReady || mine.isEmpty
+            ui.shown = true
+        } label: {
+            HStack(spacing: 6) {
+                Text(profileTitle(m.key)).lineLimit(1).truncationMode(.tail)
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.up.chevron.down").font(.caption2).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .popover(isPresented: $ui.shown, arrowEdge: .bottom) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    group("Your profiles", mine, $ui.openMine)
+                    group("Ready-made profiles", ready, $ui.openReady)
                 }
-                Section("Ready-made profiles") {
-                    ForEach(ready, id: \.self) { Text(profileTitle($0)).tag($0) }
+                .padding(8)
+            }
+            .frame(width: 280)
+            .frame(maxHeight: 420)
+        }
+    }
+
+    @ViewBuilder private func group(_ title: String, _ keys: [String], _ open: Binding<Bool>) -> some View {
+        if !keys.isEmpty {
+            Button { open.wrappedValue.toggle() } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: open.wrappedValue ? "minus.square" : "plus.square")
+                    Text(title).fontWeight(.semibold)
+                    Text("(\(keys.count))").foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.vertical, 3)
+            if open.wrappedValue {
+                ForEach(keys, id: \.self) { k in
+                    Button { ui.shown = false; onSelect(k) } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark").opacity(k == m.key ? 1 : 0).frame(width: 14)
+                            Text(profileTitle(k)).lineLimit(1)
+                            Spacer()
+                        }
+                        .padding(.vertical, 2).padding(.horizontal, 4)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(k == m.key ? Color.accentColor.opacity(0.18) : Color.clear))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.leading, 16)
                 }
             }
         }
@@ -2036,7 +2088,7 @@ struct PagesEditor: View {
             HStack {
                 Text("Pages of the profile").font(.headline)
                 ProfilePicker(m: m) { m.select($0); m.pageSel = ""; m.pageNote = "" }
-                    .labelsHidden().frame(width: 280)
+                    .frame(width: 280)
                 Spacer()
                 RestorePagesButton(m: m)
             }
@@ -2123,7 +2175,7 @@ struct SettingsView: View {
                     Button("Undo delete") { m.undoDelete() }
                         .help("Brings back “\(profileTitle(m.lastDeleted))”")
                 }
-                ProfilePicker(m: m, label: "Profile") { m.select($0) }
+                ProfilePicker(m: m) { m.select($0) }
                     .frame(width: 280)
                 Menu {
                     Button("New blank profile...") { m.newBlank() }
