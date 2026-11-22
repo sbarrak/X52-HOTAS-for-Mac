@@ -10,6 +10,7 @@
 #include "../core/mfd.h"
 #include "../core/pages.h"
 #include "../core/pageview.h"
+#include "../core/history.h"
 #include "../core/profile.h"
 #include "../core/xpjoy.h"
 #include "../mac/x52device.h"
@@ -90,6 +91,14 @@ struct App : Host {
 
     // Called by the window after it changed `profile`: applies and saves it.
     void profileChanged();
+    // Undo / redo of the edits to the profile in use (never for a ready-made one); each writes the file.
+    bool canUndo() const { return !profile.standard && history.canUndo(); }
+    bool canRedo() const { return !profile.standard && history.canRedo(); }
+    bool undo();
+    bool redo();
+    History history;
+    std::string historyKey;                 // the profile the history belongs to
+    void trackHistory();                    // `profile` may have changed: note it (or start over for another profile)
     void loadForAircraft(const std::string& acfName);
     void makeAircraftProfile();
     // A copy of the profile in use, with this flight's changes, under a free name ("<title> mine"); a copy of a
@@ -145,6 +154,7 @@ std::string datarefReport(const std::string& spec);
 
 // ui.cpp
 #ifdef X52_NO_GL
+extern double uiTipDelay;           // seconds the mouse rests on a button before its tip shows (tests set it to 0)
 extern std::string uiTestClipboard;   // unit tests: stands in for the Mac clipboard
 #endif
 void uiCreate();

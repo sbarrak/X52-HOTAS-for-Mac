@@ -50,6 +50,48 @@ void Agent::reload() {
     profile_ = p;
     engine_.setProfile(profile_);
     ++revision_;
+    observeHistory();
+}
+
+void Agent::observeHistory() {
+    std::string text = serialize(profile_);
+    if (key_ != historyKey_) {
+        historyKey_ = key_;
+        history_.reset(text);
+    } else if (!profile_.standard) {
+        history_.record(text, now());
+    }
+}
+
+// Puts a remembered state back: written to the file like any edit, then read as the profile in use.
+bool Agent::applyHistory(const std::string& text) {
+    Profile p;
+    std::string err;
+    if (!parse(text, p, &err) || !store_.save(key_, p, &err)) {
+        error_ = "Could not undo: " + err;
+        ++revision_;
+        return false;
+    }
+    error_.clear();
+    stamp_ = store_.stamp(key_);
+    profile_ = p;
+    engine_.setProfile(profile_);
+    history_.adopt(serialize(profile_));
+    ++revision_;
+    nextSlow_ = 0;
+    return true;
+}
+
+bool Agent::undo() {
+    std::string text;
+    if (!canUndo() || !history_.undo(text)) return false;
+    return applyHistory(text);
+}
+
+bool Agent::redo() {
+    std::string text;
+    if (!canRedo() || !history_.redo(text)) return false;
+    return applyHistory(text);
 }
 
 bool Agent::change(const std::function<void(Profile&)>& edit) {
@@ -82,6 +124,7 @@ bool Agent::change(const std::function<void(Profile&)>& edit) {
     engine_.setProfile(profile_);
     ++revision_;
     nextSlow_ = 0;
+    observeHistory();
     return true;
 }
 

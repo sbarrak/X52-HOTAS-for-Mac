@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.1.1
+
+### Added
+- **Undo and redo for profile changes**, in the app and in the X-Plane window. Every edit to the profile in use
+  (lights, alarms, buttons, screen pages, axes, ...) can be taken back and brought back, up to 50 steps.
+  - App: **Undo** and **Redo** arrows at the top, next to the profile picker; Edit > Undo / Redo, **Command+Z**
+    and **Shift+Command+Z**. While a text field is being edited, that field keeps its own undo.
+  - X-Plane window: **Undo** and **Redo** buttons left of **Change profile...**; Command+Z / Shift+Command+Z while
+    the window has the keyboard; and **Plugins > X52 Pro > Undo last profile change / Redo profile change**, with the
+    commands `x52pro/undo` and `x52pro/redo` for a key or a button of your own.
+  - Quick edits (a slider drag, typing) count as one step. Switching to another profile starts a new history.
+    A change made by the other program (the app or the plugin) is a step too, so it can be undone.
+  - Ready-made profiles are never changed, so they have nothing to undo.
+- **Button tips.** Rest the mouse on Undo or Redo for two seconds and a short tip says what it does, or why it
+  is greyed out.
+
+### Changed
+- X-Plane window: the tabs are a little narrower (and **Change profile...**) to make room for the two buttons.
+
 ## 1.1.0
 
 ### Added

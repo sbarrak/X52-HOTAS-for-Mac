@@ -22,7 +22,8 @@ struct FakeSim {
     bool hasKeyboardFocus = false;
 
     void frame();                           // run one flight loop + draw the window
-    bool clickText(const std::string& text, int nth = 0, bool exact = false);   // click on drawn text
+    bool clickText(const std::string& text, int nth = 0, bool exact = false);
+    bool hoverText(const std::string& text, int nth = 0, bool exact = false);   // puts the mouse on a drawn text   // click on drawn text
     bool sees(const std::string& text) const;
     void type(const std::string& s);
     void key(char ch, int vkey, int flags = 0);

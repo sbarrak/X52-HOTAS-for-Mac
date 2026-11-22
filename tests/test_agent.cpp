@@ -681,3 +681,48 @@ TEST(a_blank_profile_has_nothing_programmed_but_keeps_the_axes_and_screen_contro
     CHECK(!p.standard);
     CHECK(p.basedOn.empty());
 }
+
+TEST(undo_and_redo_step_through_the_edits_of_the_profile_in_use) {
+    std::string dir = freshDir("undo");
+    Agent a;
+    a.open(dir, "default");
+    CHECK(!a.canUndo() && !a.canRedo());
+    int original = a.profile().ledBrightness;
+    CHECK(a.change([](Profile& p) { p.ledBrightness = 11; }));
+    CHECK(a.change([](Profile& p) { p.ledBrightness = 22; }));   // right after: the same step
+    CHECK(a.canUndo() && !a.canRedo());
+    CHECK(a.undo());
+    CHECK_EQ(a.profile().ledBrightness, original);
+    CHECK(has(slurp(dir + "/default.x52"), "led_brightness = " + std::to_string(original)));   // written to the file too
+    CHECK(!a.canUndo() && a.canRedo());
+    CHECK(a.redo());
+    CHECK_EQ(a.profile().ledBrightness, 22);
+    CHECK(a.undo());
+    CHECK(a.change([](Profile& p) { p.mfdBrightness = 33; }));   // a new edit drops the redo
+    CHECK(!a.canRedo());
+    {
+        Store st;
+        st.dir = dir;
+        std::string e;
+        CHECK(st.save("other", defaultProfile(), &e));
+    }
+    a.select("other");                                           // another profile: its own, empty history
+    CHECK_EQ(a.key(), std::string("other"));
+    CHECK(!a.canUndo());
+}
+
+TEST(a_ready_made_profile_has_nothing_to_undo) {
+    std::string dir = freshDir("undo_standard");
+    Profile p = defaultProfile();
+    p.name = "Std";
+    p.standard = true;
+    {
+        std::ofstream f(dir + "/aircraft-Std.x52");
+        f << serialize(p);
+    }
+    Agent a;
+    a.open(dir, "aircraft-Std");
+    a.change([](Profile& q) { q.ledBrightness = 5; });
+    CHECK(!a.canUndo() && !a.canRedo());
+    CHECK(!a.undo());
+}

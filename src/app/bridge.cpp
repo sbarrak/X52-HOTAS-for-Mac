@@ -1229,6 +1229,10 @@ const char* x52_builtin_preview(const char* token, int line) {
 
 // ---- ready-made (standard) profiles: changes go to a copy
 
+int x52_can_undo(void) { return agent && agent->canUndo() ? 1 : 0; }
+int x52_can_redo(void) { return agent && agent->canRedo() ? 1 : 0; }
+int x52_undo(void) { return agent && agent->undo() ? 1 : 0; }
+int x52_redo(void) { return agent && agent->redo() ? 1 : 0; }
 int x52_standard(void) { return agent && agent->standard() ? 1 : 0; }
 int x52_profile_standard(const char* key) {
     if (!agent || !key) return 0;

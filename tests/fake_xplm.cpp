@@ -55,6 +55,14 @@ bool FakeSim::clickText(const std::string& text, int nth, bool exact) {
         }
     return false;
 }
+bool FakeSim::hoverText(const std::string& text, int nth, bool exact) {
+    for (const DrawnText& d : drawn)
+        if ((exact ? d.text == text : d.text.find(text) != std::string::npos) && nth-- == 0) {
+            winParams.handleCursorFunc((XPLMWindowID)&fakeWindow, d.x + 2, d.y + 3, winParams.refcon);
+            return true;
+        }
+    return false;
+}
 void FakeSim::key(char ch, int vkey, int flags) {
     winParams.handleKeyFunc((XPLMWindowID)&fakeWindow, ch, (XPLMKeyFlags)(flags | xplm_DownFlag), (char)vkey, winParams.refcon, 0);
     frame();

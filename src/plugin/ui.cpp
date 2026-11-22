@@ -110,6 +110,7 @@ bool dragSelecting = false;
 #ifdef X52_NO_GL
 std::string uiTestClipboard;
 #endif
+double uiTipDelay = 2.0;   // seconds the mouse rests on a button before its tip shows (tests set it to 0)
 namespace {
 
 std::string clipboardGet() {
@@ -176,6 +177,19 @@ void text(int x, const Rect& row, const std::string& s, const float* col = kWhit
 }
 
 void click(const Rect& r, std::function<void()> fn) { hits.push_back({r, std::move(fn)}); }
+
+// Tips: a short text that shows under a button once the mouse has rested on it for a while. Registered while the
+// window is drawn, like the click areas.
+struct Tip {
+    Rect r;
+    std::string text;
+};
+std::vector<Tip> tips;
+void tip(const Rect& r, const std::string& text) { tips.push_back({r, text}); }
+int mouseX = -1, mouseY = -1;       // where the mouse was last seen over the window
+double mouseSeen = -1e9;            // when (App::now seconds); a tip is only shown while the mouse is still there
+int tipShown = -1;                  // which registered tip the mouse is on (by position in `tips`), -1 none
+double tipSince = 0;                // when it came onto that tip
 
 void button(const Rect& r, const std::string& label, std::function<void()> fn, bool on = false) {
     fill(r, on ? cButtonOn : cButton);
@@ -325,6 +339,27 @@ void openProfileDrop(const Rect& anchor, bool fresh) {
     });
     drop.anyTab = true;
     if (!fresh) drop.scroll = keep;
+}
+
+// Drawn after everything else: the tip of the button the mouse has rested on for uiTipDelay seconds.
+void drawTip(int L, int, int R, int) {
+    double t = gApp ? gApp->now() : 0;
+    int on = -1;
+    if (!drop.open && t - mouseSeen < 0.5)
+        for (int i = 0; i < (int)tips.size(); ++i)
+            if (tips[i].r.has(mouseX, mouseY)) on = i;
+    if (on != tipShown) {
+        tipShown = on;
+        tipSince = t;
+    }
+    if (on < 0 || t - tipSince < uiTipDelay) return;
+    const Tip& tp = tips[on];
+    int w = textW(tp.text) + 14;
+    int l = std::max(L + 4, std::min(tp.r.l, R - w - 4)), top = tp.r.b - 4;
+    Rect box{l, top, l + w, top - kRow};
+    fill({box.l - 1, box.t + 1, box.r + 1, box.b - 1}, kDim4);
+    fill(box, cButton);
+    text(box.l + 7, box, tp.text, kWhite);
 }
 
 // Drawn last so it sits on top and its rectangles are hit first; a press anywhere else just closes it.
@@ -1374,6 +1409,7 @@ void drawAxesTab(const Rect& area) {
 void draw(XPLMWindowID w, void*) {
     App& a = *gApp;
     hits.clear();
+    tips.clear();
     fieldSlots.clear();
     scrolls.clear();
     int L, T, R, B;
@@ -1448,19 +1484,32 @@ void draw(XPLMWindowID w, void*) {
         text(area.r - bw - (bw ? kGap : 0) - ub - kGap - textW(p), status, p);
     }
 
-    // profile picker, at the right end of the tab row
+    // profile picker, at the right end of the tab row, with undo and redo to the left of it
     {
-        Rect pick{area.r - 190, area.t - kRow - kGap, area.r, area.t - 2 * kRow - kGap};
+        Rect pick{area.r - 140, area.t - kRow - kGap, area.r, area.t - 2 * kRow - kGap};
         button(pick, "Change profile...", [pick] {
             openProfileDrop(pick, true);
         });
+        const int hw = 44;
+        auto histButton = [&](const Rect& r, const char* label, bool enabled, std::function<void()> fn, const std::string& tipText) {
+            fill(r, enabled ? cButton : cPanel);
+            text(r.l + (r.w() - textW(label)) / 2, r, label, enabled ? kWhite : kDim);
+            if (enabled) click(r, std::move(fn));
+            tip(r, tipText);
+        };
+        Rect redoR{pick.l - kGap - hw, pick.t, pick.l - kGap, pick.b};
+        Rect undoR{redoR.l - kGap - hw, pick.t, redoR.l - kGap, pick.b};
+        histButton(undoR, "Undo", a.canUndo(), [] { gApp->undo(); },
+                   a.canUndo() ? "Undo the last change to the profile" : a.profile.standard ? "Ready-made profiles are never changed" : "Nothing to undo");
+        histButton(redoR, "Redo", a.canRedo(), [] { gApp->redo(); },
+                   a.canRedo() ? "Redo the change that was undone" : "Nothing to redo");
     }
 
     // tabs
     RowCursor tc{area.l, area.t - kRow - kGap};
     static const char* const tabNames[] = {"Buttons", "Lights", "Live lights", "Settings", "Axes"};
     for (int t = 0; t < 5; ++t)
-        button(tc.take(110), tabNames[t], [t] {
+        button(tc.take(100), tabNames[t], [t] {
             tab = t;
             pickerOpen = false;
             clearFocus();
@@ -1489,6 +1538,7 @@ void draw(XPLMWindowID w, void*) {
     else drawSettingsTab(content);
     if (tab != TabLive && !drop.anyTab) drop.open = false;
     drawDrop(L, T, R, B);
+    drawTip(L, T, R, B);
 }
 
 int mouse(XPLMWindowID, int x, int y, XPLMMouseStatus status, void*) {
@@ -1524,7 +1574,12 @@ int wheel(XPLMWindowID, int x, int y, int, int clicks, void*) {
     return 1;
 }
 
-XPLMCursorStatus cursor(XPLMWindowID, int, int, void*) { return xplm_CursorDefault; }
+XPLMCursorStatus cursor(XPLMWindowID, int x, int y, void*) {
+    mouseX = x;
+    mouseY = y;
+    mouseSeen = gApp ? gApp->now() : 0;
+    return xplm_CursorDefault;
+}
 
 void key(XPLMWindowID, char ch, XPLMKeyFlags flags, char vkey, void*, int losingFocus) {
     if (losingFocus) {
@@ -1540,6 +1595,14 @@ void key(XPLMWindowID, char ch, XPLMKeyFlags flags, char vkey, void*, int losing
 
     if (drop.open && vk == XPLM_VK_ESCAPE) {
         drop.open = false;
+        return;
+    }
+
+    // Command+Z / Shift+Command+Z take back / bring back a change to the profile (while no field is being edited
+    // and the window has the keyboard: X-Plane only sends it keys then; the menu and commands work always)
+    if (!capturing && !focusId && (flags & xplm_ControlFlag) && (vk == 'z' || vk == 'Z')) {
+        if (flags & xplm_ShiftFlag) gApp->redo();
+        else gApp->undo();
         return;
     }
 
