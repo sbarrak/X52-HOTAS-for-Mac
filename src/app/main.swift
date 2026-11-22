@@ -352,6 +352,13 @@ final class PickerState: ObservableObject {
     @Published var shown = false
     @Published var openMine = true
     @Published var openReady = false
+    @Published var contentH: CGFloat = 60
+    @Published var maxH: CGFloat = 420
+}
+
+private struct PickerHeight: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 struct ProfilePicker: View {
@@ -367,6 +374,9 @@ struct ProfilePicker: View {
             let inReady = m.standardKeys.contains(m.key)
             ui.openMine = !inReady || ready.isEmpty
             ui.openReady = inReady || mine.isEmpty
+            // never taller than the window; the list scrolls beyond that
+            let winH = NSApp.keyWindow?.contentView?.bounds.height ?? 600
+            ui.maxH = max(120, winH - 60)
             ui.shown = true
         } label: {
             HStack(spacing: 6) {
@@ -383,9 +393,10 @@ struct ProfilePicker: View {
                     group("Ready-made profiles", ready, $ui.openReady)
                 }
                 .padding(8)
+                .background(GeometryReader { g in Color.clear.preference(key: PickerHeight.self, value: g.size.height) })
             }
-            .frame(width: 280)
-            .frame(maxHeight: 420)
+            .onPreferenceChange(PickerHeight.self) { ui.contentH = $0 }
+            .frame(width: 280, height: min(ui.contentH, ui.maxH))
         }
     }
 
@@ -426,17 +437,40 @@ struct ProfilePicker: View {
 struct StandardBanner: View {
     @ObservedObject var m: Model
     var body: some View {
-        if m.isStandard {
-            HStack(spacing: 10) {
-                Image(systemName: "lock.fill")
-                Text("Ready-made profile: it is never changed, so you can always go back to it. A change is saved as a new profile of yours.")
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 8)
-                Button("Save as new profile...") { x52_copy_ask(); m.tick() }
-            }
-            .padding(8)
-            .background(RoundedRectangle(cornerRadius: 6).fill(Color.accentColor.opacity(0.12)))
+        HStack(spacing: 10) {
+            Image(systemName: "lock.fill")
+            Text("Ready-made profile: never changed. A change is saved as a new profile of yours.").lineLimit(1)
+            Spacer(minLength: 8)
+            Button("Save as new profile...") { x52_copy_ask(); m.tick() }
         }
+        .padding(.horizontal, 8)
+        .frame(maxHeight: .infinity)
+        .background(RoundedRectangle(cornerRadius: 6).fill(Color.accentColor.opacity(0.12)))
+    }
+}
+
+// One line of status under the header, always the same height so nothing below it moves. It shows the most
+// important message: an error, else the ready-made notice, else (main window) the note about the plugin.
+struct StatusStrip: View {
+    @ObservedObject var m: Model
+    var pluginNote = false
+    static let height: CGFloat = 34
+    var body: some View {
+        Group {
+            if !m.error.isEmpty {
+                Text(m.error).foregroundStyle(.red).lineLimit(2).font(.callout)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            } else if m.isStandard {
+                StandardBanner(m: m)
+            } else if pluginNote && m.pluginActive {
+                Text("Changes you make here are saved, and X-Plane applies them within a second.")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            } else {
+                Color.clear
+            }
+        }
+        .frame(height: StatusStrip.height)
     }
 }
 
@@ -2092,10 +2126,7 @@ struct PagesEditor: View {
                 Spacer()
                 RestorePagesButton(m: m)
             }
-            if !m.error.isEmpty {
-                Text(m.error).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
-            }
-            StandardBanner(m: m)
+            StatusStrip(m: m)
             HStack(alignment: .top, spacing: 14) {
                 VStack(alignment: .leading, spacing: 8) {
                     PageList(m: m)
@@ -2188,14 +2219,7 @@ struct SettingsView: View {
                 .menuStyle(.borderlessButton).fixedSize()
                 .help(m.canDelete ? "New, copy or delete a profile" : "New or copy a profile (Default and ready-made profiles are never deleted)")
             }
-            if m.pluginActive {
-                Text("Changes you make here are saved, and X-Plane applies them within a second.")
-                    .font(.callout).foregroundStyle(.secondary)
-            }
-            if !m.error.isEmpty {
-                Text(m.error).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
-            }
-            StandardBanner(m: m)
+            StatusStrip(m: m, pluginNote: true)
             // A scrolling strip of tabs, so a narrow window never hides some behind a ">>" menu.
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
