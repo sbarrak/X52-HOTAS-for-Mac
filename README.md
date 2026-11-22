@@ -365,6 +365,12 @@ Other things to know:
   expo curve and optional inversion, and writes the result into X-Plane (it sets X-Plane's
   `override_joystick` / `override_throttles`, and releases them when you untick it). The throttle is only
   taken over once it has moved. Test mode on the Settings tab also names moving controls on the stick's screen.
+  While the plugin drives the stick, X-Plane's own response curve and stability augmentation are skipped, so the
+  plugin stands in for them: soft default curves (expo 50 pitch, 40 roll, 30 twist), **Smoothing** (60 ms for
+  small jitter; big moves such as letting go of the stick reach X-Plane at once) and a light pitch/roll
+  **Damping** (30 %, capped at a few percent of the travel, near the centre only, off on the ground and with the
+  autopilot on). **Calibrate stick** in the X-Plane window's Axes tab measures the stick's own centre and ends
+  (`stick-calibration.txt` next to the profiles).
 - **Undo and redo:** the arrows next to the profile picker (and Edit > Undo / Redo, Command+Z and Shift+Command+Z)
   take back and bring back your changes to the profile in use, up to 50 steps; quick edits such as a slider drag
   count as one. In the X-Plane window the same are the **Undo** and **Redo** buttons beside **Change profile...**,
