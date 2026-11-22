@@ -346,9 +346,28 @@ func profileTitle(_ key: String) -> String {
     key == "default" ? "Default (all aircraft)" : key.hasPrefix("aircraft-") ? String(key.dropFirst(9)) : key
 }
 
-// The picker's line for a profile: ready-made ones say so.
-func pickerTitle(_ key: String, _ standard: Set<String>) -> String {
-    profileTitle(key) + (standard.contains(key) ? "  (ready-made)" : "")
+// One profile menu with two labelled groups: the user's own profiles first, then the ready-made ones.
+// A group's header is left out when the other group is empty, so a menu with only one kind stays plain.
+struct ProfilePicker: View {
+    @ObservedObject var m: Model
+    var label: String = ""
+    var onSelect: (String) -> Void
+    var body: some View {
+        let mine = m.profiles.filter { !m.standardKeys.contains($0) }
+        let ready = m.profiles.filter { m.standardKeys.contains($0) }
+        Picker(label, selection: Binding(get: { m.key }, set: onSelect)) {
+            if mine.isEmpty || ready.isEmpty {
+                ForEach(m.profiles, id: \.self) { Text(profileTitle($0)).tag($0) }
+            } else {
+                Section("Your profiles") {
+                    ForEach(mine, id: \.self) { Text(profileTitle($0)).tag($0) }
+                }
+                Section("Ready-made profiles") {
+                    ForEach(ready, id: \.self) { Text(profileTitle($0)).tag($0) }
+                }
+            }
+        }
+    }
 }
 
 // Shown above the tabs while a ready-made profile is selected.
@@ -2016,10 +2035,8 @@ struct PagesEditor: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Pages of the profile").font(.headline)
-                Picker("", selection: Binding(get: { m.key }, set: { m.select($0); m.pageSel = ""; m.pageNote = "" })) {
-                    ForEach(m.profiles, id: \.self) { Text(pickerTitle($0, m.standardKeys)).tag($0) }
-                }
-                .labelsHidden().frame(width: 280)
+                ProfilePicker(m: m) { m.select($0); m.pageSel = ""; m.pageNote = "" }
+                    .labelsHidden().frame(width: 280)
                 Spacer()
                 RestorePagesButton(m: m)
             }
@@ -2106,10 +2123,8 @@ struct SettingsView: View {
                     Button("Undo delete") { m.undoDelete() }
                         .help("Brings back “\(profileTitle(m.lastDeleted))”")
                 }
-                Picker("Profile", selection: Binding(get: { m.key }, set: { m.select($0) })) {
-                    ForEach(m.profiles, id: \.self) { Text(pickerTitle($0, m.standardKeys)).tag($0) }
-                }
-                .frame(width: 280)
+                ProfilePicker(m: m, label: "Profile") { m.select($0) }
+                    .frame(width: 280)
                 Menu {
                     Button("New blank profile...") { m.newBlank() }
                     Button("Save as new profile...") { x52_copy_ask(); m.tick() }
