@@ -910,7 +910,7 @@ TEST(clock_and_clutch_settings_survive_save_and_load) {
     CHECK(q.clock12h[1]);
     CHECK_EQ(q.dateFormat, 2);
     CHECK(q.com833);
-    CHECK_EQ(q.version, 3);
+    CHECK_EQ(q.version, 4);
 }
 
 TEST(out_of_range_clock_settings_are_pulled_into_range) {
@@ -934,7 +934,7 @@ TEST(profile_from_the_older_plugin_gains_the_wheel_bindings_once) {
     CHECK(!addWheelBindings(q));
     Profile again;
     CHECK(parse(serialize(q), again, &err));
-    CHECK_EQ(again.version, 3);
+    CHECK_EQ(again.version, 4);
 }
 
 TEST(removing_a_wheel_binding_from_a_current_profile_is_respected) {
@@ -1763,6 +1763,139 @@ TEST(axis_settings_start_with_x_plane_in_charge_and_are_saved_in_the_profile) {
     Profile old;   // a profile written before the axes existed
     CHECK(parse("x52pro-profile 3\nname = old\n", old, &err));
     CHECK(!old.axes.overrideXPlane);
+}
+
+// ---------------------------------------------------------------- stick handling (smoothing, damping, calibration)
+
+TEST(the_stick_starts_with_soft_curves_smoothing_and_a_light_damper) {
+    AxisSettings s;
+    CHECK_EQ(s.pitch.expo, 50);
+    CHECK_EQ(s.roll.expo, 40);
+    CHECK_EQ(s.yaw.expo, 30);
+    CHECK_EQ(s.pitch.deadzone, 3);
+    CHECK_EQ(s.throttle.expo, 0);   // the throttle stays linear
+    CHECK_EQ(s.smoothingMs, 60);
+    CHECK_EQ(s.damping, 30);
+    Profile p;
+    p.axes.smoothingMs = 120;
+    p.axes.damping = 0;
+    Profile q;
+    std::string err;
+    CHECK(parse(serialize(p), q, &err));
+    CHECK_EQ(q.axes.smoothingMs, 120);
+    CHECK_EQ(q.axes.damping, 0);
+    CHECK(parse("x52pro-profile 4\nstick_smoothing = 9999\nstick_damping = -5\n", q, &err));
+    CHECK_EQ(q.axes.smoothingMs, 200);
+    CHECK_EQ(q.axes.damping, 0);
+}
+
+TEST(older_profiles_with_the_old_untouched_stick_curves_get_the_new_ones_but_chosen_curves_stay) {
+    Profile q;
+    std::string err;
+    CHECK(parse("x52pro-profile 3\naxis_roll = 5 0 0\naxis_pitch = 5 0 1\naxis_yaw = 8 20 0\naxis_throttle = 5 0 1\n", q, &err));
+    CHECK_EQ(q.axes.roll.deadzone, 3);
+    CHECK_EQ(q.axes.roll.expo, 40);
+    CHECK_EQ(q.axes.pitch.expo, 50);
+    CHECK(q.axes.pitch.invert);                 // the inversion is kept
+    CHECK_EQ(q.axes.yaw.deadzone, 8);           // set on purpose: kept
+    CHECK_EQ(q.axes.yaw.expo, 20);
+    CHECK_EQ(q.axes.throttle.deadzone, 5);      // the throttle is not touched
+    CHECK_EQ(q.axes.throttle.expo, 0);
+    CHECK(parse("x52pro-profile 4\naxis_pitch = 5 0 0\n", q, &err));   // a current file means it
+    CHECK_EQ(q.axes.pitch.deadzone, 5);
+    CHECK_EQ(q.axes.pitch.expo, 0);
+}
+
+TEST(smoothing_calms_small_jitter_but_big_moves_and_letting_go_reach_the_sim_at_once) {
+    const double dt = 1.0 / 60;
+    // A jitter of half a percent is mostly held back.
+    double y = smoothStick(0.0, 0.005, dt, 60);
+    CHECK(y > 0.0 && y < 0.0025);
+    // Letting go of the stick from full deflection: the centre is reached in the same frame.
+    CHECK(near(smoothStick(1.0, 0.0, dt, 60), 0.0));
+    CHECK(near(smoothStick(-0.6, 0.0, dt, 60), 0.0));
+    // Letting go from a small deflection still arrives within a few frames (well under 0.1 s).
+    y = 0.15;
+    for (int i = 0; i < 4; ++i) y = smoothStick(y, 0.0, dt, 60);
+    CHECK(std::fabs(y) < 0.01);
+    // Off, or a paused sim (no time passing): no filtering, and nothing moves while paused.
+    CHECK(near(smoothStick(0.2, 0.3, dt, 0), 0.3));
+    CHECK(near(smoothStick(0.2, 0.21, 0.0, 60), 0.2));
+}
+
+TEST(the_damper_only_nudges_near_the_centre_and_never_takes_over) {
+    // Nose pitching up at 10 deg/s with the stick centred: a small push the other way.
+    double c = dampStick(0.0, 10.0, 30);
+    CHECK(c < 0.0);
+    CHECK(c >= -0.045 - 1e-9);                 // at most 4.5 % of the travel at the default strength
+    CHECK(dampStick(0.0, -10.0, 30) > 0.0);    // and the other way round
+    CHECK(near(dampStick(0.0, 200.0, 100), -0.15));   // a violent motion: capped at 15 % even at full strength
+    // With the stick held well away from the centre the pilot's input is untouched.
+    CHECK(near(dampStick(0.6, 10.0, 30), 0.6));
+    CHECK(near(dampStick(-1.0, -40.0, 100), -1.0));
+    // Off: nothing.
+    CHECK(near(dampStick(0.1, 10.0, 0), 0.1));
+    // Never outside -1..1.
+    CHECK(dampStick(0.99, -300.0, 100) <= 1.0);
+}
+
+TEST(a_calibrated_axis_has_its_own_centre_and_ends) {
+    AxisCalibration c{100, 540, 950};
+    CHECK(c.valid());
+    CHECK(near(normalizeStick(540, 0, 1023, &c), 0.0));    // the stick's own centre is zero
+    CHECK(near(normalizeStick(950, 0, 1023, &c), 1.0));
+    CHECK(near(normalizeStick(1023, 0, 1023, &c), 1.0));   // beyond the measured end: still full
+    CHECK(near(normalizeStick(100, 0, 1023, &c), -1.0));
+    CHECK(near(normalizeStick(320, 0, 1023, &c), -0.5));   // each side scaled on its own
+    CHECK(near(normalizeStick(745, 0, 1023, &c), 0.5));
+    CHECK(near(normalizeStick(1023, 0, 1023, nullptr), 1.0));   // without a calibration: the full range
+    CHECK(!(AxisCalibration{500, 500, 900}).valid());
+}
+
+TEST(calibration_measures_the_limits_and_takes_the_centre_where_the_stick_is_let_go) {
+    StickCalibrator cal;
+    cal.start();
+    CHECK(cal.active());
+    for (long v : {512L, 30L, 990L, 512L}) cal.feed(0x30, v, 0, 1023);
+    for (long v : {500L, 10L, 1010L}) cal.feed(0x31, v, 0, 1023);
+    for (long v : {128L, 20L, 240L}) cal.feed(0x35, v, 0, 255);
+    std::map<int, AxisCalibration> out;
+    std::string err;
+    std::map<int, long> rest = {{0x30, 515}, {0x31, 505}, {0x35, 127}};
+    CHECK(cal.finish(rest, out, &err));
+    CHECK(!cal.active());
+    CHECK_EQ(out[0x30].min, 30L);
+    CHECK_EQ(out[0x30].max, 990L);
+    CHECK_EQ(out[0x30].centre, 515L);
+    CHECK_EQ(out[0x35].centre, 127L);
+    // Saved and read back.
+    std::map<int, AxisCalibration> back = parseCalibration(serializeCalibration(out));
+    CHECK_EQ(back.size(), (size_t)3);
+    CHECK_EQ(back[0x31].min, 10L);
+    CHECK_EQ(back[0x31].centre, 505L);
+    CHECK_EQ(back[0x31].max, 1010L);
+}
+
+TEST(calibration_is_refused_when_the_stick_was_not_moved_or_not_let_go) {
+    StickCalibrator cal;
+    std::map<int, AxisCalibration> out;
+    std::string err;
+    cal.start();
+    for (long v : {500L, 450L, 560L}) cal.feed(0x31, v, 0, 1023);   // barely moved
+    for (long v : {500L, 0L, 1023L}) cal.feed(0x30, v, 0, 1023);
+    for (long v : {128L, 0L, 255L}) cal.feed(0x35, v, 0, 255);
+    CHECK(!cal.finish({{0x30, 512}, {0x31, 510}, {0x35, 128}}, out, &err));
+    CHECK(err.find("all the way") != std::string::npos);
+    CHECK(out.empty());
+    cal.start();
+    for (long v : {500L, 0L, 1023L}) cal.feed(0x31, v, 0, 1023);
+    for (long v : {500L, 0L, 1023L}) cal.feed(0x30, v, 0, 1023);
+    for (long v : {128L, 0L, 255L}) cal.feed(0x35, v, 0, 255);
+    CHECK(!cal.finish({{0x30, 512}, {0x31, 900}, {0x35, 128}}, out, &err));   // still pulling the stick back
+    CHECK(err.find("let go") != std::string::npos);
+    cal.start();
+    CHECK(!cal.finish({}, out, &err));                                          // nothing reported at all
+    CHECK(parseCalibration("garbage\n48 900 500 100\n").empty());               // broken lines are skipped
 }
 
 TEST(pov_1_is_the_hat_switch_and_pov_2_is_the_four_buttons) {

@@ -1,6 +1,8 @@
 // Flight axes processed by the plugin instead of X-Plane: dead zone, response curve and inversion.
 // Off by default (X-Plane stays in charge); a profile can switch it on. Pure C++.
 #pragma once
+#include <map>
+#include <string>
 
 namespace x52 {
 
@@ -17,7 +19,17 @@ struct AxisSettings {
     // assignment does. Separate from the stick, so a helicopter's lever (the collective) can stay X-Plane's.
     // A file without its own line takes the value of axis_override (older files drove both with that one switch).
     bool pluginThrottle = false;
-    AxisCurve roll, pitch, yaw, throttle;
+    // The stick starts soft around the centre (X-Plane's own default curve is not linear either); the X52's
+    // short, light-sprung stick is far too twitchy for the elevator with a straight line. The throttle stays linear.
+    AxisCurve roll = {3, 40, false}, pitch = {3, 50, false}, yaw = {3, 30, false}, throttle;
+    // While the plugin drives the stick (overrideXPlane), X-Plane's own processing is skipped, so the plugin
+    // does its job instead:
+    // smoothingMs: small, slow changes (jitter, hand tremor) are smoothed over about this long; big or quick
+    // moves, such as letting go of the stick, reach X-Plane at once. 0 = off.
+    int smoothingMs = 60;
+    // damping 0..100: a light pitch and roll damper, standing in for X-Plane's stability augmentation. It only
+    // acts with the stick near the centre and is capped at a few percent of the travel. 0 = off.
+    int damping = 30;
     // The dials and the slider: only a "steady" percentage (deadzone field), so a value that flickers by a hair stays put.
     AxisCurve lowerRotary = {2, 0, false}, upperRotary = {2, 0, false}, slider = {2, 0, false};
     // The slider on the throttle sets the flap handle, at the aircraft's own detents (independent of overrideXPlane).
@@ -48,6 +60,51 @@ long steadyValue(long shown, long value, long min, long max, int pct);
 double normalizeAxis(long value, long min, long max, bool centred);
 // Dead zone, curve and inversion applied to a normalised value.
 double shapeAxis(double x, const AxisCurve& c, bool centred);
+
+// The stick's own centre and ends, measured by a calibration (raw stick values). Not part of a profile: it
+// belongs to the stick, so it is kept in its own file next to the profiles.
+struct AxisCalibration {
+    long min = 0, centre = 0, max = 0;
+    bool valid() const { return min < centre && centre < max; }
+};
+// Raw value -> -1..1 with the centre at 0: with a calibration each side is scaled on its own, from the
+// measured centre to the measured end (beyond the end stays at full travel); without one, the full HID range.
+double normalizeStick(long value, long min, long max, const AxisCalibration* cal);
+// usage -> calibration, as kept in the file: "<usage> <min> <centre> <max>" per line. Broken lines are skipped.
+std::map<int, AxisCalibration> parseCalibration(const std::string& text);
+std::string serializeCalibration(const std::map<int, AxisCalibration>& cal);
+
+// Calibrating: start(), move the stick and twist to every limit (feed() every frame), let go, finish().
+// Stick left/right and forward/back must be measured; the twist is measured when it was moved all the way too.
+class StickCalibrator {
+public:
+    void start();
+    void cancel() { active_ = false; }
+    bool active() const { return active_; }
+    void feed(int usage, long value, long min, long max);
+    // rest: where each axis is now (the stick let go). False, with `error` saying what to do, when the stick was
+    // not moved far enough or is not resting near its middle; `out` is left alone then.
+    bool finish(const std::map<int, long>& rest, std::map<int, AxisCalibration>& out, std::string* error);
+
+private:
+    struct Seen {
+        long lo, hi, min, max;
+    };
+    std::map<int, Seen> seen_;
+    bool active_ = false;
+};
+
+// One frame of the stick smoothing: `prev` is what was sent last, `x` the new shaped value, `dt` the frame time.
+// Small changes are smoothed over about `ms`; the bigger the change the quicker it follows, and a change of a
+// tenth of the travel or more (a quick move, letting go of the stick) is passed on at once. ms <= 0: off.
+// dt <= 0 (sim paused, no time passing): `prev` stays.
+double smoothStick(double prev, double x, double dt, int ms);
+
+// The damper: `cmd` is the pilot's stick (-1..1, X-Plane's sense), `rateDegS` the aircraft's rate about the
+// same axis (pitch rate Q for the elevator, roll rate P for the ailerons), strength 0..100. Adds a small input
+// against the rate, fading out as the stick moves away from the centre (none from half travel) and capped at
+// 15 % of the travel at full strength. The pilot can always override it.
+double dampStick(double cmd, double rateDegS, int strength);
 
 // The flap handle (0 up .. 1 fully down) for a slider position 0..1: the nearest of the aircraft's `detents` stops
 // (0, 1/n, ..., 1), or the position itself when the aircraft reports no detents.

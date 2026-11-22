@@ -197,7 +197,7 @@ void x52_set(const char* name, int value);
 
 // Every analog control the stick reports, one line each: "name<TAB>percent<TAB>value text<TAB>raw<TAB>moving 1/0<TAB>usage".
 // Settings by name for the flight axes: axis_override, axis_<roll|pitch|yaw|throttle>_deadzone (0..40 %),
-// _expo (0..100 %) and _invert; for the right wheel: dial_accel and dial_factor (2..50); throttle_plugin (the plugin drives the throttle on its own), slider_flaps (the slider
+// _expo (0..100 %) and _invert; stick_smoothing (0..200 ms) and stick_damping (0..100); for the right wheel: dial_accel and dial_factor (2..50); throttle_plugin (the plugin drives the throttle on its own), slider_flaps (the slider
 // sets the flap lever) and slider_invert (invert the flaps: slider towards you = deployed).
 const char* x52_axes(void);
 

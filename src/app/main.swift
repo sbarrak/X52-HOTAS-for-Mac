@@ -1719,6 +1719,17 @@ struct AxesTab: View {
             AxisCurveRow(m: m, title: "Stick fwd/back", key: "pitch", usage: 0x31)
             AxisCurveRow(m: m, title: "Stick twist", key: "yaw", usage: 0x35)
             AxisCurveRow(m: m, title: "Throttle", key: "throttle", usage: 0x32)
+            HStack(spacing: 16) {
+                let sm = Binding<Int>(get: { m.get("stick_smoothing") }, set: { m.set("stick_smoothing", $0) })
+                let dm = Binding<Int>(get: { m.get("stick_damping") }, set: { m.set("stick_damping", $0) })
+                Text("Stick handling").frame(width: 120, alignment: .leading)
+                Stepper("Smoothing \(sm.wrappedValue) ms", value: sm, in: 0...200, step: 10).frame(width: 190, alignment: .leading)
+                    .help("Small, slow stick changes (jitter, hand tremor) are smoothed over about this long. Big or quick moves, such as letting go of the stick, reach X-Plane at once. 0 = off.")
+                Stepper("Damping \(dm.wrappedValue) %", value: dm, in: 0...100, step: 10).frame(width: 170, alignment: .leading)
+                    .help("A light pitch and roll damper in place of X-Plane's stability augmentation, which is skipped while the plugin drives the stick. Only near the centre of the stick, never more than a few percent of the travel, off on the ground and with the autopilot on. 0 = off.")
+            }
+            Text("With the plugin driving the stick, X-Plane's own curve and stability augmentation are skipped: the curves, smoothing and damping here take their place. Calibrate the stick in X-Plane's plugin window (Axes tab).")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Text("Dials and slider: a change smaller than Steady is ignored, so the value does not flicker. Saved in the aircraft's profile.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             DialSteadyRow(m: m, title: "Lower rotary (i)", key: "lower", usage: 0x33)

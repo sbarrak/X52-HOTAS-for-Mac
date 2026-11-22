@@ -231,7 +231,7 @@ struct Profile {
     Trigger masterLights;           // the same for every light
     BrightnessLink brightScreen;    // screen brightness follows a dataref (none chosen: mfdBrightness)
     BrightnessLink brightLights;    // the same for the lights (ledBrightness)
-    int version = 3;          // file format the profile was read from; 1 = older file (wheel bindings added on reading); below 3 the rules were reversed on reading (first rule wins now)
+    int version = 4;          // file format the profile was read from; 1 = older file (wheel bindings added on reading); below 3 the rules were reversed on reading (first rule wins now); below 4 untouched stick curves got the new defaults
     bool clutchLatched = false;   // clutch toggles safe mode instead of holding it
     int clockOffset[2] = {0, 0};  // clock 2 and 3: minutes from GMT
     int clock1Source = 0;         // ClockSource: what clock 1 shows (GMT unless chosen)

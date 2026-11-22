@@ -303,7 +303,7 @@ void learnSlots(App& a, double now) {
     if (a.learner.update(active, now)) a.saveButtonMap();
 }
 
-float flightLoop(float, float, int, void*) {
+float flightLoop(float elapsed, float, int, void*) {
     App& a = *gApp;
     double now = a.now();
     std::vector<ButtonEvent> events;
@@ -349,7 +349,7 @@ float flightLoop(float, float, int, void*) {
         a.lastHat = dir;
     }
     a.trackAxes(now);
-    a.applyAxes();
+    a.applyAxes(elapsed);
     a.applySliderFlaps();
     if (a.testMode) {
         for (const AxisEvent& m : moves) {
@@ -528,6 +528,7 @@ void App::trackAxes(double t) {
             continue;
         }
         AxisLive& l = it->second;
+        if (e.usagePage == 0x01) calibrator.feed(e.usage, e.value, e.min, e.max);
         const AxisCurve* dial = dialCurve(profile.axes, e.usage);
         l.value = dial && e.usagePage == 0x01 ? steadyValue(l.value, e.value, e.min, e.max, dial->deadzone) : e.value;
         l.min = e.min;
@@ -541,7 +542,7 @@ void App::trackAxes(double t) {
     }
 }
 
-void App::applyAxes() {
+void App::applyAxes(double dt) {
     bool wantJoy = profile.axes.overrideXPlane, wantThr = profile.axes.pluginThrottle;
     if (!wantJoy && !wantThr) {
         if (axesOverridden) releaseAxes();
@@ -551,6 +552,11 @@ void App::applyAxes() {
         if (XPLMDataRef r = cachedRef("sim/operation/override/override_joystick")) XPLMSetDatai(r, 0);
         joyOverridden = false;
     }
+    if (!wantJoy) stickSent.clear();
+    // The damper stays out of the way on the ground (taxi, take-off roll) and while the autopilot flies.
+    auto readInt = [](const char* n) { XPLMDataRef r = cachedRef(n); return r ? XPLMGetDatai(r) : 0; };
+    bool damp = wantJoy && profile.axes.damping > 0 && !readInt("sim/flightmodel/failures/onground_any") &&
+                !readInt("sim/cockpit2/autopilot/servos_on");
     bool joy = false, thr = false;
     for (const auto& key : kFlightAxes) {
         const AxisTarget* t = axisTarget(key.first, key.second);
@@ -560,7 +566,20 @@ void App::applyAxes() {
         double v = 0.0;
         if (it != axisLive.end()) {
             const AxisLive& l = it->second;
-            v = shapeAxis(normalizeAxis(l.value, l.min, l.max, t->centred), axisCurve(profile.axes, t->usage), t->centred);
+            auto cal = calibration.find(t->usage);
+            double x = t->centred ? normalizeStick(l.value, l.min, l.max, cal != calibration.end() ? &cal->second : nullptr)
+                                  : normalizeAxis(l.value, l.min, l.max, false);
+            v = shapeAxis(x, axisCurve(profile.axes, t->usage), t->centred);
+        }
+        if (t->centred) {
+            // Smoothing works on the pilot's input (what is kept here); the damper is added after it, so its
+            // nudges never feed back into the smoothing. A first frame takes the stick as it is: no ramp.
+            auto sent = stickSent.find(t->usage);
+            if (sent != stickSent.end()) v = smoothStick(sent->second, v, dt, profile.axes.smoothingMs);
+            stickSent[t->usage] = v;
+            const char* rate = t->usage == 0x31 ? "sim/flightmodel/position/Q" : t->usage == 0x30 ? "sim/flightmodel/position/P" : nullptr;
+            if (damp && rate)
+                if (XPLMDataRef r = cachedRef(rate)) v = dampStick(v, XPLMGetDataf(r), profile.axes.damping);
         }
         if (XPLMDataRef r = cachedRef(t->dataref)) {
             if (t->count > 1) {
@@ -602,6 +621,55 @@ void App::releaseAxes() {
         if (XPLMDataRef r = cachedRef(n)) XPLMSetDatai(r, 0);
     axesOverridden = false;
     joyOverridden = false;
+    stickSent.clear();
+}
+
+void App::loadCalibration() {
+    std::ifstream f(store.dir + "/stick-calibration.txt");
+    std::stringstream ss;
+    ss << f.rdbuf();
+    calibration = parseCalibration(ss.str());
+}
+
+void App::saveCalibration() {
+    std::string path = store.dir + "/stick-calibration.txt";
+    if (calibration.empty()) {
+        remove(path.c_str());
+        return;
+    }
+    std::ofstream f(path);
+    f << serializeCalibration(calibration);
+}
+
+void App::startCalibration() {
+    calibrator.start();
+    calibrationNote = "Move the stick and the twist to every limit, let go, then press Done.";
+}
+
+bool App::finishCalibration() {
+    std::map<int, long> rest;
+    for (const auto& kv : axisLive)
+        if (kv.first.first == 0x01) rest[kv.first.second] = kv.second.value;
+    std::string err;
+    if (!calibrator.finish(rest, calibration, &err)) {
+        calibrationNote = err;
+        return false;
+    }
+    saveCalibration();
+    calibrationNote = calibration.count(0x35) ? "Stick and twist calibrated." : "Stick calibrated (the twist keeps its full range).";
+    return true;
+}
+
+void App::cancelCalibration() {
+    calibrator.cancel();
+    calibrationNote.clear();
+}
+
+void App::resetCalibration() {
+    calibrator.cancel();
+    calibration.clear();
+    saveCalibration();
+    calibrationNote = "Calibration cleared: the stick's full range is used.";
 }
 
 void App::wheel(Wheel w) { wheelAt(w, now()); }
@@ -1021,6 +1089,7 @@ PLUGIN_API int XPluginEnable(void) {
     App& a = *gApp;
     a.loadForAircraft(currentAircraft());
     a.loadButtonMap();
+    a.loadCalibration();
     a.lock.tryHold(a.store.dir);
 #ifndef X52_NO_HID   // the tests feed buttons themselves: a real stick plugged in would mix its own in
     a.input.start();

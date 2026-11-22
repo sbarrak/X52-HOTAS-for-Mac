@@ -138,8 +138,21 @@ public:
     std::pair<int, int> axisMoved{0, 0};   // usage page / usage of the control that moved last
     double axisMovedAt = 0;
     void trackAxes(double now);            // updates axisLive / axisMoved from the stick (every frame)
-    void applyAxes();                      // writes the shaped flight axes into X-Plane while the override is on
+    // Writes the shaped flight axes into X-Plane while the override is on; dt is the frame time (for the smoothing).
+    void applyAxes(double dt = 0);
     void releaseAxes();                    // gives the axes back to X-Plane
+    std::map<int, double> stickSent;       // the stick's smoothed input per usage, as last sent (before the damper)
+    // The stick's own centre and ends (stick-calibration.txt next to the profiles; it belongs to the stick, not
+    // to a profile). Calibrating: start, move everything to its limits, let go, finish.
+    std::map<int, AxisCalibration> calibration;
+    StickCalibrator calibrator;
+    std::string calibrationNote;           // what the window says about the calibration
+    void loadCalibration();
+    void saveCalibration();
+    void startCalibration();
+    bool finishCalibration();              // false: not saved, calibrationNote says why (still calibrating)
+    void cancelCalibration();
+    void resetCalibration();
     bool axesOverridden = false;           // the plugin has set X-Plane's override flags
     bool joyOverridden = false;            // ... the stick's one (override_joystick) among them
     double flapWritten = -1;               // the flap handle the slider last set (-1: not since the aircraft loaded)

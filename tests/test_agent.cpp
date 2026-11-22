@@ -62,7 +62,7 @@ TEST(saving_an_older_file_from_the_app_still_adds_the_wheel_bindings) {
     a.open(dir, "default");
     CHECK(a.change([](Profile& p) { p.ledBrightness = 90; }));
     std::string file = slurp(dir + "/default.x52");
-    CHECK(has(file, "x52pro-profile 3"));
+    CHECK(has(file, "x52pro-profile 4"));
     CHECK(has(file, "cmd:x52pro/mfd_select"));
     CHECK(has(file, "cmd:x52pro/mfd_page_prev"));
 }
@@ -365,12 +365,20 @@ TEST(axis_and_dial_settings_are_edited_from_the_app_and_saved) {
     x52_set("axis_roll_deadzone", 12);
     std::string file = slurp(dir + "/default.x52");
     CHECK(has(file, "axis_override = 1"));
-    CHECK(has(file, "axis_roll = 12 0 0"));
-    CHECK(has(file, "axis_pitch = 5 40 0"));
-    CHECK(has(file, "axis_yaw = 5 0 1"));
+    CHECK(has(file, "axis_roll = 12 40 0"));   // the stick's default curves: roll 40, pitch 50, yaw 30
+    CHECK(has(file, "axis_pitch = 3 40 0"));
+    CHECK(has(file, "axis_yaw = 3 30 1"));
     CHECK(has(file, "axis_throttle = 3 0 0"));
     CHECK(has(file, "dial_factor = 6"));
     CHECK(has(file, "dial_accel = 0"));
+    CHECK_EQ(x52_get("stick_smoothing"), 60);
+    CHECK_EQ(x52_get("stick_damping"), 30);
+    x52_set("stick_smoothing", 90);
+    x52_set("stick_damping", 500);           // kept inside the allowed range
+    CHECK_EQ(x52_get("stick_damping"), 100);
+    file = slurp(dir + "/default.x52");
+    CHECK(has(file, "stick_smoothing = 90"));
+    CHECK(has(file, "stick_damping = 100"));
     x52_stop();
 }
 
