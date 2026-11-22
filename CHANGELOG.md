@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.2.0
+
+### Added
+- **Stick handling in the plugin.** While the plugin drives the stick, X-Plane's own curve and stability
+  augmentation are skipped, so the plugin now does their job. Both settings are saved in the profile
+  (`stick_smoothing`, `stick_damping`) and shown in the app's Axes tab and the X-Plane window's Axes tab.
+  - **Smoothing** (default 60 ms): small, slow stick changes (jitter, hand tremor) are smoothed; big or quick moves,
+    such as letting go of the stick, reach X-Plane at once. 0 = off.
+  - **Damping** (default 30 %): a light pitch and roll damper near the centre of the stick, never more than a few
+    percent of the travel, off on the ground and with the autopilot on. 0 = off.
+- **Stick calibration** (X-Plane window, Axes tab: **Calibrate stick**, **Reset**). Move the stick and twist to every
+  limit, let go, press **Done**; each side is then scaled from the measured centre to the measured end. Kept in
+  `stick-calibration.txt` next to the profiles, since it belongs to the stick and not to a profile.
+
+### Changed
+- The stick now starts soft around the centre (roll, pitch and yaw get a dead zone of 3 % and a curve), because the
+  X52's short, light-sprung stick was far too twitchy for the elevator with a straight line. The throttle stays
+  linear. Profile files are now version 4; an older file whose stick axes were never changed (5 % dead zone, no
+  curve) gets the new default, and axes set on purpose are left alone.
+- `.gitignore`: `my_profiles/` (own profiles for add-on aircraft) stays local.
+
+### Fixed
+- **The aircraft bounced up and down when the plugin drove the stick** (fixed in 1.2.0). With *The plugin drives
+  the stick and twist* on, the nose would not stay put and every correction overshot, while the same aircraft flew
+  steadily with X-Plane reading the stick. Cause: the override (`override_joystick`) makes X-Plane skip its own
+  response curve and stability augmentation, and the plugin sent the X52's stick to the elevator in a straight
+  line (expo 0), with no damping, assuming the centre was exactly mid-range. Fix: the soft default curves,
+  smoothing, damping and calibration above. They leave the simulation alone where it matters: a change of a tenth
+  of the travel or more (letting go of the stick, a quick input) reaches X-Plane in the same frame, and the damper
+  is capped at 4.5 % of the travel by default (15 % at full strength), fades out as the stick moves from the centre,
+  and is off on the ground and with the autopilot on.
+
 ## 1.1.1
 
 ### Added

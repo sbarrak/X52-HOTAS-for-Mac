@@ -451,7 +451,7 @@ std::string secondText(const Trigger& t) {
 
 std::string serialize(const Profile& p) {
     std::ostringstream o;
-    o << "x52pro-profile 3\n";
+    o << "x52pro-profile 4\n";
     o << "# X52 Pro button profile. Written by the X52 Pro plugin; safe to edit by hand.\n";
     o << "name = " << cleanLabel(p.name) << "\n";
     if (p.standard) o << "# standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)\nstandard = 1\n";
@@ -483,6 +483,9 @@ std::string serialize(const Profile& p) {
         const AxisCurve& c = axisCurve(p.axes, u);
         o << "axis_" << axisTarget(0x01, u)->name << " = " << c.deadzone << " " << c.expo << " " << (c.invert ? 1 : 0) << "\n";
     }
+    o << "# stick_smoothing = ms over which small stick changes are smoothed (big moves pass at once; 0 off). stick_damping = 0..100 pitch/roll damper (0 off)\n";
+    o << "stick_smoothing = " << p.axes.smoothingMs << "\n";
+    o << "stick_damping = " << p.axes.damping << "\n";
     o << "# steady_<lower|upper|slider> = a dial or slider ignores changes smaller than this % of its travel\n";
     o << "steady_lower = " << p.axes.lowerRotary.deadzone << "\n";
     o << "steady_upper = " << p.axes.upperRotary.deadzone << "\n";
@@ -929,6 +932,10 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
         } else if (key == "steady_lower" || key == "steady_upper" || key == "steady_slider") {
             AxisCurve& c = key == "steady_lower" ? p.axes.lowerRotary : key == "steady_upper" ? p.axes.upperRotary : p.axes.slider;
             c.deadzone = clampInt((int)n, 0, 20);
+        } else if (key == "stick_smoothing") {
+            p.axes.smoothingMs = clampInt(n, 0, 200);
+        } else if (key == "stick_damping") {
+            p.axes.damping = clampInt(n, 0, 100);
         } else if (key == "throttle_plugin") {
             p.axes.pluginThrottle = n != 0;
             throttleSeen = true;
@@ -961,6 +968,19 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
     // Before version 3 the last rule for a light won; now the first does. Reverse the order
     // once so the lights keep behaving as they did.
     if (p.version < 3) std::reverse(p.rules.begin(), p.rules.end());
+    // Before version 4 every stick axis started linear with a 5 % dead zone, far too twitchy for the elevator
+    // with the plugin driving the stick. A stick axis still at exactly that (never changed) gets the new
+    // default curve; one that was set on purpose, and the throttle, stay as they are.
+    if (p.version < 4) {
+        const AxisSettings fresh;
+        for (int u : {0x30, 0x31, 0x35}) {
+            AxisCurve& c = axisCurve(p.axes, u);
+            if (c.deadzone == 5 && c.expo == 0) {
+                c.deadzone = axisCurve(fresh, u).deadzone;
+                c.expo = axisCurve(fresh, u).expo;
+            }
+        }
+    }
     // A file from before the pinkie lights: with the pinkie held the lights stay as the mode has them.
     for (int m = 0; m < 3; ++m)
         if (!pinkieSeen[m])

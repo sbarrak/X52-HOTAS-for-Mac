@@ -472,6 +472,91 @@ TEST(the_plugin_can_drive_the_throttle_alone_and_leave_the_stick_to_x_plane) {
     CHECK_EQ((int)d["sim/operation/override/override_throttles"], 0);   // handed back
 }
 
+TEST(letting_go_of_the_stick_reaches_the_sim_in_the_same_frame_and_the_damper_only_nudges_in_flight) {
+    auto& d = sim().datarefs;
+    const char* pitch = "sim/joystick/yoke_pitch_ratio";
+    const char* q = "sim/flightmodel/position/Q";
+    const char* ground = "sim/flightmodel/failures/onground_any";
+    const char* ap = "sim/cockpit2/autopilot/servos_on";
+    for (const char* n : {pitch, "sim/joystick/yoke_roll_ratio", "sim/joystick/yoke_heading_ratio",
+                          "sim/operation/override/override_joystick", q, "sim/flightmodel/position/P", ground, ap})
+        d[n] = 0.0;
+    gApp->releaseAxes();
+    gApp->calibration.clear();
+    gApp->profile.axes = AxisSettings();
+    gApp->profile.axes.overrideXPlane = true;
+    gApp->input.pushAxis({0x01, 0x31, 1023, 0, 1023});   // stick pulled fully back
+    sim().frame();
+    CHECK(nearTo(d[pitch], 1.0));
+    gApp->input.pushAxis({0x01, 0x31, 512, 0, 1023});    // let go: springs to the centre
+    sim().frame();
+    CHECK(std::fabs(d[pitch]) < 0.01);                   // no smoothing lag on a big move
+
+    d[q] = 10.0;                                         // airborne, nose pitching up at 10 deg/s
+    sim().frame();
+    CHECK(d[pitch] < 0.0 && d[pitch] >= -0.046);         // a small push against it, never more
+    d[ground] = 1;                                       // on the ground: hands off
+    sim().frame();
+    CHECK(std::fabs(d[pitch]) < 0.01);
+    d[ground] = 0;
+    d[ap] = 1;                                           // the autopilot flies: hands off too
+    sim().frame();
+    CHECK(std::fabs(d[pitch]) < 0.01);
+    d[ap] = 0;
+    gApp->profile.axes.damping = 0;                      // switched off
+    sim().frame();
+    CHECK(std::fabs(d[pitch]) < 0.01);
+    d[q] = 0.0;
+    gApp->profile.axes = AxisSettings();
+    sim().frame();
+}
+
+TEST(the_stick_is_calibrated_from_the_window_and_the_calibration_is_kept_beside_the_profiles) {
+    auto& d = sim().datarefs;
+    const char* pitch = "sim/joystick/yoke_pitch_ratio";
+    for (const char* n : {pitch, "sim/operation/override/override_joystick"}) d[n] = 0.0;
+    gApp->releaseAxes();
+    gApp->resetCalibration();
+    gApp->profile.axes = AxisSettings();
+    gApp->profile.axes.overrideXPlane = true;
+    gApp->profile.axes.pitch = {0, 0, false};            // linear, to read the calibration straight off
+    gApp->profile.axes.smoothingMs = 0;
+    gApp->profileChanged();
+    CHECK(sim().clickText("Axes", 0, true));
+    CHECK(sim().sees("full range is used"));
+    CHECK(sim().clickText("Calibrate stick", 0, true));
+    CHECK(gApp->calibrator.active());
+    // This stick rests at 600 and only reaches 100..950.
+    for (long v : {600L, 100L, 950L, 600L}) {
+        gApp->input.pushAxis({0x01, 0x31, v, 0, 1023});
+        gApp->input.pushAxis({0x01, 0x30, v == 600 ? 512 : v == 100 ? 20 : 1000, 0, 1023});
+        sim().frame();
+    }
+    gApp->input.pushAxis({0x01, 0x30, 512, 0, 1023});
+    sim().frame();
+    CHECK(sim().clickText("Done", 0, true));
+    CHECK(!gApp->calibrator.active());
+    CHECK(sim().sees("calibrated"));
+    CHECK_EQ(gApp->calibration[0x31].centre, 600L);
+    CHECK(std::fabs(d[pitch]) < 0.01);                   // resting at 600 is the centre now
+    gApp->input.pushAxis({0x01, 0x31, 950, 0, 1023});
+    sim().frame();
+    CHECK(nearTo(d[pitch], 1.0));                        // the measured end is full travel
+    // Kept in its own file and read back when the plugin starts.
+    std::ifstream f(gApp->store.dir + "/stick-calibration.txt");
+    CHECK(f.good());
+    gApp->calibration.clear();
+    gApp->loadCalibration();
+    CHECK_EQ(gApp->calibration[0x31].max, 950L);
+    CHECK(sim().clickText("Reset", 0, true));
+    CHECK(gApp->calibration.empty());
+    CHECK(!std::ifstream(gApp->store.dir + "/stick-calibration.txt").good());
+    gApp->profile.axes = AxisSettings();
+    gApp->profileChanged();
+    sim().frame();
+    CHECK(sim().clickText("Buttons", 0, true));
+}
+
 TEST(the_window_can_tell_which_axis_is_moving) {
     gApp->profile.axes = AxisSettings();
     gApp->input.pushAxis({0x01, 0x30, 100, 0, 1023});
@@ -574,7 +659,7 @@ TEST(a_profile_from_the_older_plugin_gets_the_wheel_bindings) {
     }
     gApp->reload();
     CHECK(has(slurp(defaultFile()), "cmd:x52pro/mfd_select"));
-    CHECK(has(slurp(defaultFile()), "x52pro-profile 3"));
+    CHECK(has(slurp(defaultFile()), "x52pro-profile 4"));
     CHECK(has(slurp(defaultFile()), std::string("cmd:") + kGear));
 }
 

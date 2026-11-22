@@ -52,6 +52,8 @@ int* field(Profile& p, const std::string& n, int& lo, int& hi) {
         if (n == base + "deadzone") { lo = 0; hi = 40; return &axisCurve(p.axes, u).deadzone; }
         if (n == base + "expo") { lo = 0; hi = 100; return &axisCurve(p.axes, u).expo; }
     }
+    if (n == "stick_smoothing") { lo = 0; hi = 200; return &p.axes.smoothingMs; }
+    if (n == "stick_damping") { lo = 0; hi = 100; return &p.axes.damping; }
     if (n == "steady_lower") { lo = 0; hi = 20; return &p.axes.lowerRotary.deadzone; }
     if (n == "steady_upper") { lo = 0; hi = 20; return &p.axes.upperRotary.deadzone; }
     if (n == "steady_slider") { lo = 0; hi = 20; return &p.axes.slider.deadzone; }

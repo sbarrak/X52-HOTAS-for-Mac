@@ -1370,6 +1370,29 @@ void drawAxesTab(const Rect& area) {
         }
         rc.t -= kRow + kGap;
     }
+    // Stick handling while the plugin drives it: smoothing, the damper, and the stick's calibration.
+    rc.x = area.l;
+    r = rc.take(110);
+    text(r.l, r, "Stick handling");
+    stepper("Smoothing", a.profile.axes.smoothingMs, " ms", 0, 200, 10, &a.profile.axes.smoothingMs);
+    stepper("Damping", a.profile.axes.damping, " %", 0, 100, 10, &a.profile.axes.damping);
+    rc.t -= kRow + kGap;
+    rc.x = area.l;
+    r = rc.take(110);
+    text(r.l, r, "Calibration");
+    if (a.calibrator.active()) {
+        button(rc.take(70), "Done", [] { gApp->finishCalibration(); }, true);
+        button(rc.take(70), "Cancel", [] { gApp->cancelCalibration(); });
+    } else {
+        button(rc.take(130), "Calibrate stick", [] { gApp->startCalibration(); });
+        button(rc.take(70), "Reset", [] { gApp->resetCalibration(); });
+    }
+    std::string calText = !a.calibrationNote.empty() ? a.calibrationNote
+                          : a.calibration.empty()    ? "Not calibrated: the stick's full range is used."
+                                                     : "Calibrated.";
+    r = rc.take(area.r - rc.x);
+    text(r.l, r, fit(calText, r.w()), a.calibrator.active() ? kAmber : kDim);
+    rc.t -= kRow + kGap;
     rc.t -= kGap;
 
     std::string moving = "Moving now: -";

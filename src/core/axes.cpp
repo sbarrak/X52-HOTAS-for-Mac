@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <sstream>
 
 namespace x52 {
 
@@ -62,6 +63,106 @@ double shapeAxis(double x, const AxisCurve& c, bool centred) {
     double y = sign * mag;
     if (c.invert) y = centred ? -y : 1.0 - y;
     return y;
+}
+
+double normalizeStick(long value, long min, long max, const AxisCalibration* cal) {
+    if (!cal || !cal->valid()) return normalizeAxis(value, min, max, true);
+    double v = (double)value - (double)cal->centre;
+    double span = v >= 0 ? (double)(cal->max - cal->centre) : (double)(cal->centre - cal->min);
+    return std::max(-1.0, std::min(1.0, v / span));
+}
+
+std::map<int, AxisCalibration> parseCalibration(const std::string& text) {
+    std::map<int, AxisCalibration> out;
+    std::stringstream ss(text);
+    std::string line;
+    while (std::getline(ss, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        std::stringstream ls(line);
+        int usage = 0;
+        AxisCalibration c;
+        if (ls >> usage >> c.min >> c.centre >> c.max && c.valid()) out[usage] = c;
+    }
+    return out;
+}
+
+std::string serializeCalibration(const std::map<int, AxisCalibration>& cal) {
+    std::ostringstream o;
+    o << "# The X52 stick's own centre and ends, measured by the plugin's calibration: <usage> <min> <centre> <max>\n";
+    for (const auto& kv : cal) o << kv.first << " " << kv.second.min << " " << kv.second.centre << " " << kv.second.max << "\n";
+    return o.str();
+}
+
+void StickCalibrator::start() {
+    seen_.clear();
+    active_ = true;
+}
+
+void StickCalibrator::feed(int usage, long value, long min, long max) {
+    if (!active_ || max <= min) return;
+    auto it = seen_.find(usage);
+    if (it == seen_.end()) {
+        seen_[usage] = {value, value, min, max};
+        return;
+    }
+    it->second.lo = std::min(it->second.lo, value);
+    it->second.hi = std::max(it->second.hi, value);
+    it->second.min = min;
+    it->second.max = max;
+}
+
+bool StickCalibrator::finish(const std::map<int, long>& rest, std::map<int, AxisCalibration>& out, std::string* error) {
+    auto fail = [&](const std::string& why) {
+        if (error) *error = why;
+        return false;
+    };
+    // The stick must be resting in the middle third (else it is still being held), and each side must cover a
+    // quarter of the range (the X52's halves are about half each; less means it was not moved all the way).
+    std::map<int, AxisCalibration> result;
+    for (int usage : {0x30, 0x31, 0x35}) {
+        bool required = usage != 0x35;   // the twist is optional: left alone, it keeps the full range
+        auto s = seen_.find(usage);
+        auto r = rest.find(usage);
+        if (s == seen_.end() || r == rest.end()) {
+            if (required) return fail("Move the stick all the way left, right, forward and back, then let go and press Done.");
+            continue;
+        }
+        const Seen& v = s->second;
+        long range = v.max - v.min, centre = r->second;
+        if ((centre - v.min) * 100 < range * 35 || (centre - v.min) * 100 > range * 65)
+            return fail("The stick is not resting in the middle: let go of the stick and the twist, then press Done.");
+        AxisCalibration c{std::min(v.lo, centre), centre, std::max(v.hi, centre)};
+        if ((c.centre - c.min) * 4 < range || (c.max - c.centre) * 4 < range) {
+            if (required) return fail("Move the stick all the way left, right, forward and back, then let go and press Done.");
+            continue;
+        }
+        result[usage] = c;
+    }
+    active_ = false;
+    out = result;
+    if (error) error->clear();
+    return true;
+}
+
+double smoothStick(double prev, double x, double dt, int ms) {
+    if (ms <= 0) return x;
+    if (dt <= 0) return prev;
+    const double band = 0.10;   // a change this big (a tenth of the travel) is passed on at once
+    double d = std::fabs(x - prev);
+    if (d >= band) return x;
+    double k = 1.0 - d / band;
+    double tau = ms / 1000.0 * k * k;
+    if (tau < 1e-4) return x;
+    return prev + (x - prev) * (1.0 - std::exp(-dt / tau));
+}
+
+double dampStick(double cmd, double rateDegS, int strength) {
+    double s = std::max(0, std::min(100, strength)) / 100.0;
+    if (s <= 0) return cmd;
+    const double gainPerDegS = 0.02, maxAuthority = 0.15;   // at full strength
+    double fade = std::max(0.0, 1.0 - std::fabs(cmd) / 0.5);
+    double nudge = std::max(-maxAuthority * s, std::min(maxAuthority * s, -gainPerDegS * s * rateDegS));
+    return std::max(-1.0, std::min(1.0, cmd + nudge * fade));
 }
 
 double flapHandleFor(double slider, int detents) {
