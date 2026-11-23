@@ -2493,7 +2493,34 @@ TEST(a_lever_waits_until_the_dial_reaches_x_planes_value) {
     CHECK(leverMayWrite(s, 0.7, 0.65, 0.02));           // held: follows the dial
     CHECK(!leverMayWrite(s, 0.72, 0.2, 0.02));          // a button moved it to 0.2: waiting again
     CHECK(!s.held);
-    CHECK(leverMayWrite(s, 0.21, 0.2, 0.02));           // within 1 % of the range: taken over
+    CHECK(!leverMayWrite(s, 0.21, 0.2, 0.02));          // let go: near is not enough, it must cross
+    CHECK(leverMayWrite(s, 0.19, 0.2, 0.02));           // across 0.2: taken over
+    LeverPickup fresh;
+    CHECK(leverMayWrite(fresh, 0.21, 0.2, 0.02));       // first takeover: within 1 % of the range is enough
+}
+
+TEST(a_trim_step_smaller_than_1_percent_lets_go_of_the_dial) {
+    LeverPickup s;
+    CHECK(leverMayWrite(s, 0.5, 0.5, 0.02));
+    CHECK(leverMayWrite(s, 0.5, 0.5, 0.02));
+    CHECK(!leverMayWrite(s, 0.5, 0.505, 0.02));         // a trim button: 0.25 % of the range
+    CHECK(!s.held);
+    CHECK(!leverMayWrite(s, 0.49, 0.505, 0.02));        // turned away: the button's value stays
+    CHECK(leverMayWrite(s, 0.51, 0.505, 0.02));         // turned across it: taken over
+}
+
+TEST(split_engine_levers_stay_split_under_the_dial) {
+    LeverPickup s;
+    auto out = leverEngines(s, {0.6, 0.4}, 0.62, 0, 1, 1e-4);   // engine 2 set 0.2 lower
+    CHECK(near(out[0], 0.62));
+    CHECK(near(out[1], 0.42));
+    out = leverEngines(s, {out[0], out[1]}, 0.1, 0, 1, 1e-4);
+    CHECK(near(out[0], 0.1));
+    CHECK(near(out[1], 0.0));                           // held at the end of the range...
+    out = leverEngines(s, {out[0], out[1]}, 0.5, 0, 1, 1e-4);
+    CHECK(near(out[1], 0.3));                           // ...and split again on the way back
+    out = leverEngines(s, {0.5, 0.45}, 0.55, 0, 1, 1e-4);   // the mouse moved engine 2 to 0.45
+    CHECK(near(out[1], 0.5));                           // keeps its new distance
 }
 
 TEST(a_lever_with_an_empty_range_never_writes) {
@@ -2509,9 +2536,9 @@ TEST(lever_jobs_have_names_and_settings) {
     CHECK(leverJob(DialUse::SpeedBrake) == nullptr);
     const LeverJob* j = leverJob(DialUse::CowlFlaps);
     CHECK(j != nullptr && j->perEngine);
-    CHECK(leverJob(DialUse::Mixture) != nullptr);
+    CHECK(leverJob(DialUse::Mixture) != nullptr && leverJob(DialUse::Mixture)->perEngine);   // one per engine: split levers
     const LeverJob* prop = leverJob(DialUse::Prop);         // the governor's speed, between the aircraft's own limits
-    CHECK_EQ(std::string(prop->dataref), std::string("sim/cockpit2/engine/actuators/prop_rotation_speed_rad_sec_all"));
+    CHECK_EQ(std::string(prop->dataref), std::string("sim/cockpit2/engine/actuators/prop_rotation_speed_rad_sec"));
     CHECK(prop->limAbsolute);
     CHECK(!leverJob(DialUse::RudderTrim)->limAbsolute);
     CHECK_EQ(kDialUseCount, 9);

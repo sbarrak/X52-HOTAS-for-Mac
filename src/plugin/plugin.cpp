@@ -775,7 +775,7 @@ void App::applyLever(int usage, const LeverJob& job, const AxisLive& l, double n
     double sim = v0;
     double tol = 0.01 * (hi - lo);
     if (from == to) {   // one value for every position: set it when the dial is turned, then leave it until turned again
-        if (st.held && std::fabs(sim - st.lastWritten) > tol) {
+        if (st.held && std::fabs(sim - st.lastWritten) > tol * kLeverMovedShare) {   // moved by something else
             st.held = false;
             st.waitingSince = now;
         }
@@ -810,6 +810,12 @@ void App::applyLever(int usage, const LeverJob& job, const AxisLive& l, double n
     if (XPLMDataRef e = cachedRef("sim/aircraft/engine/acf_num_engines")) n = XPLMGetDatai(e);
     n = std::max(1, std::min(n, 16));
     std::vector<float> all((size_t)n, (float)target);
+    if (from != to) {   // a turn moves every engine by the same amount: split levers stay split
+        XPLMGetDatavf(r, all.data(), 0, n);
+        std::vector<double> now(all.begin(), all.end());
+        std::vector<double> out = leverEngines(st, now, target, lo, hi, tol * kLeverMovedShare);
+        for (int i = 0; i < n; ++i) all[(size_t)i] = (float)out[(size_t)i];
+    }
     XPLMSetDatavf(r, all.data(), 0, n);
 }
 

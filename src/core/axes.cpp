@@ -198,9 +198,9 @@ int zoomClicks(double& anchor, double x, int clicksPerTravel) {
 
 namespace {
 const LeverJob kLevers[] = {
-    {DialUse::Prop, "Prop", "sim/cockpit2/engine/actuators/prop_rotation_speed_rad_sec_all", false, 0, 1,
+    {DialUse::Prop, "Prop", "sim/cockpit2/engine/actuators/prop_rotation_speed_rad_sec", true, 0, 1,
      "sim/aircraft/controls/acf_RSC_mingov_prp", "sim/aircraft/controls/acf_RSC_redline_prp", true, {8, 24, 25, 26, 27}},
-    {DialUse::Mixture, "Mixture", "sim/cockpit2/engine/actuators/mixture_ratio_all", false, 0, 1, nullptr, nullptr, false, {9, 28, 29, 30, 31}},
+    {DialUse::Mixture, "Mixture", "sim/cockpit2/engine/actuators/mixture_ratio", true, 0, 1, nullptr, nullptr, false, {9, 28, 29, 30, 31}},
     {DialUse::RudderTrim, "Rudder trim", "sim/cockpit2/controls/rudder_trim", false, -1, 1,
      "sim/aircraft/controls/acf_min_trim_rudd", "sim/aircraft/controls/acf_max_trim_rudd", false, {19}},
     {DialUse::AileronTrim, "Aileron trim", "sim/cockpit2/controls/aileron_trim", false, -1, 1,
@@ -234,21 +234,39 @@ bool leverMayWrite(LeverPickup& s, double target, double sim, double tol) {
         s.held = false;
         return false;
     }
+    double moved = tol * kLeverMovedShare;
     bool write;
-    if (s.held && std::fabs(sim - s.lastWritten) <= tol) {
+    if (s.held && std::fabs(sim - s.lastWritten) <= moved) {
         write = true;
     } else {
+        if (s.held) s.letGo = true;   // a button, the mouse or the autopilot moved it
         s.held = false;
         bool crossed = s.seen && ((s.lastTarget - sim) * (target - sim) < 0);
-        write = std::fabs(target - sim) <= tol || crossed;
+        write = std::fabs(target - sim) <= (s.letGo ? moved : tol) || crossed;
     }
     s.lastTarget = target;
     s.seen = true;
     if (write) {
         s.held = true;
+        s.letGo = false;
         s.lastWritten = target;
     }
     return write;
+}
+
+std::vector<double> leverEngines(LeverPickup& s, const std::vector<double>& sim, double target, double lo, double hi,
+                                 double eps) {
+    size_t n = sim.size();
+    s.offsets.resize(n, 0.0);
+    s.written.resize(n, std::nan(""));
+    double a = std::min(lo, hi), b = std::max(lo, hi);
+    std::vector<double> out(n);
+    for (size_t i = 0; i < n; ++i) {
+        if (!(std::fabs(sim[i] - s.written[i]) <= eps)) s.offsets[i] = i == 0 ? 0.0 : sim[i] - sim[0];
+        out[i] = std::max(a, std::min(b, target + s.offsets[i]));
+        s.written[i] = out[i];
+    }
+    return out;
 }
 
 }  // namespace x52

@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.3.2
+
+### Fixed
+- **A trim button press smaller than 1 % of the range was undone by the next turn of the dial.** With a dial on
+  rudder or aileron trim (or any lever job), one small trim step from a button kept the dial in charge: the dial
+  counted X-Plane's value as unmoved while it stayed within 1 % of what the dial last wrote, and having let go it
+  took over again at once when it was within 1 % of X-Plane's value. Now any move by a button, the mouse or the
+  autopilot lets go of the dial, and the dial takes over again only when turned across X-Plane's new value. (1.3.2)
+- **Twins with split levers were set to the same value once the dial took over.** Prop and mixture were written
+  through X-Plane's `_all` datarefs, and cowl flaps and carb heat wrote one value to every engine, so levers set
+  apart jumped together. Now every engine moves by the same amount as the dial and keeps its distance from engine 1
+  (within the game's range); prop and mixture use the per-engine datarefs. (1.3.2)
+- **A code comment in the plugin window was on the wrong line.** "X-Plane doing the same job wins" sat on the line
+  that looks up the dial's job instead of the branch that says so. (1.3.2)
+
 ## 1.3.1
 
 ### Added

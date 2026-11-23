@@ -139,7 +139,8 @@ void XPLMSetDatavi(XPLMDataRef r, int* v, int, int) { refStore(r, *v); }
 int XPLMGetDatavf(XPLMDataRef r, float* out, int offset, int n) {
     size_t i = (size_t)(intptr_t)r - 1;
     for (int k = 0; k < n; ++k) {
-        std::string at = i < refNames.size() ? refNames[i] + "[" + std::to_string(offset + k) + "]" : "";
+        // index 0 is the name itself (as written), so a test that sets the name sets engine 0
+        std::string at = i < refNames.size() && offset + k > 0 ? refNames[i] + "[" + std::to_string(offset + k) + "]" : "";
         out[k] = (float)(sim().datarefs.count(at) ? sim().datarefs[at] : refValue(r));
     }
     return n;
