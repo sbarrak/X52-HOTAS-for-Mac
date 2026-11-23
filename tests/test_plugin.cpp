@@ -1427,42 +1427,6 @@ TEST(the_undo_and_redo_buttons_show_a_tip_when_the_mouse_rests_on_them) {
     uiTipDelay = saved;
 }
 
-TEST(the_screen_brightness_page_dims_the_aircrafts_panel_too) {
-    const char* kPanel = "sim/cockpit2/switches/instrument_brightness_ratio";
-    auto& d = sim().datarefs;
-    d[kPanel] = 1.0;
-    d.erase(std::string(kPanel) + "[0]");
-    gApp->profile.pages = PageTree();
-    gApp->profile.brightScreen = BrightnessLink();
-    gApp->profile.brightLights = BrightnessLink();
-    gApp->profile.mfdBrightness = 127;
-    gApp->profile.ledBrightness = 127;
-    gApp->profileChanged();                                // loading or saving a profile leaves the panel alone
-    sim().frame();
-    CHECK(nearTo(d[kPanel], 1.0));
-    gApp->setPage(PageBrightness);
-    press(39, true);                                       // press: start changing the screen
-    press(39, false);
-    press(38, true);                                       // turn down: 95 %
-    press(38, false);
-    CHECK_EQ(gApp->profile.mfdBrightness, 121);
-    CHECK(nearTo(d[std::string(kPanel) + "[0]"], 0.95));   // the panel follows
-    press(39, true);                                       // finish, move to the lights, change them
-    press(39, false);
-    press(38, true);
-    press(38, false);
-    press(39, true);
-    press(39, false);
-    press(38, true);
-    press(38, false);
-    CHECK(gApp->profile.ledBrightness < 127);
-    CHECK(nearTo(d[std::string(kPanel) + "[0]"], 0.95));   // the lights do not touch the panel
-    gApp->profile.mfdBrightness = 127;
-    gApp->profile.ledBrightness = 127;
-    gApp->profileChanged();
-    gApp->setPage(PageComNav1);
-}
-
 TEST(the_brightness_page_changes_and_saves_the_screen_and_light_brightness) {
     gApp->profile.pages = PageTree();
     gApp->profile.brightScreen = BrightnessLink();

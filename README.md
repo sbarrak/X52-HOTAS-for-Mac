@@ -358,8 +358,6 @@ Other things to know:
 - The **Brightness page** sets the screen's and the lights' brightness from the stick: turn the right wheel to
   pick Screen or Lights, press to change (`>>`), turn in 5 % steps, press again to finish. It is saved at once.
   The screen never goes below 10 %. A brightness that follows a dataref shows `dataref` and is not changed here.
-  In X-Plane, changing the screen here also dims the aircraft's instrument panel to the same percent, so one
-  control dims both for night flying (the cockpit's own brightness knob still works in between).
 - The **right wheel and its button** change what the page shows, as in the manual:
   turn to move the cursor, press to act. `[118.000]` is an active frequency: press to
   swap it with standby. `>` or `<` marks a part of a value: press (it becomes `>>` or

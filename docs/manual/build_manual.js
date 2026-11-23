@@ -387,7 +387,7 @@ add(bullet("**Fast turns jump.** While changing heading, altitude, vertical spee
 add(bullet("COM fine steps are 25 kHz, or 8.33 kHz channels if you choose that."));
 add(bullet("The **Function**, **Start/Stop** and **Reset** buttons under the screen are the stick's own clock and stopwatch buttons."));
 add(h2("6.2  The Brightness page"));
-add(p("The last page sets the screen's and the lights' brightness from the stick: turn the right wheel to pick Screen or Lights, press to change (`>>`), turn in 5 % steps, press again to finish. It is saved at once. The screen never goes below 10 %. A brightness that follows a dataref shows `dataref` and is not changed here. In X-Plane, changing the screen here also dims the aircraft's instrument panel to the same percent, so one control dims both for night flying."));
+add(p("The last page sets the screen's and the lights' brightness from the stick: turn the right wheel to pick Screen or Lights, press to change (`>>`), turn in 5 % steps, press again to finish. It is saved at once. The screen never goes below 10 %. A brightness that follows a dataref shows `dataref` and is not changed here."));
 add(h2("6.3  The Buttons page"));
 add(p("Shows the name of the profile on the first line, the name of the button you last pressed on the second, and the mode (with \"+ Pinkie\" while the pinkie is held) on the third. It is the default screen, and it is useful for learning a profile."));
 add(h2("6.4  Your own pages"));

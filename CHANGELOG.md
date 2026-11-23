@@ -13,9 +13,6 @@
   tab or in the plugin window. New profile keys `rotary_lower_range` and `rotary_upper_range` (`0 100` by default),
   jobs 3 to 8 for `rotary_lower` / `rotary_upper`; profile format 8. The ready-made profiles keep speed brake and
   zoom. (issue #78)
-- **The stick's screen brightness dims the aircraft's panel too.** Changing *Screen* on the stick's Brightness page
-  now also sets X-Plane's instrument panel brightness to the same percent, so one control dims both for night
-  flying. Only that page does it, so the cockpit's own brightness knob still works in between. (issue #78)
 
 ## 1.3.0
 

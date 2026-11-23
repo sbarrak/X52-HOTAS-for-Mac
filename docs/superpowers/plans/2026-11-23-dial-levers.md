@@ -43,6 +43,8 @@ soft takeover; the user picked all four groups and version 1.3.1).
 - **X-Plane doing the same job.** If any X-Plane axis is assigned to the same job, the plugin leaves the lever alone
   and the window says so, as for speed brake and zoom. X-Plane's assignment numbers for these jobs are not known yet:
   Task 6 reads them live (`sim/joystick/joystick_axis_assignments`) and Task 2 keeps them in one table.
+- **Taken out of 1.3.1 after the live test** (2026-11-23): in the Citation X the aircraft sets channel 0 itself (the
+  write flickered) and its displays dim through other channels; panel dimming gets its own issue later.
 - **Panel brightness follows the stick's screen** (user's choice, 2026-11-23: not a dial job). When the Screen value
   changes on the MFD Brightness page (the wheel), the plugin also writes
   `sim/cockpit2/switches/instrument_brightness_ratio[0]` = Screen percent / 100 (10 %..100 %, as the screen). Only
