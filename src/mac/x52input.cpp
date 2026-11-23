@@ -100,6 +100,8 @@ void X52Input::push(int button, bool down) {
 void X52Input::releaseHat() {
     std::lock_guard<std::mutex> lock(mutex_);
     hatMask_ = 0;
+    nubMask_ = 0;
+    nubX_ = nubY_ = 0;
 }
 
 void X52Input::pushAxis(const AxisEvent& e) {
@@ -111,6 +113,13 @@ void X52Input::pushAxis(const AxisEvent& e) {
         for (int i = 0; i < 4; ++i)
             if (((mask ^ hatMask_) >> i) & 1) pending_.push_back({kPov1Up + i, ((mask >> i) & 1) != 0});
         hatMask_ = mask;
+    }
+    if (e.usagePage == 0x05 && (e.usage == 0x24 || e.usage == 0x26)) {   // the throttle's mouse nub: buttons 44..51 (arrows; far = Shift + arrows)
+        (e.usage == 0x24 ? nubX_ : nubY_) = nubAxisFraction(e.value, e.min, e.max);
+        int mask = nubButtonMask(nubX_, nubY_, nubMask_);
+        for (int i = 0; i < 8; ++i)
+            if (((mask ^ nubMask_) >> i) & 1) pending_.push_back({kNubUp + i, ((mask >> i) & 1) != 0});
+        nubMask_ = mask;
     }
     if (!wantAxes_ && !hat) return;
     axisPending_.push_back(e);

@@ -26,7 +26,9 @@ const char* const kButtonNames[kMaxButton + 1] = {
     "Mode 1", "Mode 2", "Mode 3", "Clutch (i)",
     "MFD Function", "MFD Start/Stop", "MFD Reset", "MFD Page up", "MFD Page down",
     "MFD Up", "MFD Down", "MFD Select",
-    "POV 1 up", "POV 1 right", "POV 1 down", "POV 1 left"};
+    "POV 1 up", "POV 1 right", "POV 1 down", "POV 1 left",
+    "Mouse nub up", "Mouse nub right", "Mouse nub down", "Mouse nub left",
+    "Mouse nub up (far)", "Mouse nub right (far)", "Mouse nub down (far)", "Mouse nub left (far)"};
 
 const char* const kLayerNames[kLayerCount] = {"Any mode", "Mode 1", "Mode 2", "Mode 3",
                                               "Mode 1 + Pinkie", "Mode 2 + Pinkie", "Mode 3 + Pinkie"};
@@ -296,6 +298,7 @@ Profile defaultProfile() {
     dn.press.push_back({StepKind::Command, "x52pro/mfd_page_next", 0});
     addWheelBindings(p);
     addLookBindings(p);
+    addNubBindings(p);
     return p;
 }
 
@@ -328,6 +331,27 @@ bool addLookBindings(Profile& p) {
     };
     bool added = false;
     for (const auto& w : kLook) {
+        bool used = false;
+        for (const Binding& b : p.bindings)
+            if (b.button == w.button && !b.empty()) used = true;
+        if (used) continue;
+        Binding& b = p.edit(w.button, kLayerAny);
+        b.label = w.label;
+        b.press.push_back({StepKind::Key, w.key, 0});
+        added = true;
+    }
+    return added;
+}
+
+bool addNubBindings(Profile& p) {
+    static const struct { int button; const char* label; const char* key; } kNub[] = {
+        {kNubUp, "Pan up", "up"},           {kNubUp + 1, "Pan right", "right"},
+        {kNubUp + 2, "Pan down", "down"},   {kNubUp + 3, "Pan left", "left"},
+        {kNubUp + 4, "Pan up fast", "shift+up"},      {kNubUp + 5, "Pan right fast", "shift+right"},
+        {kNubUp + 6, "Pan down fast", "shift+down"},  {kNubUp + 7, "Pan left fast", "shift+left"},
+    };
+    bool added = false;
+    for (const auto& w : kNub) {
         bool used = false;
         for (const Binding& b : p.bindings)
             if (b.button == w.button && !b.empty()) used = true;
@@ -474,7 +498,7 @@ std::string secondText(const Trigger& t) {
 
 std::string serialize(const Profile& p) {
     std::ostringstream o;
-    o << "x52pro-profile 5\n";
+    o << "x52pro-profile 6\n";
     o << "# X52 Pro button profile. Written by the X52 Pro plugin; safe to edit by hand.\n";
     o << "name = " << cleanLabel(p.name) << "\n";
     if (p.standard) o << "# standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)\nstandard = 1\n";
@@ -990,6 +1014,8 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
     if (p.version < 2) addWheelBindings(p);
     // Before version 5 POV 1 (the hat switch) was not a set of buttons, so no profile could look around with it.
     if (p.version < 5) addLookBindings(p);
+    // Before version 6 the throttle's mouse nub was not buttons either.
+    if (p.version < 6) addNubBindings(p);
     // Before version 3 the last rule for a light won; now the first does. Reverse the order
     // once so the lights keep behaving as they did.
     if (p.version < 3) std::reverse(p.rules.begin(), p.rules.end());

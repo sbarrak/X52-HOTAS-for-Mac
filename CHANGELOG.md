@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.7
+
+### Added
+- **The throttle's mouse nub pans the view.** The small stick on the throttle did nothing. Pushed part of the way it
+  presses the arrow keys (X-Plane's pan), pushed all the way it presses Shift + the arrow (a faster pan). Like POV 1,
+  the plugin turns it into buttons (44 to 47 for the arrows, 48 to 51 for Shift + arrows) that every profile can
+  bind. The ready-made profiles have them, and any other profile (including your own) gets them when it is read,
+  unless you had already programmed those buttons. Set the nub to None in X-Plane's Joystick settings so only the
+  plugin acts on it. The printed button maps mention it in their footer. (issue #67)
+
 ## 1.2.6
 
 ### Fixed

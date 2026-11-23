@@ -678,6 +678,41 @@ TEST(pov_1_looks_around_while_pushed_and_picks_profiles_only_with_the_clutch) {
     gApp->engine.setProfile(gApp->profile);
 }
 
+TEST(the_mouse_nub_pans_part_way_and_pans_fast_all_the_way) {
+    // The default bindings send keys, which a test must not type into the Mac: bind commands instead.
+    const char* cmds[8] = {"test/pan_up", "test/pan_right", "test/pan_down", "test/pan_left",
+                           "test/fast_up", "test/fast_right", "test/fast_down", "test/fast_left"};
+    for (const char* c : cmds) sim().knownCommands.push_back(c);
+    {
+        Profile p = gApp->profile;
+        for (int i = 0; i < 8; ++i) {
+            Binding& b = p.edit(kNubUp + i, kLayerAny);
+            b.press.clear();
+            b.press.push_back({StepKind::Command, cmds[i], 0});
+        }
+        gApp->engine.setProfile(p);
+    }
+    auto nub = [](int usage, long v) {
+        gApp->input.pushAxis({0x05, usage, v, 0, 255});
+        sim().frame();
+    };
+    nub(0x24, 128);                           // centred
+    CHECK_EQ(sim().begins["test/pan_right"], 0);
+    nub(0x24, 200);                           // part way right
+    CHECK_EQ(sim().begins["test/pan_right"], 1);
+    CHECK_EQ(sim().begins["test/fast_right"], 0);
+    nub(0x24, 255);                           // all the way: the fast pan takes over
+    CHECK_EQ(sim().begins["test/fast_right"], 1);
+    CHECK_EQ(sim().ends["test/pan_right"], 1);
+    nub(0x24, 128);
+    CHECK_EQ(sim().ends["test/fast_right"], 1);
+    nub(0x26, 0);                             // all the way up
+    CHECK_EQ(sim().begins["test/fast_up"], 1);
+    nub(0x26, 128);
+    CHECK_EQ(sim().ends["test/fast_up"], 1);
+    gApp->engine.setProfile(gApp->profile);
+}
+
 TEST(a_profile_changed_outside_x_plane_is_picked_up) {
     CHECK(gApp->lock.held());
     CHECK(StickLock::heldByOther(gApp->store.dir));
@@ -705,7 +740,7 @@ TEST(a_profile_from_the_older_plugin_gets_the_wheel_bindings) {
     }
     gApp->reload();
     CHECK(has(slurp(defaultFile()), "cmd:x52pro/mfd_select"));
-    CHECK(has(slurp(defaultFile()), "x52pro-profile 5"));
+    CHECK(has(slurp(defaultFile()), "x52pro-profile 6"));
     CHECK(has(slurp(defaultFile()), std::string("cmd:") + kGear));
 }
 

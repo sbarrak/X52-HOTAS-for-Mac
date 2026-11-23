@@ -343,7 +343,9 @@ lights go dark. With no dataref chosen, or one X-Plane does not know, it stays o
 *Settings > Joystick*, otherwise X-Plane and the plugin both act on it. Buttons you
 leave unprogrammed here keep working through X-Plane as before. Axes stay with
 X-Plane unless you tick the override on the **Axes** tab (below). The main POV hat (POV 1) is four buttons (40 to 43; a
-diagonal holds two) that look around by default; if X-Plane also uses that hat, set it to None there.
+diagonal holds two) that look around by default; if X-Plane also uses that hat, set it to None there. The throttle's mouse nub is eight more
+buttons (44 to 47: the arrow keys, which pan the view in X-Plane; 48 to 51: Shift + the arrow keys, a faster pan, when the nub
+is pushed all the way); set the nub to None in X-Plane too.
 
 Other things to know:
 

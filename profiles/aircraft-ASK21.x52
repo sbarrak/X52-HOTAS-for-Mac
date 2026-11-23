@@ -62,6 +62,14 @@ bind 40 any press "Look up" key:r
 bind 41 any press "Look right" key:e
 bind 42 any press "Look down" key:f
 bind 43 any press "Look left" key:q
+bind 44 any press "Pan up" key:up
+bind 45 any press "Pan right" key:right
+bind 46 any press "Pan down" key:down
+bind 47 any press "Pan left" key:left
+bind 48 any press "Pan up fast" key:shift+up
+bind 49 any press "Pan right fast" key:shift+right
+bind 50 any press "Pan down fast" key:shift+down
+bind 51 any press "Pan left fast" key:shift+left
 bind 9 1 press "Battery on" cmd:sim/electrical/battery_1_on
 bind 10 1 press "Battery off" cmd:sim/electrical/battery_1_off
 bind 11 1 press "Avionics on" cmd:sim/systems/avionics_on
