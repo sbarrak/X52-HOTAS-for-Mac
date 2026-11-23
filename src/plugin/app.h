@@ -71,6 +71,10 @@ struct App : Host {
     StickLock lock;              // held while the plugin drives the stick
     long long loadedStamp = 0;   // the profile file as last read or written
     double nextSlowCheck = 0;
+    // Switched off in the app (the plugin-off file): the flight loop only checks, once a second, whether it is on again.
+    bool off = false;
+    double nextOffCheck = 0;
+    void setOff(bool off);
     bool testMode = false;       // the stick's screen names whatever is moved or pressed; buttons do nothing
     Lines testLines;
     Lines screen;                // what the stick's screen shows right now (mirrored in the window)

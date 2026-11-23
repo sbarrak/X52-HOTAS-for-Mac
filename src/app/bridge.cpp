@@ -133,6 +133,10 @@ void x52_tick(void) {
 int x52_connected(void) { return agent && agent->connected(); }
 int x52_is_pro(void) { return agent && agent->isPro(); }
 int x52_plugin_active(void) { return agent && agent->pluginActive(); }
+int x52_plugin_enabled(void) { return !(agent && pluginOff(agent->dir())); }
+void x52_set_plugin_enabled(int on) {
+    if (agent) setPluginOff(agent->dir(), on == 0);
+}
 int x52_mode(void) { return agent ? agent->mode() : 1; }
 int x52_revision(void) { return agent ? agent->revision() : 0; }
 const char* x52_dir(void) { return agent ? agent->dir().c_str() : ""; }

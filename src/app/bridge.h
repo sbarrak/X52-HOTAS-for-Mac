@@ -20,6 +20,9 @@ void x52_tick(void);
 int x52_connected(void);
 int x52_is_pro(void);
 int x52_plugin_active(void);
+// The switch for the X-Plane plugin (kept in the profiles folder): 1 on, 0 off (the plugin then does nothing in X-Plane).
+int x52_plugin_enabled(void);
+void x52_set_plugin_enabled(int on);
 int x52_mode(void);
 int x52_shift(void);                           // 1 while the pinkie switch is held
 int x52_revision(void);

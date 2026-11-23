@@ -306,8 +306,18 @@ void learnSlots(App& a, double now) {
 float flightLoop(float elapsed, float, int, void*) {
     App& a = *gApp;
     double now = a.now();
+    if (now >= a.nextOffCheck) {
+        a.nextOffCheck = now + 1.0;
+        bool off = pluginOff(a.store.dir);
+        if (off != a.off) a.setOff(off);
+    }
     std::vector<ButtonEvent> events;
     a.input.drain(events);
+    if (a.off) {   // switched off in the app: whatever the stick does is X-Plane's alone
+        std::vector<AxisEvent> moves;
+        a.input.drainAxes(moves);
+        return -1.0f;
+    }
     for (const ButtonEvent& e : events) {
         if (e.down && e.button >= kPov1Up && e.button < kPov1Up + 4 && a.engine.clutch()) continue;   // with the clutch held POV 1 picks the profile
         if (e.down && e.button >= 1 && e.button <= kMaxButton) {
@@ -619,6 +629,21 @@ void App::applySliderFlaps() {
     if (std::fabs(handle - flapWritten) < 1e-4) return;
     if (XPLMDataRef r = cachedRef("sim/cockpit2/controls/flap_handle_request_ratio")) XPLMSetDataf(r, (float)handle);
     flapWritten = handle;
+}
+
+void App::setOff(bool o) {
+    off = o;
+    if (off) {
+        engine.releaseAll();
+        releaseAxes();
+        device.stop();
+        lock.release();   // the menu bar app may drive the stick's screen and lights
+    } else {
+        lock.tryHold(store.dir);
+        device.start();
+        reload();
+        nextDeviceUpdate = 0;
+    }
 }
 
 void App::readAxisAssignments() {
@@ -1157,6 +1182,8 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc) {
 
 PLUGIN_API int XPluginEnable(void) {
     App& a = *gApp;
+    a.off = false;          // the first frame reads the app's switch again
+    a.nextOffCheck = 0;
     a.loadForAircraft(currentAircraft());
     a.loadButtonMap();
     a.loadCalibration();

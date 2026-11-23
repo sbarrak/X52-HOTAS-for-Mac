@@ -365,6 +365,22 @@ TEST(each_throttle_dials_job_is_picked_in_the_app_and_saved) {
     x52_stop();
 }
 
+TEST(the_plugin_is_switched_off_and_on_from_the_app_and_it_lasts) {
+    std::string dir = freshDir("plugin_switch");
+    x52_start("", dir.c_str(), "default");
+    CHECK_EQ(x52_plugin_enabled(), 1);
+    x52_set_plugin_enabled(0);
+    CHECK_EQ(x52_plugin_enabled(), 0);
+    CHECK(access((dir + "/plugin-off").c_str(), F_OK) == 0);   // the plugin reads this file
+    x52_stop();
+    x52_start("", dir.c_str(), "default");
+    CHECK_EQ(x52_plugin_enabled(), 0);                          // still off after a restart of the app
+    x52_set_plugin_enabled(1);
+    CHECK_EQ(x52_plugin_enabled(), 1);
+    CHECK(access((dir + "/plugin-off").c_str(), F_OK) != 0);
+    x52_stop();
+}
+
 TEST(axis_and_dial_settings_are_edited_from_the_app_and_saved) {
     std::string dir = freshDir("axes_settings");
     x52_start("", dir.c_str(), "default");

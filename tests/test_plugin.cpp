@@ -558,6 +558,70 @@ TEST(the_window_cycles_a_dials_job_and_saves_it) {
     gApp->profileChanged();
 }
 
+static int gearRuns() { return sim().onces[kGear] + sim().begins[kGear]; }
+static void bindGearTo(int button) {
+    Binding& b = gApp->profile.edit(button, kLayerAny);
+    b.press.clear();
+    b.press.push_back({StepKind::Command, kGear, 0});
+    gApp->profileChanged();
+}
+
+TEST(the_plugin_switched_off_leaves_everything_to_x_plane) {
+    auto& d = sim().datarefs;
+    sim().knownCommands.push_back(kGear);
+    bindGearTo(9);
+    gApp->profile.axes = AxisSettings();
+    gApp->profile.axes.overrideXPlane = true;
+    gApp->profileChanged();
+    gApp->input.pushAxis({0x01, 0x30, 700, 0, 1023});
+    sim().frame();
+    CHECK_EQ((int)d["sim/operation/override/override_joystick"], 1);
+    CHECK(setPluginOff(gApp->store.dir, true));
+    gApp->nextOffCheck = 0;
+    sim().frame();
+    CHECK(gApp->off);
+    CHECK_EQ((int)d["sim/operation/override/override_joystick"], 0);   // the stick is X-Plane's again
+    int gear = gearRuns();
+    press(9, true);
+    press(9, false);
+    CHECK_EQ(gearRuns(), gear);                                        // buttons do nothing
+    d[kSpeedBrake] = 0.3;
+    dialTo(0x33, 20);
+    dialTo(0x33, 240);
+    CHECK(nearTo(d[kSpeedBrake], 0.3));                                // nor do the dials
+    CHECK(!StickLock::heldByOther(gApp->store.dir) || !gApp->lock.held());   // the menu bar app may drive the stick
+}
+
+TEST(the_switch_survives_a_restart_of_the_plugin) {
+    CHECK(pluginOff(gApp->store.dir));
+    bool shown = sim().windowVisible;
+    XPluginDisable();
+    CHECK_EQ(XPluginEnable(), 1);
+    sim().frame();
+    CHECK(gApp->off);
+    if (shown && !sim().windowVisible) XPLMCommandOnce(XPLMFindCommand("x52pro/toggle_window"));   // as it was
+}
+
+TEST(the_plugin_switched_back_on_takes_over_again) {
+    auto& d = sim().datarefs;
+    CHECK(setPluginOff(gApp->store.dir, false));
+    CHECK(!pluginOff(gApp->store.dir));
+    gApp->nextOffCheck = 0;
+    sim().frame();
+    CHECK(!gApp->off);
+    gApp->input.pushAxis({0x01, 0x30, 600, 0, 1023});
+    sim().frame();
+    CHECK_EQ((int)d["sim/operation/override/override_joystick"], 1);
+    int gear = gearRuns();
+    press(9, true);
+    press(9, false);
+    CHECK_EQ(gearRuns(), gear + 1);
+    gApp->profile.axes = AxisSettings();
+    gApp->profile.edit(9, kLayerAny).press.clear();
+    gApp->profileChanged();
+    sim().frame();
+}
+
 TEST(the_plugin_can_drive_the_throttle_alone_and_leave_the_stick_to_x_plane) {
     auto& d = sim().datarefs;
     const char* thr = "sim/flightmodel/engine/ENGN_thro_use";

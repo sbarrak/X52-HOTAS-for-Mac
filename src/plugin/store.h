@@ -47,6 +47,11 @@ std::string calibrationPath(const std::string& dir);
 std::map<int, AxisCalibration> loadCalibration(const std::string& dir);
 bool saveCalibration(const std::string& dir, const std::map<int, AxisCalibration>& cal);
 long long calibrationStamp(const std::string& dir);   // changes whenever the file is rewritten; 0 when there is none
+
+// The app's switch for the X-Plane plugin: the file `plugin-off` in the profiles folder means switched off (the plugin
+// then does nothing at all and X-Plane's own Joystick settings are in charge). Kept across restarts.
+bool pluginOff(const std::string& dir);
+bool setPluginOff(const std::string& dir, bool off);   // false if the file could not be written or removed
 // One line per calibrated axis, "Stick fwd/back: 10 .. 505 .. 1010" (measured min, centre, max).
 std::string describeCalibration(const std::map<int, AxisCalibration>& cal);
 

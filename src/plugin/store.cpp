@@ -6,6 +6,7 @@
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <cerrno>
 
 #include <algorithm>
 #include <cstdio>
@@ -146,6 +147,17 @@ bool StickLock::heldByOther(const std::string& dir) {
     bool busy = flock(f, LOCK_EX | LOCK_NB) != 0;
     close(f);                  // also gives the lock straight back if we got it
     return busy;
+}
+
+bool pluginOff(const std::string& dir) { return access((dir + "/plugin-off").c_str(), F_OK) == 0; }
+
+bool setPluginOff(const std::string& dir, bool off) {
+    std::string path = dir + "/plugin-off";
+    if (!off) return unlink(path.c_str()) == 0 || errno == ENOENT;
+    mkdir(dir.c_str(), 0755);
+    std::ofstream f(path);
+    f << "The X-Plane plugin is switched off in the X52 Pro app. Switch it on there, or delete this file.\n";
+    return (bool)f;
 }
 
 bool Store::remove(const std::string& key) const { return unlink(pathFor(key).c_str()) == 0; }

@@ -31,6 +31,7 @@ final class Model: ObservableObject {
     @Published var connected = false
     @Published var isPro = true
     @Published var pluginActive = false
+    @Published var pluginEnabled = true   // the app's switch for the X-Plane plugin
     @Published var mode = 1
     @Published var shift = false        // pinkie switch held
     @Published var lightsPinkie = false // Lights tab: editing the pinkie-held colours
@@ -130,6 +131,7 @@ final class Model: ObservableObject {
         set(\.connected, x52_connected() != 0)
         set(\.isPro, x52_is_pro() != 0 || x52_connected() == 0)
         set(\.pluginActive, x52_plugin_active() != 0)
+        set(\.pluginEnabled, x52_plugin_enabled() != 0)
         set(\.mode, Int(x52_mode()))
         set(\.shift, x52_shift() != 0)
         set(\.error, str(x52_error()))
@@ -342,6 +344,7 @@ final class Model: ObservableObject {
 
     var layerText: String { shift ? "Pinkie + \(mode)" : "Mode \(mode)" }
     var statusText: String {
+        if !pluginEnabled { return connected ? "Stick connected, plugin off" : "Stick not connected, plugin off" }
         if pluginActive { return "X-Plane is running and its plugin is driving the stick (\(layerText))" }
         if !connected { return "Stick not connected" }
         return "Stick connected, \(layerText)"
@@ -2590,6 +2593,17 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
+                Button {   // the switch for the X-Plane plugin: green on, red off
+                    x52_set_plugin_enabled(m.pluginEnabled ? 0 : 1)
+                    m.tick()
+                } label: {
+                    HStack(spacing: 6) {
+                        Circle().fill(m.pluginEnabled ? Color.green : Color.red).frame(width: 9, height: 9)
+                        Text(m.pluginEnabled ? "Plugin on" : "Plugin off")
+                    }
+                }
+                .help("Switches the X-Plane plugin on or off. Off: the plugin does nothing in X-Plane, and X-Plane's own Joystick settings are in charge. Takes effect within a second and is kept until you switch it back on.")
+                Divider().frame(height: 14)
                 Circle().fill(m.pluginActive ? Color.blue : m.connected ? Color.green : Color.gray).frame(width: 9, height: 9)
                 Text(m.statusText)
                 Spacer()
