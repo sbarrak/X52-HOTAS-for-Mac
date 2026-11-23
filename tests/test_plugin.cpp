@@ -602,6 +602,22 @@ TEST(the_takeover_hint_follows_the_dial_as_shown_when_inverted) {
     gApp->profile.axes = AxisSettings();
 }
 
+TEST(a_lever_x_plane_also_drives_is_left_alone) {
+    leverDial(DialUse::Mixture);
+    sim().axisAssignments = {2, 1, 3, 4, 29};               // X-Plane: an axis for mixture 2
+    gApp->nextSlowCheck = 0;
+    sim().frame();
+    auto& d = sim().datarefs;
+    double m0 = d[kMixture];
+    dialTo(0x33, 20);
+    dialTo(0x33, 200);
+    CHECK(nearTo(d[kMixture], m0));
+    sim().axisAssignments.clear();
+    gApp->nextSlowCheck = 0;
+    sim().frame();
+    gApp->profile.axes = AxisSettings();
+}
+
 TEST(an_aircraft_without_rudder_trim_leaves_the_dial_idle_and_says_so) {
     leverDial(DialUse::RudderTrim, 0.0);
     auto& d = sim().datarefs;

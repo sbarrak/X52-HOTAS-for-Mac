@@ -146,7 +146,9 @@ struct LeverJob {
     double lo, hi;             // the game's range
     const char* limLow;        // aircraft limits (nullptr: none): the range becomes -limLow .. +limHigh
     const char* limHigh;
-    int xpAxis;                // X-Plane's own axis assignment for the same job (0: not known)
+    // X-Plane's own axis assignments for the same job (its joy_use numbers; 0 ends the list): with one in use,
+    // X-Plane drives the job itself and the plugin leaves it alone.
+    int xpAxis[5];
 };
 const LeverJob* leverJob(DialUse use);   // nullptr for None, SpeedBrake and Zoom
 const char* dialUseName(DialUse use);    // every job; "Nothing" for None

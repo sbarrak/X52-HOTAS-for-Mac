@@ -659,6 +659,12 @@ bool App::xplaneDrives(int assignment) const {
     return std::find(xpAxisUse.begin(), xpAxisUse.end(), assignment) != xpAxisUse.end();
 }
 
+bool App::xplaneDrives(const LeverJob& job) const {
+    for (int a : job.xpAxis)
+        if (a && xplaneDrives(a)) return true;
+    return false;
+}
+
 void App::resetDials() {
     speedBrakeWritten = -9;
     zoomAnchor.clear();
@@ -743,7 +749,7 @@ void App::applyLever(int usage, const LeverJob& job, const AxisLive& l, double n
     std::string& note = leverNotes[usage];
     LeverPickup& st = leverState[usage];
     note.clear();
-    if (job.xpAxis && xplaneDrives(job.xpAxis)) {
+    if (xplaneDrives(job)) {
         st = LeverPickup();
         return;
     }

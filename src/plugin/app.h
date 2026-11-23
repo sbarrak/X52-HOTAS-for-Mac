@@ -174,6 +174,7 @@ public:
     void resetDials();                     // after an aircraft or profile change, or a dial's job changed
     void setDialUse(int usage, DialUse use);   // the window's choice: saves the profile and starts the dial afresh
     bool xplaneDrives(int assignment) const;   // some X-Plane axis is assigned to this job (kXpAxis...)
+    bool xplaneDrives(const LeverJob& job) const;   // ...to any of a lever job's own numbers
     void readAxisAssignments();            // X-Plane's axis assignments, read once a second
     double speedBrakeWritten = -9;         // the speed-brake handle a dial last set (-9: none since resetDials)
     std::map<int, double> zoomAnchor;      // per dial usage: the position zoom steps are counted from

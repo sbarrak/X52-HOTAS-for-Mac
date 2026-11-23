@@ -2513,6 +2513,23 @@ TEST(lever_jobs_have_names_and_settings) {
     CHECK_EQ(kDialUseCount, 9);
 }
 
+TEST(lever_jobs_know_x_planes_own_axis_numbers) {
+    // X-Plane's joy_use list: prop 8 (prop 1-4: 24-27), mixture 9 (28-31), carb heat 10, aileron trim 18,
+    // rudder trim 19, cowl flaps 39.
+    auto has = [](DialUse u, int n) {
+        for (int a : leverJob(u)->xpAxis)
+            if (a == n) return true;
+        return false;
+    };
+    CHECK(has(DialUse::Prop, 8) && has(DialUse::Prop, 24) && has(DialUse::Prop, 27));
+    CHECK(has(DialUse::Mixture, 9) && has(DialUse::Mixture, 28) && has(DialUse::Mixture, 31));
+    CHECK(has(DialUse::CarbHeat, 10));
+    CHECK(has(DialUse::AileronTrim, 18));
+    CHECK(has(DialUse::RudderTrim, 19));
+    CHECK(has(DialUse::CowlFlaps, 39));
+    CHECK(!has(DialUse::Prop, 9) && !has(DialUse::RudderTrim, 18));
+}
+
 TEST(dial_ranges_and_new_jobs_round_trip_through_the_profile) {
     Profile p;
     p.axes.lowerUse = DialUse::RudderTrim;
