@@ -41,6 +41,15 @@ private:
     const std::map<std::string, std::string>& choices() const;
 };
 
+// The stick's calibration (see AxisCalibration), shared by the app and the plugin: <dir>/stick-calibration.txt.
+// It belongs to the stick, not to a profile. Saving an empty one removes the file.
+std::string calibrationPath(const std::string& dir);
+std::map<int, AxisCalibration> loadCalibration(const std::string& dir);
+bool saveCalibration(const std::string& dir, const std::map<int, AxisCalibration>& cal);
+long long calibrationStamp(const std::string& dir);   // changes whenever the file is rewritten; 0 when there is none
+// One line per calibrated axis, "Stick fwd/back: 10 .. 505 .. 1010" (measured min, centre, max).
+std::string describeCalibration(const std::map<int, AxisCalibration>& cal);
+
 // Says who is driving the stick's screen and lights. The X-Plane plugin holds this lock
 // while it is enabled; the menu bar app stays quiet for as long as it is held. The
 // system drops the lock by itself if the holder crashes.

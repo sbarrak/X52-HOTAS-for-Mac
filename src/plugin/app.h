@@ -142,11 +142,16 @@ public:
     void applyAxes(double dt = 0);
     void releaseAxes();                    // gives the axes back to X-Plane
     std::map<int, double> stickSent;       // the stick's smoothed input per usage, as last sent (before the damper)
+    std::map<int, double> stickOut;        // what was last written into X-Plane per stick usage (after the damper)
+    // Two lines for the Axes tab while the plugin drives the stick: what the plugin sends for pitch, and what
+    // X-Plane then uses (its yoke, the elevator trim, the pitch rate), to see where a nose-up or down comes from.
+    std::vector<std::string> pitchCheck();
     // The stick's own centre and ends (stick-calibration.txt next to the profiles; it belongs to the stick, not
     // to a profile). Calibrating: start, move everything to its limits, let go, finish.
     std::map<int, AxisCalibration> calibration;
     StickCalibrator calibrator;
     std::string calibrationNote;           // what the window says about the calibration
+    long long calibrationStamp = 0;        // the calibration file as last read or written (the app can write it too)
     void loadCalibration();
     void saveCalibration();
     void startCalibration();

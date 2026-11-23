@@ -89,6 +89,23 @@ public:
     std::vector<AxisView> axes() const;
     void pushAxisForTest(const AxisEvent& e) { input_.pushAxis(e); }   // tests: stand in for the stick
 
+    // The stick's calibration (stick-calibration.txt beside the profiles, shared with the plugin, which picks up
+    // a new one within a second). Calibrating: start, move the stick and twist to every limit, let go, finish.
+    // The app reads the stick whether or not X-Plane runs, so this works either way.
+    void startCalibration();
+    bool finishCalibration();          // false: not saved, calibrationNote() says why (still calibrating)
+    void cancelCalibration();
+    void resetCalibration();
+    bool calibrating() const { return calibrator_.active(); }
+    const std::string& calibrationNote() const { return calibrationNote_; }
+    const std::map<int, AxisCalibration>& calibration() const { return calibration_; }
+    // For the calibration window: each stick axis (left/right, fwd/back, twist) as it is now and how far it has gone.
+    struct CalibrationLive {
+        int usage;
+        long value, lo, hi, min, max;   // lo/hi: the furthest reached since calibrating started (value when not calibrating)
+    };
+    std::vector<CalibrationLive> calibrationLive() const;
+
     // What a light shows at time t: the mode's colour, or its live rule when X-Plane answers
     // over UDP (only while the plugin is not driving the stick itself).
     Color lightColor(int led, double t);
@@ -175,6 +192,11 @@ private:
     std::map<std::pair<int, int>, long> axisRef_;   // value when each control last counted as moving
     std::pair<int, int> axisMoved_{0, 0};
     std::map<std::pair<int, int>, long> axisSteady_;   // what dials and the slider show (small flicker held back)
+    StickCalibrator calibrator_;
+    std::map<int, AxisCalibration> calibration_;
+    std::string calibrationNote_;
+    long long calibrationStamp_ = -1;   // the calibration file as last read or written (the plugin can write it too)
+    void loadCalibration();
 };
 
 }  // namespace x52

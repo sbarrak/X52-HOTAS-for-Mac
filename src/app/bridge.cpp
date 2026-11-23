@@ -782,6 +782,39 @@ const char* x52_axes(void) {
     return out.c_str();
 }
 
+void x52_calibrate(int action) {
+    if (!agent) return;
+    switch (action) {
+        case 1: agent->startCalibration(); break;
+        case 2: agent->finishCalibration(); break;
+        case 3: agent->resetCalibration(); break;
+        default: agent->cancelCalibration(); break;
+    }
+}
+int x52_calibrating(void) { return agent && agent->calibrating(); }
+
+const char* x52_calibration(void) {
+    static std::string out;
+    out.clear();
+    if (!agent) return "";
+    const std::string& note = agent->calibrationNote();
+    out = !note.empty() ? note
+        : agent->calibration().empty() ? std::string("Not calibrated: the stick's full range is used.")
+                                       : std::string("Calibrated.");
+    out += "\n" + describeCalibration(agent->calibration());
+    return out.c_str();
+}
+
+const char* x52_calibration_live(void) {
+    static std::string out;
+    out.clear();
+    if (!agent) return "";
+    for (const Agent::CalibrationLive& l : agent->calibrationLive())
+        out += std::to_string(l.usage) + "\t" + std::to_string(l.value) + "\t" + std::to_string(l.lo) + "\t" +
+               std::to_string(l.hi) + "\t" + std::to_string(l.min) + "\t" + std::to_string(l.max) + "\n";
+    return out.c_str();
+}
+
 const char* x52_profiles(void) {
     static std::string s;
     s.clear();

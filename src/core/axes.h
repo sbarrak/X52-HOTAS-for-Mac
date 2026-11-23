@@ -82,6 +82,9 @@ public:
     void cancel() { active_ = false; }
     bool active() const { return active_; }
     void feed(int usage, long value, long min, long max);
+    // What has been seen of an axis since start(): the lowest and highest raw values and the HID range. False
+    // while the axis has not reported anything.
+    bool reached(int usage, long& lo, long& hi, long& min, long& max) const;
     // rest: where each axis is now (the stick let go). False, with `error` saying what to do, when the stick was
     // not moved far enough or is not resting near its middle; `out` is left alone then.
     bool finish(const std::map<int, long>& rest, std::map<int, AxisCalibration>& out, std::string* error);

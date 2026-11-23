@@ -1393,6 +1393,13 @@ void drawAxesTab(const Rect& area) {
     r = rc.take(area.r - rc.x);
     text(r.l, r, fit(calText, r.w()), a.calibrator.active() ? kAmber : kDim);
     rc.t -= kRow + kGap;
+    if (on) {   // where a climb or a dive comes from: the stick, the damper, or X-Plane (trim, physics)
+        for (const std::string& line : a.pitchCheck()) {
+            r = {area.l, rc.t, area.r, rc.t - kRow};
+            text(r.l, r, fit(line, area.r - area.l), kDim);
+            rc.t -= kRow - 4;
+        }
+    }
     rc.t -= kGap;
 
     std::string moving = "Moving now: -";

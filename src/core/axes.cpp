@@ -111,6 +111,16 @@ void StickCalibrator::feed(int usage, long value, long min, long max) {
     it->second.max = max;
 }
 
+bool StickCalibrator::reached(int usage, long& lo, long& hi, long& min, long& max) const {
+    auto it = seen_.find(usage);
+    if (it == seen_.end()) return false;
+    lo = it->second.lo;
+    hi = it->second.hi;
+    min = it->second.min;
+    max = it->second.max;
+    return true;
+}
+
 bool StickCalibrator::finish(const std::map<int, long>& rest, std::map<int, AxisCalibration>& out, std::string* error) {
     auto fail = [&](const std::string& why) {
         if (error) *error = why;

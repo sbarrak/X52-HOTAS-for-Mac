@@ -495,6 +495,12 @@ TEST(letting_go_of_the_stick_reaches_the_sim_in_the_same_frame_and_the_damper_on
     d[q] = 10.0;                                         // airborne, nose pitching up at 10 deg/s
     sim().frame();
     CHECK(d[pitch] < 0.0 && d[pitch] >= -0.046);         // a small push against it, never more
+    {   // the Axes tab's pitch check says what was sent and how much of it is the damper
+        std::vector<std::string> check = gApp->pitchCheck();
+        CHECK_EQ(check.size(), (size_t)2);
+        CHECK(check[0].find("damper -0.0") != std::string::npos);
+        CHECK(check[1].find("pitch rate +10.0 deg/s") != std::string::npos);
+    }
     d[ground] = 1;                                       // on the ground: hands off
     sim().frame();
     CHECK(std::fabs(d[pitch]) < 0.01);
@@ -551,6 +557,13 @@ TEST(the_stick_is_calibrated_from_the_window_and_the_calibration_is_kept_beside_
     CHECK(sim().clickText("Reset", 0, true));
     CHECK(gApp->calibration.empty());
     CHECK(!std::ifstream(gApp->store.dir + "/stick-calibration.txt").good());
+    // Calibrated in the app meanwhile: picked up within a second, no restart needed.
+    std::map<int, AxisCalibration> fromApp = {{0x31, {40, 512, 980}}};
+    CHECK(saveCalibration(gApp->store.dir, fromApp));
+    gApp->nextSlowCheck = 0;
+    sim().frame();
+    CHECK_EQ(gApp->calibration[0x31].max, 980L);
+    gApp->resetCalibration();
     gApp->profile.axes = AxisSettings();
     gApp->profileChanged();
     sim().frame();
