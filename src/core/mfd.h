@@ -80,6 +80,11 @@ std::string controlValueText(int usagePage, int usage, long value, long min, lon
 int hatDirection(long value, long min, long max);
 // The buttons a POV 1 value holds, as bits: 1 up, 2 right, 4 down, 8 left (a diagonal holds two); 0 when centred.
 int hatButtonMask(long value, long min, long max);
+// The throttle's mouse nub: where it sits as a fraction -1..1 (0 at the middle of its range)...
+double nubAxisFraction(long value, long min, long max);
+// ...and the buttons that holds, as bits: 1 up, 2 right, 4 down, 8 left, and 16..128 the same pushed all the way
+// (x: right is positive; y: down is positive). `held` is the mask now held, so a button lets go a little later than it pressed.
+int nubButtonMask(double x, double y, int held);
 // Four direction buttons (a hat made of buttons) as one word: "up", "up-right", ...; "" when none is held.
 std::string povButtonsText(bool up, bool right, bool down, bool left);
 bool controlMoved(int usagePage, int usage, long shown, long value, long min, long max);

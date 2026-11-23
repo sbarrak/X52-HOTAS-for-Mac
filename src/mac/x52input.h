@@ -60,6 +60,8 @@ private:
     std::vector<ButtonEvent> pending_;
     std::vector<AxisEvent> axisPending_;
     std::map<std::pair<int, int>, AxisEvent> axisLatest_;
+    int nubMask_ = 0;   // mouse nub buttons held now (bits 1 up, 2 right, 4 down, 8 left, 16..128 the same far); under mutex_
+    double nubX_ = 0, nubY_ = 0;
     int hatMask_ = 0;   // POV 1 buttons held now (bits 1 up, 2 right, 4 down, 8 left); under mutex_
     std::atomic<bool> wantAxes_{false};
     std::atomic<bool> connected_{false};

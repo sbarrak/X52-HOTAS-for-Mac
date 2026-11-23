@@ -26,7 +26,9 @@ const char* const kButtonNames[kMaxButton + 1] = {
     "Mode 1", "Mode 2", "Mode 3", "Clutch (i)",
     "MFD Function", "MFD Start/Stop", "MFD Reset", "MFD Page up", "MFD Page down",
     "MFD Up", "MFD Down", "MFD Select",
-    "POV 1 up", "POV 1 right", "POV 1 down", "POV 1 left"};
+    "POV 1 up", "POV 1 right", "POV 1 down", "POV 1 left",
+    "Mouse nub up", "Mouse nub right", "Mouse nub down", "Mouse nub left",
+    "Mouse nub up (far)", "Mouse nub right (far)", "Mouse nub down (far)", "Mouse nub left (far)"};
 
 const char* const kLayerNames[kLayerCount] = {"Any mode", "Mode 1", "Mode 2", "Mode 3",
                                               "Mode 1 + Pinkie", "Mode 2 + Pinkie", "Mode 3 + Pinkie"};
@@ -296,6 +298,7 @@ Profile defaultProfile() {
     dn.press.push_back({StepKind::Command, "x52pro/mfd_page_next", 0});
     addWheelBindings(p);
     addLookBindings(p);
+    addNubBindings(p);
     return p;
 }
 
@@ -319,12 +322,26 @@ bool addWheelBindings(Profile& p) {
     return added;
 }
 
+// 1.2.6 gave POV 1 the keys Q E R F; keystrokes lagged and needed macOS permission, so the same thing is now done with
+// X-Plane's own commands. A binding still exactly as 1.2.6 made it is switched over; anything the user changed stays.
+static void upgradeLookKeys(Profile& p) {
+    static const struct { int button; const char* label; const char* key; const char* cmd; } kOld[] = {
+        {kPov1Up, "Look up", "r", "sim/general/rot_up"},       {kPov1Up + 1, "Look right", "e", "sim/general/rot_right"},
+        {kPov1Up + 2, "Look down", "f", "sim/general/rot_down"}, {kPov1Up + 3, "Look left", "q", "sim/general/rot_left"},
+    };
+    for (const auto& o : kOld)
+        for (Binding& b : p.bindings)
+            if (b.button == o.button && b.layer == kLayerAny && b.label == o.label && b.press.size() == 1 &&
+                b.press[0].kind == StepKind::Key && b.press[0].text == o.key && b.hold.empty())
+                b.press[0] = {StepKind::Command, o.cmd, 0};
+}
+
 bool addLookBindings(Profile& p) {
-    static const struct { int button; const char* label; const char* key; } kLook[] = {
-        {kPov1Up, "Look up", "r"},          // X-Plane's own keys for looking around: Q left, E right, R up, F down
-        {kPov1Up + 1, "Look right", "e"},
-        {kPov1Up + 2, "Look down", "f"},
-        {kPov1Up + 3, "Look left", "q"},
+    static const struct { int button; const char* label; const char* cmd; } kLook[] = {
+        {kPov1Up, "Look up", "sim/general/rot_up"},          // what X-Plane's Q E R F keys do: rotate the view
+        {kPov1Up + 1, "Look right", "sim/general/rot_right"},
+        {kPov1Up + 2, "Look down", "sim/general/rot_down"},
+        {kPov1Up + 3, "Look left", "sim/general/rot_left"},
     };
     bool added = false;
     for (const auto& w : kLook) {
@@ -334,7 +351,28 @@ bool addLookBindings(Profile& p) {
         if (used) continue;
         Binding& b = p.edit(w.button, kLayerAny);
         b.label = w.label;
-        b.press.push_back({StepKind::Key, w.key, 0});
+        b.press.push_back({StepKind::Command, w.cmd, 0});
+        added = true;
+    }
+    return added;
+}
+
+bool addNubBindings(Profile& p) {
+    static const struct { int button; const char* label; const char* cmd; } kNub[] = {
+        {kNubUp, "Pan up", "sim/general/up"},           {kNubUp + 1, "Pan right", "sim/general/right"},
+        {kNubUp + 2, "Pan down", "sim/general/down"},   {kNubUp + 3, "Pan left", "sim/general/left"},
+        {kNubUp + 4, "Pan up fast", "sim/general/up_fast"},      {kNubUp + 5, "Pan right fast", "sim/general/right_fast"},
+        {kNubUp + 6, "Pan down fast", "sim/general/down_fast"},  {kNubUp + 7, "Pan left fast", "sim/general/left_fast"},
+    };
+    bool added = false;
+    for (const auto& w : kNub) {
+        bool used = false;
+        for (const Binding& b : p.bindings)
+            if (b.button == w.button && !b.empty()) used = true;
+        if (used) continue;
+        Binding& b = p.edit(w.button, kLayerAny);
+        b.label = w.label;
+        b.press.push_back({StepKind::Command, w.cmd, 0});
         added = true;
     }
     return added;
@@ -474,7 +512,7 @@ std::string secondText(const Trigger& t) {
 
 std::string serialize(const Profile& p) {
     std::ostringstream o;
-    o << "x52pro-profile 5\n";
+    o << "x52pro-profile 6\n";
     o << "# X52 Pro button profile. Written by the X52 Pro plugin; safe to edit by hand.\n";
     o << "name = " << cleanLabel(p.name) << "\n";
     if (p.standard) o << "# standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)\nstandard = 1\n";
@@ -990,6 +1028,9 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
     if (p.version < 2) addWheelBindings(p);
     // Before version 5 POV 1 (the hat switch) was not a set of buttons, so no profile could look around with it.
     if (p.version < 5) addLookBindings(p);
+    else if (p.version < 6) upgradeLookKeys(p);
+    // Before version 6 the throttle's mouse nub was not buttons either.
+    if (p.version < 6) addNubBindings(p);
     // Before version 3 the last rule for a light won; now the first does. Reverse the order
     // once so the lights keep behaving as they did.
     if (p.version < 3) std::reverse(p.rules.begin(), p.rules.end());

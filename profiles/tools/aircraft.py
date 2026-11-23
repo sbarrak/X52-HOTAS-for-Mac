@@ -18,6 +18,7 @@ TRIGGER2, MOUSE, SCROLL_F, SCROLL_B, SCROLL_C = 15, 16, 17, 18, 19
 SHAT_U, SHAT_R, SHAT_D, SHAT_L = 20, 21, 22, 23
 POV1_U, POV1_R, POV1_D, POV1_L = 40, 41, 42, 43   # POV 1, the main hat: the stick reports a hat switch, the plugin makes buttons of it
 THAT_U, THAT_R, THAT_D, THAT_L = 24, 25, 26, 27
+NUB_U, NUB_R, NUB_D, NUB_L = 44, 45, 46, 47       # the throttle's mouse nub (arrows); 48..51 the same pushed all the way (Shift + arrows)
 CLUTCH = 31
 MFD_PREV, MFD_NEXT, MFD_UP, MFD_DOWN, MFD_SELECT = 35, 36, 37, 38, 39
 
@@ -165,10 +166,13 @@ def layout(f):
                 any_[SHAT_L] = ("Rudder trim L", S("flight_controls/rudder_trim_left"))
                 any_[SHAT_R] = ("Rudder trim R", S("flight_controls/rudder_trim_right"))
     any_[MOUSE] = ("Cockpit view", S("view/3d_cockpit_cmnd_look"))
-    any_[POV1_U] = ("Look up", "key:r")   # X-Plane's own keys for looking around: Q left, E right, R up, F down
-    any_[POV1_R] = ("Look right", "key:e")
-    any_[POV1_D] = ("Look down", "key:f")
-    any_[POV1_L] = ("Look left", "key:q")
+    any_[POV1_U] = ("Look up", S("general/rot_up"))   # what X-Plane's Q E R F keys do: rotate the view
+    any_[POV1_R] = ("Look right", S("general/rot_right"))
+    any_[POV1_D] = ("Look down", S("general/rot_down"))
+    any_[POV1_L] = ("Look left", S("general/rot_left"))
+    for i, d in enumerate(("up", "right", "down", "left")):   # what the arrow keys do: pan; Shift + arrow: faster
+        any_[NUB_U + i] = ("Pan " + d, S("general/" + d))
+        any_[NUB_U + 4 + i] = ("Pan %s fast" % d, S("general/%s_fast" % d))
     any_[MFD_PREV] = ("Screen page -", cmd("x52pro/mfd_page_prev"))
     any_[MFD_NEXT] = ("Screen page +", cmd("x52pro/mfd_page_next"))
     any_[MFD_UP] = ("Screen cursor up", cmd("x52pro/mfd_up"))

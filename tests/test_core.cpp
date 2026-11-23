@@ -174,7 +174,9 @@ TEST(button_names_follow_the_x52_pro_layout) {
     CHECK_EQ(std::string(buttonName(39)), std::string("MFD Select"));
     CHECK_EQ(std::string(buttonName(40)), std::string("POV 1 up"));
     CHECK_EQ(std::string(buttonName(43)), std::string("POV 1 left"));
-    CHECK_EQ(std::string(buttonName(44)), std::string(""));
+    CHECK_EQ(std::string(buttonName(44)), std::string("Mouse nub up"));
+    CHECK_EQ(std::string(buttonName(51)), std::string("Mouse nub left (far)"));
+    CHECK_EQ(std::string(buttonName(52)), std::string(""));
 }
 
 // ---------------------------------------------------------------- screen + lights
@@ -913,7 +915,7 @@ TEST(clock_and_clutch_settings_survive_save_and_load) {
     CHECK(q.clock12h[1]);
     CHECK_EQ(q.dateFormat, 2);
     CHECK(q.com833);
-    CHECK_EQ(q.version, 5);
+    CHECK_EQ(q.version, 6);
 }
 
 TEST(out_of_range_clock_settings_are_pulled_into_range) {
@@ -937,7 +939,7 @@ TEST(profile_from_the_older_plugin_gains_the_wheel_bindings_once) {
     CHECK(!addWheelBindings(q));
     Profile again;
     CHECK(parse(serialize(q), again, &err));
-    CHECK_EQ(again.version, 5);
+    CHECK_EQ(again.version, 6);
 }
 
 TEST(profile_from_before_pov_1_gains_the_look_around_bindings_once) {
@@ -945,20 +947,66 @@ TEST(profile_from_before_pov_1_gains_the_look_around_bindings_once) {
     std::string err;
     CHECK(parse("x52pro-profile 4\nname = mine\nbind 41 any press \"Mine\" cmd:my/command\n", q, &err));
     CHECK_EQ(q.version, 4);
-    CHECK_EQ(actionToText(q.exact(40, kLayerAny)->press), std::string("key:r"));
-    CHECK_EQ(actionToText(q.exact(42, kLayerAny)->press), std::string("key:f"));
-    CHECK_EQ(actionToText(q.exact(43, kLayerAny)->press), std::string("key:q"));
+    CHECK_EQ(actionToText(q.exact(40, kLayerAny)->press), std::string("cmd:sim/general/rot_up"));
+    CHECK_EQ(actionToText(q.exact(42, kLayerAny)->press), std::string("cmd:sim/general/rot_down"));
+    CHECK_EQ(actionToText(q.exact(43, kLayerAny)->press), std::string("cmd:sim/general/rot_left"));
     CHECK_EQ(actionToText(q.exact(41, kLayerAny)->press), std::string("cmd:my/command"));   // theirs is kept
     CHECK(!addLookBindings(q));
     Profile again;
     CHECK(parse(serialize(q), again, &err));
-    CHECK_EQ(again.version, 5);
+    CHECK_EQ(again.version, 6);
     CHECK(defaultProfile().exact(40, kLayerAny) != nullptr);
     // a current profile whose owner removed the look-around binding keeps it removed
     q.edit(40, kLayerAny).press.clear();
     q.prune();
     CHECK(parse(serialize(q), again, &err));
     CHECK(again.find(40, 1) == nullptr);
+}
+
+TEST(profile_from_before_the_nub_gains_the_pan_bindings_once) {
+    Profile q;
+    std::string err;
+    CHECK(parse("x52pro-profile 5\nname = mine\nbind 45 any press \"Mine\" cmd:my/command\n", q, &err));
+    CHECK_EQ(q.version, 5);
+    CHECK_EQ(actionToText(q.exact(kNubUp, kLayerAny)->press), std::string("cmd:sim/general/up"));
+    CHECK_EQ(actionToText(q.exact(kNubUp + 2, kLayerAny)->press), std::string("cmd:sim/general/down"));
+    CHECK_EQ(actionToText(q.exact(kNubUp + 4, kLayerAny)->press), std::string("cmd:sim/general/up_fast"));
+    CHECK_EQ(actionToText(q.exact(kNubUp + 7, kLayerAny)->press), std::string("cmd:sim/general/left_fast"));
+    CHECK_EQ(actionToText(q.exact(kNubUp + 1, kLayerAny)->press), std::string("cmd:my/command"));   // theirs is kept
+    CHECK(!addNubBindings(q));
+    Profile again;
+    CHECK(parse(serialize(q), again, &err));
+    CHECK_EQ(again.version, 6);
+    CHECK(defaultProfile().exact(kNubUp, kLayerAny) != nullptr);
+}
+
+TEST(profile_from_1_2_6_with_the_look_keys_is_switched_to_commands_unless_changed) {
+    Profile q;
+    std::string err;
+    CHECK(parse("x52pro-profile 5\nname = m\nbind 40 any press \"Look up\" key:r\nbind 41 any press \"Look right\" key:e\n"
+                "bind 42 any press \"Mine\" key:f\n", q, &err));
+    CHECK_EQ(actionToText(q.exact(40, kLayerAny)->press), std::string("cmd:sim/general/rot_up"));
+    CHECK_EQ(actionToText(q.exact(41, kLayerAny)->press), std::string("cmd:sim/general/rot_right"));
+    CHECK_EQ(actionToText(q.exact(42, kLayerAny)->press), std::string("key:f"));   // the user's own label: left alone
+}
+
+TEST(the_nub_presses_the_arrows_part_way_and_shift_arrows_all_the_way) {
+    // bits 0..3: up right down left; bits 4..7: the same, far
+    CHECK_EQ(nubButtonMask(0, 0, 0), 0);
+    CHECK_EQ(nubButtonMask(0, -0.5, 0), 1);          // up
+    CHECK_EQ(nubButtonMask(0, 0.5, 0), 4);           // down
+    CHECK_EQ(nubButtonMask(0.5, 0, 0), 2);           // right
+    CHECK_EQ(nubButtonMask(-0.5, 0, 0), 8);          // left
+    CHECK_EQ(nubButtonMask(0.5, -0.5, 0), 3);        // up-right
+    CHECK_EQ(nubButtonMask(0, -1.0, 0), 16);         // far up: the fast one only
+    CHECK_EQ(nubButtonMask(1.0, -0.5, 0), 32 | 1);   // far right, part way up
+    CHECK_EQ(nubButtonMask(0.2, 0.2, 0), 0);         // inside the dead zone
+    CHECK_EQ(nubButtonMask(0.35, 0, 0), 0);          // not yet
+    CHECK_EQ(nubButtonMask(0.35, 0, 2), 2);          // but held while it eases back (hysteresis)
+    CHECK_EQ(nubButtonMask(0.8, 0, 32), 32);         // far stays far a little longer
+    CHECK_EQ(nubAxisFraction(128, 0, 255) < 0.01 && nubAxisFraction(128, 0, 255) > -0.01, true);
+    CHECK(nubAxisFraction(0, 0, 255) < -0.99);
+    CHECK(nubAxisFraction(255, 0, 255) > 0.99);
 }
 
 TEST(pov_1_hat_value_gives_the_direction_buttons_it_holds) {

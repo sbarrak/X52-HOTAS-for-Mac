@@ -61,7 +61,15 @@ bind 36 any press "Screen page +" cmd:x52pro/mfd_page_next
 bind 37 any press "Screen cursor up" cmd:x52pro/mfd_up
 bind 38 any press "Screen cursor down" cmd:x52pro/mfd_down
 bind 39 any press "Screen select" cmd:x52pro/mfd_select
-bind 40 any press "Look up" key:r
-bind 41 any press "Look right" key:e
-bind 42 any press "Look down" key:f
-bind 43 any press "Look left" key:q
+bind 40 any press "Look up" cmd:sim/general/rot_up
+bind 41 any press "Look right" cmd:sim/general/rot_right
+bind 42 any press "Look down" cmd:sim/general/rot_down
+bind 43 any press "Look left" cmd:sim/general/rot_left
+bind 44 any press "Pan up" cmd:sim/general/up
+bind 45 any press "Pan right" cmd:sim/general/right
+bind 46 any press "Pan down" cmd:sim/general/down
+bind 47 any press "Pan left" cmd:sim/general/left
+bind 48 any press "Pan up fast" cmd:sim/general/up_fast
+bind 49 any press "Pan right fast" cmd:sim/general/right_fast
+bind 50 any press "Pan down fast" cmd:sim/general/down_fast
+bind 51 any press "Pan left fast" cmd:sim/general/left_fast

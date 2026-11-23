@@ -196,6 +196,27 @@ int hatButtonMask(long value, long min, long max) {
     return kMask[i];
 }
 
+double nubAxisFraction(long value, long min, long max) {
+    if (max <= min) return 0;
+    double f = (value - min) * 2.0 / (max - min) - 1.0;
+    return f < -1 ? -1 : f > 1 ? 1 : f;
+}
+
+int nubButtonMask(double x, double y, int held) {
+    const double kPress = 0.4, kRelease = 0.3, kFarPress = 0.9, kFarRelease = 0.8;
+    int mask = 0;
+    // axis 0 = y (up negative, down positive), axis 1 = x (left negative, right positive)
+    const double v[4] = {-y, x, y, -x};   // up, right, down, left
+    for (int i = 0; i < 4; ++i) {
+        bool wasFar = (held >> (i + 4)) & 1, was = ((held >> i) & 1) || wasFar;
+        bool far = v[i] >= (wasFar ? kFarRelease : kFarPress);
+        bool near = v[i] >= (was ? kRelease : kPress);
+        if (far) mask |= 1 << (i + 4);
+        else if (near) mask |= 1 << i;
+    }
+    return mask;
+}
+
 std::string povButtonsText(bool up, bool right, bool down, bool left) {
     std::string v = up && !down ? "up" : down && !up ? "down" : "";
     std::string h = right && !left ? "right" : left && !right ? "left" : "";

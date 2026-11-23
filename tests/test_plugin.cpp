@@ -646,36 +646,47 @@ TEST(clutch_flashes_and_the_pov_hat_picks_a_profile) {
 }
 
 TEST(pov_1_looks_around_while_pushed_and_picks_profiles_only_with_the_clutch) {
-    // The default bindings send keys (Q E R F), which a test must not type into the Mac: bind commands instead.
-    for (const char* c : {"sim/general/up", "sim/general/right", "sim/general/down", "sim/general/left"})
+    for (const char* c : {"sim/general/rot_up", "sim/general/rot_right", "sim/general/rot_down", "sim/general/rot_left"})
         sim().knownCommands.push_back(c);
-    {
-        Profile p = gApp->profile;
-        const char* cmds[4] = {"sim/general/up", "sim/general/right", "sim/general/down", "sim/general/left"};
-        for (int i = 0; i < 4; ++i) {
-            Binding& b = p.edit(kPov1Up + i, kLayerAny);
-            b.press.clear();
-            b.press.push_back({StepKind::Command, cmds[i], 0});
-        }
-        gApp->engine.setProfile(p);
-    }
     auto hat = [](long v) {
         gApp->input.pushAxis({0x01, 0x39, v, 1, 8});
         sim().frame();
     };
     hat(8);   // up-left: both directions are held
-    CHECK_EQ(sim().begins["sim/general/up"], 1);
-    CHECK_EQ(sim().begins["sim/general/left"], 1);
-    CHECK_EQ(sim().begins["sim/general/right"], 0);
+    CHECK_EQ(sim().begins["sim/general/rot_up"], 1);
+    CHECK_EQ(sim().begins["sim/general/rot_left"], 1);
+    CHECK_EQ(sim().begins["sim/general/rot_right"], 0);
     hat(0);
-    CHECK_EQ(sim().ends["sim/general/up"], 1);
-    CHECK_EQ(sim().ends["sim/general/left"], 1);
+    CHECK_EQ(sim().ends["sim/general/rot_up"], 1);
+    CHECK_EQ(sim().ends["sim/general/rot_left"], 1);
     press(31, true);   // with the clutch it is the profile picker, not a look
     hat(7);
-    CHECK_EQ(sim().begins["sim/general/left"], 1);
+    CHECK_EQ(sim().begins["sim/general/rot_left"], 1);   // still the one from before: nothing new
     hat(0);
     press(31, false);
-    gApp->engine.setProfile(gApp->profile);
+}
+
+TEST(the_mouse_nub_pans_part_way_and_pans_fast_all_the_way) {
+    for (const char* c : {"sim/general/up", "sim/general/right", "sim/general/up_fast", "sim/general/right_fast"})
+        sim().knownCommands.push_back(c);
+    auto nub = [](int usage, long v) {
+        gApp->input.pushAxis({0x05, usage, v, 0, 255});
+        sim().frame();
+    };
+    nub(0x24, 128);                           // centred
+    CHECK_EQ(sim().begins["sim/general/right"], 0);
+    nub(0x24, 200);                           // part way right
+    CHECK_EQ(sim().begins["sim/general/right"], 1);
+    CHECK_EQ(sim().begins["sim/general/right_fast"], 0);
+    nub(0x24, 255);                           // all the way: the fast pan takes over
+    CHECK_EQ(sim().begins["sim/general/right_fast"], 1);
+    CHECK_EQ(sim().ends["sim/general/right"], 1);
+    nub(0x24, 128);
+    CHECK_EQ(sim().ends["sim/general/right_fast"], 1);
+    nub(0x26, 0);                             // all the way up
+    CHECK_EQ(sim().begins["sim/general/up_fast"], 1);
+    nub(0x26, 128);
+    CHECK_EQ(sim().ends["sim/general/up_fast"], 1);
 }
 
 TEST(a_profile_changed_outside_x_plane_is_picked_up) {
@@ -705,7 +716,7 @@ TEST(a_profile_from_the_older_plugin_gets_the_wheel_bindings) {
     }
     gApp->reload();
     CHECK(has(slurp(defaultFile()), "cmd:x52pro/mfd_select"));
-    CHECK(has(slurp(defaultFile()), "x52pro-profile 5"));
+    CHECK(has(slurp(defaultFile()), "x52pro-profile 6"));
     CHECK(has(slurp(defaultFile()), std::string("cmd:") + kGear));
 }
 
