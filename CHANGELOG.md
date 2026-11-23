@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.5
+
+### Fixed
+- **Parts of the settings window did not follow its size.** On the Test tab the list of alarms to try stayed
+  130 points tall however big the window was, so with a tall window it showed four alarms and cut the fifth in half
+  with empty space below. The list was given a fixed height. It now takes all the height the tab has left.
+  The same kind of fixed size was found elsewhere: the page list on the Pages tab (fixed 360 points) now grows
+  with the window, and the Axes, Lights and Screen & clock tabs, which were taller than the window at its smallest
+  size and were cut off at the bottom, now scroll. Fixed in 1.2.5.
+
 ## 1.2.4
 
 ### Changed

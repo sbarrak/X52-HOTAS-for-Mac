@@ -646,6 +646,7 @@ struct BrightnessRow: View {
 struct LightsTab: View {
     @ObservedObject var m: Model
     var body: some View {
+        ScrollView {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Colours for").lineLimit(1).fixedSize()
@@ -690,6 +691,8 @@ struct LightsTab: View {
             if !m.isPro {
                 Text("This stick is a standard X52: button colours need the X52 Pro.").foregroundStyle(.orange)
             }
+        }
+        .padding(.trailing, 8)
         }
     }
 }
@@ -1159,6 +1162,7 @@ struct ScreenTab: View {
     var body: some View {
         let date = Binding<Int>(get: { m.get("date_format") }, set: { m.set("date_format", $0) })
         let latched = Binding<Bool>(get: { m.get("clutch_latched") != 0 }, set: { m.set("clutch_latched", $0 ? 1 : 0) })
+        ScrollView {
         VStack(alignment: .leading, spacing: 12) {
             BrightnessRow(m: m, title: "Screen brightness", name: "mfd_brightness")
             Divider()
@@ -1187,7 +1191,8 @@ struct ScreenTab: View {
             }
             Text("A slow turn still steps by one; spinning the wheel repeats each click (HDG 10 degrees, altitude 1000 ft at x 10).")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            Spacer()
+        }
+        .padding(.trailing, 8)
         }
     }
 }
@@ -1666,8 +1671,8 @@ struct TestTab: View {
                     }
                 }
             }
-            .frame(maxHeight: 130)
-            Spacer()
+            // Takes whatever height the window has left, so a taller window shows more alarms.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .onAppear { x52_test(1) }
         .onDisappear { x52_test(0) }
@@ -2004,6 +2009,8 @@ struct AxesTab: View {
     @ObservedObject var m: Model
     var body: some View {
         let on = Binding<Bool>(get: { m.get("axis_override") != 0 }, set: { m.set("axis_override", $0 ? 1 : 0) })
+        // Scrolls: the tab is taller than the window at its smallest size.
+        ScrollView {
         VStack(alignment: .leading, spacing: 10) {
             Toggle("The plugin drives the stick and twist (overrides X-Plane's own axis settings)", isOn: on)
             Text(on.wrappedValue
@@ -2047,20 +2054,19 @@ struct AxesTab: View {
             Text(moving.map { "Moving now: \($0.name)   \($0.text)" } ?? "Moving now: move a control to see which one it is")
                 .foregroundStyle(.orange)
             Text("Every control the stick reports").foregroundStyle(.secondary)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(m.axes) { a in
-                        HStack(spacing: 12) {
-                            Text(a.name).frame(width: 150, alignment: .leading).foregroundStyle(a.moving ? Color.green : Color.primary)
-                            ProgressView(value: Double(a.percent), total: 100).frame(width: 200)
-                            Text(a.text).frame(width: 90, alignment: .leading)
-                            Text("raw \(a.raw)").foregroundStyle(.secondary)
-                        }
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(m.axes) { a in
+                    HStack(spacing: 12) {
+                        Text(a.name).frame(width: 150, alignment: .leading).foregroundStyle(a.moving ? Color.green : Color.primary)
+                        ProgressView(value: Double(a.percent), total: 100).frame(width: 200)
+                        Text(a.text).frame(width: 90, alignment: .leading)
+                        Text("raw \(a.raw)").foregroundStyle(.secondary)
                     }
-                    if m.axes.isEmpty { Text("The stick is not reporting anything yet.").foregroundStyle(.secondary) }
                 }
+                if m.axes.isEmpty { Text("The stick is not reporting anything yet.").foregroundStyle(.secondary) }
             }
-            Spacer()
+        }
+        .padding(.trailing, 8)
         }
     }
 }
@@ -2477,11 +2483,11 @@ struct PagesTab: View {
                 RestorePagesButton(m: m)
             }
             HStack(alignment: .top, spacing: 24) {
-                PageList(m: m).frame(width: 300, height: 360)
+                PageList(m: m).frame(width: 300).frame(minHeight: 240, maxHeight: .infinity)
                     .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.25)))
                 PagePreview(m: m)
             }
-            Spacer()
+            .frame(maxHeight: .infinity, alignment: .top)
         }
     }
 }
