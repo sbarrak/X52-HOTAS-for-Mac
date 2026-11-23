@@ -157,6 +157,8 @@ Lines formatBrightnessPage(int screen, int lights, bool screenLinked, bool light
     return out;
 }
 
+int brightnessPercent(int v) { return percentOf(v); }
+
 bool brightnessInput(PageCursor& c, Wheel w, int& screen, int& lights, bool screenLinked, bool lightsLinked) {
     c.item = std::max(0, std::min(1, c.item));
     bool linked = c.item == 0 ? screenLinked : lightsLinked;

@@ -864,9 +864,18 @@ void App::wheelAt(Wheel w, double t) {
         return;
     }
     if (page == PageBrightness) {
+        int screenBefore = profile.mfdBrightness;
         if (brightnessInput(cursor, w, profile.mfdBrightness, profile.ledBrightness, profile.brightScreen.active(),
-                            profile.brightLights.active()))
+                            profile.brightLights.active())) {
             profileChanged();   // saved at once; the stick follows on the next refresh
+            // The aircraft's instrument panel dims with the stick's screen (only from this page, so the cockpit's
+            // own brightness knob is never fought).
+            if (profile.mfdBrightness != screenBefore)
+                if (XPLMDataRef r = cachedRef("sim/cockpit2/switches/instrument_brightness_ratio")) {
+                    float v = (float)(brightnessPercent(profile.mfdBrightness) / 100.0);
+                    XPLMSetDatavf(r, &v, 0, 1);
+                }
+        }
         return;
     }
     for (const std::string& c : pageInput(page, cursor, w, profile.com833, dialRepeat(gap, profile.dial), profile.radioSide)) commandOnce(c);

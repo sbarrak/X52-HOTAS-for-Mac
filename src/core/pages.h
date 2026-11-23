@@ -38,6 +38,7 @@ std::vector<std::string> pageInput(int page, PageCursor& c, Wheel w, bool com833
 // press again to finish. The screen never goes below 10 %, so it cannot be turned off by accident. A brightness that
 // follows a dataref (Master & brightness tab) shows "dataref" and is not changed here.
 Lines formatBrightnessPage(int screen, int lights, bool screenLinked, bool lightsLinked, const PageCursor& c);
-bool brightnessInput(PageCursor& c, Wheel w, int& screen, int& lights, bool screenLinked, bool lightsLinked);   // true when a value changed
+bool brightnessInput(PageCursor& c, Wheel w, int& screen, int& lights, bool screenLinked, bool lightsLinked);
+int brightnessPercent(int v);   // a stored brightness 0..127 in percent, as the page shows it   // true when a value changed
 
 }  // namespace x52
