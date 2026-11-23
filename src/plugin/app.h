@@ -180,6 +180,13 @@ public:
     bool dialsResetPending = false;
     double dialsResetAt = 0;               // a dial must have moved after this to set the speed brake
     std::vector<int> xpAxisUse;            // X-Plane's axis assignments
+    // Lever jobs (prop, mixture, trims, cowl flaps, carb heat): soft takeover per dial usage, cleared by resetDials().
+    std::map<int, LeverPickup> leverState;
+    std::map<int, std::string> leverNotes;  // per dial usage: what the window says (waiting, no range), "" when held
+    // The job's range for this aircraft (its own limits where X-Plane has them). False when it is empty.
+    bool leverRange(const LeverJob& job, double& lo, double& hi);
+    std::string leverNote(int usage) const;
+    void applyLever(int usage, const LeverJob& job, const AxisLive& l);   // one frame of a dial on a lever job
     std::map<std::pair<int, int>, long> axisShown;   // test mode: last value shown per moving control
 };
 

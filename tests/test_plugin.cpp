@@ -514,6 +514,93 @@ TEST(the_zoom_strength_follows_the_profile) {
     gApp->profile.axes = AxisSettings();
 }
 
+static const char* kRudTrim = "sim/cockpit2/controls/rudder_trim";
+static const char* kCowl = "sim/cockpit2/engine/actuators/cowl_flap_ratio";
+static const char* kMixture = "sim/cockpit2/engine/actuators/mixture_ratio_all";
+// The lower dial on a lever job, resting at 128 since the reset; rudder trim limits 0.2 left and 0.3 right.
+static void leverDial(DialUse use, double trim = 0.1) {
+    freshDials();
+    auto& d = sim().datarefs;
+    d["sim/aircraft/controls/acf_min_trim_rudd"] = 0.2;
+    d["sim/aircraft/controls/acf_max_trim_rudd"] = 0.3;
+    d[kRudTrim] = trim;
+    d[kMixture] = 0.5;
+    d[kCowl] = 0.5;
+    d["sim/aircraft/engine/acf_num_engines"] = 2;
+    gApp->profile.axes.lowerUse = use;
+    gApp->resetDials();
+    sim().frame();
+}
+
+TEST(a_dial_set_to_rudder_trim_takes_over_at_x_planes_trim_and_stays_in_the_aircrafts_limits) {
+    leverDial(DialUse::RudderTrim);
+    auto& d = sim().datarefs;
+    CHECK(nearTo(d[kRudTrim], 0.1));
+    dialTo(0x33, 0);                                        // away from X-Plane's trim: waiting
+    CHECK(nearTo(d[kRudTrim], 0.1));
+    CHECK(has(gApp->leverNote(0x33), "Turn the dial"));
+    dialTo(0x33, 200);                                      // across X-Plane's trim: taken over
+    CHECK(nearTo(d[kRudTrim], -0.2 + 0.5 * 200 / 255.0));
+    CHECK_EQ(gApp->leverNote(0x33), std::string(""));
+    dialTo(0x33, 255);
+    CHECK(nearTo(d[kRudTrim], 0.3));                        // the aircraft's right limit
+    dialTo(0x33, 0);
+    CHECK(nearTo(d[kRudTrim], -0.2));                       // and its left limit
+}
+
+TEST(a_trim_moved_by_a_button_is_not_fought_by_the_dial) {
+    leverDial(DialUse::RudderTrim);
+    auto& d = sim().datarefs;
+    dialTo(0x33, 200);
+    CHECK(nearTo(d[kRudTrim], -0.2 + 0.5 * 200 / 255.0));
+    d[kRudTrim] = -0.1;                                     // a trim button
+    sim().frame();
+    dialTo(0x33, 220);
+    CHECK(nearTo(d[kRudTrim], -0.1));                       // the dial waits
+    dialTo(0x33, 20);                                       // across -0.1: taken over again
+    CHECK(nearTo(d[kRudTrim], -0.2 + 0.5 * 20 / 255.0));
+}
+
+TEST(cowl_flaps_move_every_engine) {
+    leverDial(DialUse::CowlFlaps);
+    auto& d = sim().datarefs;
+    dialTo(0x33, 200);                                      // across 0.5: taken over
+    CHECK(nearTo(d[std::string(kCowl) + "[0]"], 200 / 255.0));
+    CHECK(nearTo(d[std::string(kCowl) + "[1]"], 200 / 255.0));
+    leverDial(DialUse::CowlFlaps);
+    d.erase(std::string(kCowl) + "[0]");
+    d["sim/aircraft/engine/acf_num_engines"] = 0;           // no engine count: engine 0 still moves
+    dialTo(0x33, 30);
+    CHECK(nearTo(d[std::string(kCowl) + "[0]"], 30 / 255.0));
+}
+
+TEST(an_aircraft_without_rudder_trim_leaves_the_dial_idle_and_says_so) {
+    leverDial(DialUse::RudderTrim, 0.0);
+    auto& d = sim().datarefs;
+    d["sim/aircraft/controls/acf_min_trim_rudd"] = 0;
+    d["sim/aircraft/controls/acf_max_trim_rudd"] = 0;
+    dialTo(0x33, 0);
+    dialTo(0x33, 255);
+    CHECK(nearTo(d[kRudTrim], 0.0));
+    CHECK(has(gApp->leverNote(0x33), "no rudder trim"));
+}
+
+TEST(switching_a_dial_from_a_lever_to_zoom_stops_the_lever) {
+    leverDial(DialUse::Mixture);
+    auto& d = sim().datarefs;
+    dialTo(0x33, 200);
+    CHECK(nearTo(d[kMixture], 200 / 255.0));
+    gApp->setDialUse(0x33, DialUse::Zoom);
+    sim().frame();
+    int in0 = sim().onces["sim/general/zoom_in"], out0 = sim().onces["sim/general/zoom_out"];
+    dialTo(0x33, 100);
+    CHECK(nearTo(d[kMixture], 200 / 255.0));
+    CHECK(sim().onces["sim/general/zoom_out"] - out0 > 0);
+    CHECK_EQ(sim().onces["sim/general/zoom_in"], in0);
+    gApp->profile.axes = AxisSettings();
+    gApp->profileChanged();
+}
+
 TEST(a_dial_x_plane_also_drives_is_left_alone_and_the_window_says_so) {
     freshDials();
     sim().axisAssignments = {2, 1, 3, 4, 14};              // X-Plane: lower dial = speed brakes
