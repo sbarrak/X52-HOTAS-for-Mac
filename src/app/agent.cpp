@@ -440,7 +440,8 @@ std::vector<Agent::AxisView> Agent::axes() const {
 std::string Agent::held() const {
     std::string s;
     for (int b = 1; b <= kMaxButton; ++b)
-        if (engine_.isDown(b) && !(b >= 20 && b <= 23)) s += (s.empty() ? "" : ", ") + std::to_string(b) + " " + buttonName(b);
+        if (engine_.isDown(b) && !(b >= 20 && b <= 23) && b < kPov1Up)   // POV 1 is listed below from the hat itself
+            s += (s.empty() ? "" : ", ") + std::to_string(b) + " " + buttonName(b);
     // POV 2 is four buttons: two together are a diagonal
     std::string d = povButtonsText(engine_.isDown(20), engine_.isDown(21), engine_.isDown(22), engine_.isDown(23));
     if (!d.empty()) s += (s.empty() ? "" : ", ") + std::string("POV 2: ") + d;

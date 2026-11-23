@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.6
+
+### Fixed
+- **POV 1 (the stick's main hat) did not look around in any profile.** The stick reports POV 1 as a hat switch, not
+  as buttons, and the plugin only used it to pick a profile with the clutch held, so no profile could bind it and
+  it did nothing unless X-Plane had been told to by hand. POV 1 now gives four buttons (40 to 43: up, right, down,
+  left; a diagonal holds two) that look around with `sim/general/up`, `right`, `down` and `left` while pushed.
+  The ready-made profiles have them, and any other profile (including your own) gets them when it is read, unless
+  you had already programmed those buttons; you can change or clear them in the app like any button. With the
+  clutch held the hat still picks a profile. If X-Plane also has an assignment for that hat, set it to None.
+  Fixed in 1.2.6 (issue #63).
+
 ## 1.2.5
 
 ### Fixed

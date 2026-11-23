@@ -47,7 +47,7 @@ live in the Citation X: X-Plane saw the stick and throttle move, but the yoke an
   X52 reports it (`axis_throttle = 5 0 1`: inverted, 5 % dead zone), taken over once it has moved. The
   helicopters leave the lever to X-Plane (`throttle_plugin = 0`): there it is the collective.
 - The slider is the flaps (above). If X-Plane also uses the slider for something, set it to None in X-Plane's
-  Joystick settings. Rotaries and the main hat stay with X-Plane.
+  Joystick settings. Rotaries stay with X-Plane. **POV 1** (the main hat on top of the stick) looks around in every mode (buttons 40 to 43, `sim/general/up|right|down|left`); set that hat to None in X-Plane's Joystick settings, and hold the clutch to use it as the profile picker instead.
 
 All of it can be changed per profile on the app's Axes tab (dead zone, expo, invert, Invert flaps).
 

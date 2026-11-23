@@ -25,7 +25,8 @@ const char* const kButtonNames[kMaxButton + 1] = {
     "Throttle hat up", "Throttle hat right", "Throttle hat down", "Throttle hat left",
     "Mode 1", "Mode 2", "Mode 3", "Clutch (i)",
     "MFD Function", "MFD Start/Stop", "MFD Reset", "MFD Page up", "MFD Page down",
-    "MFD Up", "MFD Down", "MFD Select"};
+    "MFD Up", "MFD Down", "MFD Select",
+    "POV 1 up", "POV 1 right", "POV 1 down", "POV 1 left"};
 
 const char* const kLayerNames[kLayerCount] = {"Any mode", "Mode 1", "Mode 2", "Mode 3",
                                               "Mode 1 + Pinkie", "Mode 2 + Pinkie", "Mode 3 + Pinkie"};
@@ -294,6 +295,7 @@ Profile defaultProfile() {
     dn.label = "Screen page +";
     dn.press.push_back({StepKind::Command, "x52pro/mfd_page_next", 0});
     addWheelBindings(p);
+    addLookBindings(p);
     return p;
 }
 
@@ -305,6 +307,27 @@ bool addWheelBindings(Profile& p) {
     };
     bool added = false;
     for (const auto& w : kWheel) {
+        bool used = false;
+        for (const Binding& b : p.bindings)
+            if (b.button == w.button && !b.empty()) used = true;
+        if (used) continue;
+        Binding& b = p.edit(w.button, kLayerAny);
+        b.label = w.label;
+        b.press.push_back({StepKind::Command, w.cmd, 0});
+        added = true;
+    }
+    return added;
+}
+
+bool addLookBindings(Profile& p) {
+    static const struct { int button; const char* label; const char* cmd; } kLook[] = {
+        {kPov1Up, "Look up", "sim/general/up"},
+        {kPov1Up + 1, "Look right", "sim/general/right"},
+        {kPov1Up + 2, "Look down", "sim/general/down"},
+        {kPov1Up + 3, "Look left", "sim/general/left"},
+    };
+    bool added = false;
+    for (const auto& w : kLook) {
         bool used = false;
         for (const Binding& b : p.bindings)
             if (b.button == w.button && !b.empty()) used = true;
@@ -451,7 +474,7 @@ std::string secondText(const Trigger& t) {
 
 std::string serialize(const Profile& p) {
     std::ostringstream o;
-    o << "x52pro-profile 4\n";
+    o << "x52pro-profile 5\n";
     o << "# X52 Pro button profile. Written by the X52 Pro plugin; safe to edit by hand.\n";
     o << "name = " << cleanLabel(p.name) << "\n";
     if (p.standard) o << "# standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)\nstandard = 1\n";
@@ -965,6 +988,8 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
     // as read so a caller can tell the file on disk is still the old one.
     if (!throttleSeen) p.axes.pluginThrottle = p.axes.overrideXPlane;   // older files: one switch for both
     if (p.version < 2) addWheelBindings(p);
+    // Before version 5 POV 1 (the hat switch) was not a set of buttons, so no profile could look around with it.
+    if (p.version < 5) addLookBindings(p);
     // Before version 3 the last rule for a light won; now the first does. Reverse the order
     // once so the lights keep behaving as they did.
     if (p.version < 3) std::reverse(p.rules.begin(), p.rules.end());

@@ -11,7 +11,8 @@
 
 namespace x52 {
 
-constexpr int kMaxButton = 39;   // X52 Pro reports HID buttons 1..39
+constexpr int kMaxButton = 43;   // X52 Pro reports HID buttons 1..39; 40..43 are POV 1 (the hat switch) as buttons, made by us
+constexpr int kPov1Up = 40;      // POV 1 up, right, down, left = 40, 41, 42, 43 (a diagonal holds two)
 constexpr int kLayerAny = 0;     // 1..3 = mode 1..3, 4..6 = mode 1..3 + pinkie held
 constexpr int kLayerCount = 7;
 
@@ -231,7 +232,7 @@ struct Profile {
     Trigger masterLights;           // the same for every light
     BrightnessLink brightScreen;    // screen brightness follows a dataref (none chosen: mfdBrightness)
     BrightnessLink brightLights;    // the same for the lights (ledBrightness)
-    int version = 4;          // file format the profile was read from; 1 = older file (wheel bindings added on reading); below 3 the rules were reversed on reading (first rule wins now); below 4 untouched stick curves got the new defaults
+    int version = 5;          // file format the profile was read from; 1 = older file (wheel bindings added on reading); below 3 the rules were reversed on reading (first rule wins now); below 4 untouched stick curves got the new defaults; below 5 the POV 1 look-around bindings were added on reading
     bool clutchLatched = false;   // clutch toggles safe mode instead of holding it
     int clockOffset[2] = {0, 0};  // clock 2 and 3: minutes from GMT
     int clock1Source = 0;         // ClockSource: what clock 1 shows (GMT unless chosen)
@@ -258,6 +259,8 @@ Profile defaultProfile();
 // Binds the MFD's right wheel (37/38) and its button (39) to the screen cursor
 // commands, unless the profile already uses those buttons. True if anything was added.
 bool addWheelBindings(Profile& p);
+// POV 1 (buttons 40..43) looks around: adds the view commands to each of them that has no binding. True if any was added.
+bool addLookBindings(Profile& p);
 constexpr int kClockOffsetMin = -720, kClockOffsetMax = 840;
 std::string serialize(const Profile& p);
 bool parse(const std::string& text, Profile& out, std::string* error);

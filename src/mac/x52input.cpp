@@ -3,6 +3,8 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/hid/IOHIDManager.h>
 
+#include "../core/mfd.h"
+#include "../core/profile.h"
 #include "x52device.h"
 
 namespace x52 {
@@ -81,6 +83,7 @@ void onDetach(void* ctx, IOReturn, void*, IOHIDDeviceRef) {
     X52Input* self = static_cast<X52Input*>(ctx);
     // Nothing can still be held on a stick that is gone.
     for (int b = 1; b <= 64; ++b) self->push(b, false);
+    self->releaseHat();
     self->setConnected(false, "", {});
 }
 
@@ -94,10 +97,21 @@ void X52Input::push(int button, bool down) {
     pending_.push_back({button, down});
 }
 
+void X52Input::releaseHat() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    hatMask_ = 0;
+}
+
 void X52Input::pushAxis(const AxisEvent& e) {
     bool hat = e.usagePage == 0x01 && e.usage == 0x39;
     std::lock_guard<std::mutex> lock(mutex_);
     axisLatest_[{e.usagePage, e.usage}] = e;
+    if (hat) {   // POV 1 is a hat switch, not buttons: make buttons 40..43 of it so profiles can bind it (a diagonal holds two)
+        int mask = hatButtonMask(e.value, e.min, e.max);
+        for (int i = 0; i < 4; ++i)
+            if (((mask ^ hatMask_) >> i) & 1) pending_.push_back({kPov1Up + i, ((mask >> i) & 1) != 0});
+        hatMask_ = mask;
+    }
     if (!wantAxes_ && !hat) return;
     axisPending_.push_back(e);
 }

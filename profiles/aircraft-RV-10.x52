@@ -1,4 +1,4 @@
-x52pro-profile 3
+x52pro-profile 5
 # X52 Pro profile for the Van's RV-10 (ready-made, see profiles/README.md).
 name = RV-10
 # standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)
@@ -75,6 +75,10 @@ bind 36 any press "Screen page +" cmd:x52pro/mfd_page_next
 bind 37 any press "Screen cursor up" cmd:x52pro/mfd_up
 bind 38 any press "Screen cursor down" cmd:x52pro/mfd_down
 bind 39 any press "Screen select" cmd:x52pro/mfd_select
+bind 40 any press "Look up" cmd:sim/general/up
+bind 41 any press "Look right" cmd:sim/general/right
+bind 42 any press "Look down" cmd:sim/general/down
+bind 43 any press "Look left" cmd:sim/general/left
 bind 4 1 press "AP on" cmd:sim/autopilot/servos_on
 bind 5 1 press "AP off" cmd:sim/autopilot/servos_off_any
 bind 7 1 press "Taxi light" cmd:sim/lights/taxi_lights_toggle

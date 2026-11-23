@@ -1430,7 +1430,7 @@ struct ButtonsTab: View {
             HStack(alignment: .top, spacing: 14) {
                 ScrollView {
                     VStack(spacing: 0) {
-                        ForEach(1...39, id: \.self) { b in
+                        ForEach(1...43, id: \.self) { b in
                             let sel = m.btn == b
                             let res = x52_button_reserved(Int32(b)) != 0
                             Button { m.btn = b } label: {
@@ -1456,7 +1456,7 @@ struct ButtonsTab: View {
                 }
             }
             ClearList(m: m)
-            Text("The numbers are the usual X52 button numbers (JOY1 to JOY39 in Windows lists): 9 and 10 are toggle 1 up and down, 11 and 12 toggle 2, 13 and 14 toggle 3, 15 the trigger's second stage, 16 the mouse button, 17 to 19 the scroll wheel, 20 to 23 the stick's hat, 24 to 27 the throttle's hat, 28 to 30 the mode dial, 31 the clutch.")
+            Text("The numbers are the usual X52 button numbers (JOY1 to JOY39 in Windows lists): 9 and 10 are toggle 1 up and down, 11 and 12 toggle 2, 13 and 14 toggle 3, 15 the trigger's second stage, 16 the mouse button, 17 to 19 the scroll wheel, 20 to 23 the stick's hat, 24 to 27 the throttle's hat, 40 to 43 the stick's main hat (POV 1, which the stick reports as a hat switch, not as buttons: a diagonal holds two), 28 to 30 the mode dial, 31 the clutch.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Text("Searches use X-Plane's own lists of commands and datarefs, so this works without X-Plane running. A button you program here must be set to Do nothing in X-Plane's Settings > Joystick.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)

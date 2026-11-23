@@ -189,6 +189,13 @@ int hatDirection(long value, long min, long max) {
     return (int)(i / 2);
 }
 
+int hatButtonMask(long value, long min, long max) {
+    static const int kMask[8] = {1, 3, 2, 6, 4, 12, 8, 9};   // up, up-right, right, down-right, down, down-left, left, up-left
+    long i = value - min;
+    if (i < 0 || i >= 8 || value > max) return 0;
+    return kMask[i];
+}
+
 std::string povButtonsText(bool up, bool right, bool down, bool left) {
     std::string v = up && !down ? "up" : down && !up ? "down" : "";
     std::string h = right && !left ? "right" : left && !right ? "left" : "";

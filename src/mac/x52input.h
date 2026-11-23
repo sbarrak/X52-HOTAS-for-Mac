@@ -49,6 +49,7 @@ public:
 
     // Internal (called from the HID thread).
     void push(int button, bool down);
+    void releaseHat();   // the stick is gone: POV 1 is centred
     void setConnected(bool c, const std::string& name, const std::vector<HidElementInfo>& els);
 
 private:
@@ -59,6 +60,7 @@ private:
     std::vector<ButtonEvent> pending_;
     std::vector<AxisEvent> axisPending_;
     std::map<std::pair<int, int>, AxisEvent> axisLatest_;
+    int hatMask_ = 0;   // POV 1 buttons held now (bits 1 up, 2 right, 4 down, 8 left); under mutex_
     std::atomic<bool> wantAxes_{false};
     std::atomic<bool> connected_{false};
     std::atomic<bool> started_{false};

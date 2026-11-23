@@ -309,6 +309,7 @@ float flightLoop(float elapsed, float, int, void*) {
     std::vector<ButtonEvent> events;
     a.input.drain(events);
     for (const ButtonEvent& e : events) {
+        if (e.down && e.button >= kPov1Up && a.engine.clutch()) continue;   // with the clutch held POV 1 picks the profile
         if (e.down && e.button >= 1 && e.button <= kMaxButton) {
             a.lastPressed = e.button;
             ++a.pressSerial;

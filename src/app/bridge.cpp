@@ -682,7 +682,7 @@ int x52_import_profile(const char* xp, const char* newName) {
     Profile p = defaultProfile();
     p.name = key;
     int added = 0;
-    for (int b = 1; b <= kMaxButton; ++b) {
+    for (int b = 1; b <= 39; ++b) {   // POV 1 (40..43) has no X-Plane button slot
         if (p.isReserved(b) || p.exact(b, kLayerAny)) continue;
         auto cmd = assigned.find(slots[b]);
         if (cmd == assigned.end() || cmd->second.empty() || cmd->second == "sim/none/none") continue;
