@@ -3,6 +3,7 @@
 #pragma once
 #include <map>
 #include <string>
+#include <vector>
 
 namespace x52 {
 
@@ -157,17 +158,29 @@ const char* dialUseName(DialUse use);    // every job; "Nothing" for None
 double leverValue(double x, double lo, double hi, int fromPct, int toPct);
 // Soft takeover, one per dial. Waiting (not held), the dial writes nothing until it reaches X-Plane's own value;
 // held, it writes every change until X-Plane's value moves away from what it last wrote (a button, the mouse or
-// the autopilot), and then it waits again.
+// the autopilot, by any amount), and then it waits again. Having let go, it takes over again only when turned across
+// X-Plane's value, so a small trim step is not undone by the next turn.
 struct LeverPickup {
     bool held = false;
+    bool letGo = false;        // something else moved the value since the dial last held it
     double lastWritten = 0;
     double lastTarget = 0;
     bool seen = false;         // lastTarget is set
     double waitingSince = 0;   // From = To: when it last let go (the dial must be turned after this to write)
+    std::vector<double> offsets;   // per engine: its lever's distance from engine 0's (split levers)
+    std::vector<double> written;   // per engine: what the dial last wrote
 };
+// How far X-Plane's value may be from what the dial wrote and still count as unmoved, as a share of the pickup
+// tolerance (1 % of the range): float rounding only.
+constexpr double kLeverMovedShare = 0.01;
 // target: the dial's lever value now; sim: X-Plane's value; tol: 1 % of the range. True: write `target` now.
 // An empty range (tol 0) never writes.
 bool leverMayWrite(LeverPickup& s, double target, double sim, double tol);
+// Every engine's value for a lever job: engine 0 gets `target` and the others keep their distance from it (split
+// levers stay split), within lo..hi. An engine moved by something else since the dial last wrote it (beyond `eps`)
+// keeps its new distance. `sim`: X-Plane's values now, one per engine.
+std::vector<double> leverEngines(LeverPickup& s, const std::vector<double>& sim, double target, double lo, double hi,
+                                 double eps);
 
 // The flap handle (0 up .. 1 fully down) for a slider position 0..1: the nearest of the aircraft's `detents` stops
 // (0, 1/n, ..., 1), or the position itself when the aircraft reports no detents.

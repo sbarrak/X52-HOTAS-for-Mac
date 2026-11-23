@@ -1378,13 +1378,13 @@ void drawAxesTab(const Rect& area) {
             }, inv);
         }
         rc.t -= kRow + kGap;
-        if (const DialUse* use = dialUse(a.profile.axes, usage)) {   // X-Plane doing the same job wins: say so
+        if (const DialUse* use = dialUse(a.profile.axes, usage)) {
             const LeverJob* lever = leverJob(*use);
             bool xpDrives = *use == DialUse::SpeedBrake ? a.xplaneDrives(kXpAxisSpeedbrakes)
                             : *use == DialUse::Zoom     ? a.xplaneDrives(kXpAxisViewZoom)
                             : lever                     ? a.xplaneDrives(*lever)
                                                         : false;
-            if (xpDrives) {
+            if (xpDrives) {   // X-Plane doing the same job wins: say so
                 r = {area.l + 110, rc.t, area.r, rc.t - kRow};
                 std::string job = *use == DialUse::SpeedBrake ? "speed brakes" : *use == DialUse::Zoom ? "zoom" : dialUseName(*use);
                 std::string note = "X-Plane also uses a dial for " + job + ": set it to None in X-Plane's Joystick settings.";

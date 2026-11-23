@@ -516,7 +516,7 @@ TEST(the_zoom_strength_follows_the_profile) {
 
 static const char* kRudTrim = "sim/cockpit2/controls/rudder_trim";
 static const char* kCowl = "sim/cockpit2/engine/actuators/cowl_flap_ratio";
-static const char* kMixture = "sim/cockpit2/engine/actuators/mixture_ratio_all";
+static const char* kMixture = "sim/cockpit2/engine/actuators/mixture_ratio";
 // The lower dial on a lever job, resting at 128 since the reset; rudder trim limits 0.2 left and 0.3 right.
 static void leverDial(DialUse use, double trim = 0.1) {
     freshDials();
@@ -559,6 +559,37 @@ TEST(a_trim_moved_by_a_button_is_not_fought_by_the_dial) {
     CHECK(nearTo(d[kRudTrim], -0.1));                       // the dial waits
     dialTo(0x33, 20);                                       // across -0.1: taken over again
     CHECK(nearTo(d[kRudTrim], -0.2 + 0.5 * 20 / 255.0));
+}
+
+TEST(a_trim_button_step_under_1_percent_survives_the_next_turn) {
+    leverDial(DialUse::RudderTrim);
+    auto& d = sim().datarefs;
+    dialTo(0x33, 200);
+    double held = -0.2 + 0.5 * 200 / 255.0;
+    CHECK(nearTo(d[kRudTrim], held));
+    d[kRudTrim] = held - 0.002;                             // one small trim step: 0.4 % of the range
+    sim().frame();
+    dialTo(0x33, 210);                                      // turned away from it: waits
+    CHECK(std::fabs(d[kRudTrim] - (held - 0.002)) < 1e-6);
+    CHECK(has(gApp->leverNote(0x33), "Turn the dial"));
+    dialTo(0x33, 150);                                      // across the button's value: taken over
+    CHECK(nearTo(d[kRudTrim], -0.2 + 0.5 * 150 / 255.0));
+}
+
+TEST(a_twin_with_split_mixture_levers_keeps_the_split) {
+    leverDial(DialUse::Mixture);
+    auto& d = sim().datarefs;
+    std::string m1 = std::string(kMixture) + "[1]";
+    d[kMixture] = 0.6;                                      // engine 1 (index 0 is the name itself)
+    d[m1] = 0.4;                                            // engine 2 leaned further
+    sim().frame();
+    dialTo(0x33, 200);                                      // across 0.6: taken over
+    CHECK(nearTo(d[kMixture], 200 / 255.0));
+    CHECK(nearTo(d[m1], 200 / 255.0 - 0.2));
+    dialTo(0x33, 180);
+    CHECK(nearTo(d[kMixture], 180 / 255.0));
+    CHECK(nearTo(d[m1], 180 / 255.0 - 0.2));
+    gApp->profile.axes = AxisSettings();
 }
 
 TEST(cowl_flaps_move_every_engine) {
@@ -619,7 +650,7 @@ TEST(a_lever_x_plane_also_drives_is_left_alone) {
 }
 
 TEST(a_dial_set_to_prop_sets_the_governor_between_the_aircrafts_limits) {
-    const char* kRpm = "sim/cockpit2/engine/actuators/prop_rotation_speed_rad_sec_all";
+    const char* kRpm = "sim/cockpit2/engine/actuators/prop_rotation_speed_rad_sec";
     leverDial(DialUse::Prop);
     auto& d = sim().datarefs;
     d["sim/aircraft/controls/acf_RSC_mingov_prp"] = 115.0;
