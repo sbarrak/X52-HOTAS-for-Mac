@@ -15,6 +15,7 @@
 
 #include "../core/catalog.h"
 #include "../core/pageview.h"
+#include "../core/update.h"
 #include "../core/xpjoy.h"
 #include "../mac/xplane.h"
 #include "agent.h"
@@ -1292,4 +1293,8 @@ const char* x52_copy_save(const char* name) {
 }
 void x52_copy_cancel(void) {
     if (agent) agent->cancelCopy();
+}
+
+int x52_version_newer(const char* current, const char* latest) {
+    return current && latest && x52::isNewerVersion(current, latest) ? 1 : 0;
 }

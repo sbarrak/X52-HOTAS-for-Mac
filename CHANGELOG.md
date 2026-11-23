@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.3
+
+### Added
+- **The app tells you when a newer version is out.** The menu bar menu has **Check for updates...** (it says
+  *Update available: v1.x.x...* once one is found) and **Check for updates automatically**, on by default. The
+  automatic check runs when the app starts, at most once a day, and stays silent unless there is something new.
+  Only a change of the first two numbers counts (1.2.3 to 1.3.0 does, 1.2.3 to 1.2.40 does not), so small
+  changes never ask anyone to download again. A check by hand always answers: new version, up to date, or why it could not reach GitHub. It reads the project's
+  latest release on GitHub (one request, nothing about you or your Mac is sent) and only opens the release page;
+  nothing is downloaded or installed by itself.
+
 ## 1.2.2
 
 ### Fixed
