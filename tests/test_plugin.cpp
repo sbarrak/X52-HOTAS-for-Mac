@@ -514,6 +514,160 @@ TEST(the_zoom_strength_follows_the_profile) {
     gApp->profile.axes = AxisSettings();
 }
 
+static const char* kRudTrim = "sim/cockpit2/controls/rudder_trim";
+static const char* kCowl = "sim/cockpit2/engine/actuators/cowl_flap_ratio";
+static const char* kMixture = "sim/cockpit2/engine/actuators/mixture_ratio_all";
+// The lower dial on a lever job, resting at 128 since the reset; rudder trim limits 0.2 left and 0.3 right.
+static void leverDial(DialUse use, double trim = 0.1) {
+    freshDials();
+    auto& d = sim().datarefs;
+    d["sim/aircraft/controls/acf_min_trim_rudd"] = 0.2;
+    d["sim/aircraft/controls/acf_max_trim_rudd"] = 0.3;
+    d[kRudTrim] = trim;
+    d[kMixture] = 0.5;
+    d[kCowl] = 0.5;
+    d["sim/aircraft/engine/acf_num_engines"] = 2;
+    gApp->profile.axes.lowerUse = use;
+    gApp->resetDials();
+    sim().frame();
+}
+
+TEST(a_dial_set_to_rudder_trim_takes_over_at_x_planes_trim_and_stays_in_the_aircrafts_limits) {
+    leverDial(DialUse::RudderTrim);
+    auto& d = sim().datarefs;
+    CHECK(nearTo(d[kRudTrim], 0.1));
+    dialTo(0x33, 0);                                        // away from X-Plane's trim: waiting
+    CHECK(nearTo(d[kRudTrim], 0.1));
+    CHECK(has(gApp->leverNote(0x33), "Turn the dial"));
+    dialTo(0x33, 200);                                      // across X-Plane's trim: taken over
+    CHECK(nearTo(d[kRudTrim], -0.2 + 0.5 * 200 / 255.0));
+    CHECK_EQ(gApp->leverNote(0x33), std::string(""));
+    dialTo(0x33, 255);
+    CHECK(nearTo(d[kRudTrim], 0.3));                        // the aircraft's right limit
+    dialTo(0x33, 0);
+    CHECK(nearTo(d[kRudTrim], -0.2));                       // and its left limit
+}
+
+TEST(a_trim_moved_by_a_button_is_not_fought_by_the_dial) {
+    leverDial(DialUse::RudderTrim);
+    auto& d = sim().datarefs;
+    dialTo(0x33, 200);
+    CHECK(nearTo(d[kRudTrim], -0.2 + 0.5 * 200 / 255.0));
+    d[kRudTrim] = -0.1;                                     // a trim button
+    sim().frame();
+    dialTo(0x33, 220);
+    CHECK(nearTo(d[kRudTrim], -0.1));                       // the dial waits
+    dialTo(0x33, 20);                                       // across -0.1: taken over again
+    CHECK(nearTo(d[kRudTrim], -0.2 + 0.5 * 20 / 255.0));
+}
+
+TEST(cowl_flaps_move_every_engine) {
+    leverDial(DialUse::CowlFlaps);
+    auto& d = sim().datarefs;
+    dialTo(0x33, 200);                                      // across 0.5: taken over
+    CHECK(nearTo(d[std::string(kCowl) + "[0]"], 200 / 255.0));
+    CHECK(nearTo(d[std::string(kCowl) + "[1]"], 200 / 255.0));
+    leverDial(DialUse::CowlFlaps);
+    d.erase(std::string(kCowl) + "[0]");
+    d["sim/aircraft/engine/acf_num_engines"] = 0;           // no engine count: engine 0 still moves
+    dialTo(0x33, 30);
+    CHECK(nearTo(d[std::string(kCowl) + "[0]"], 30 / 255.0));
+}
+
+TEST(a_dial_with_from_equal_to_to_sets_that_value_once_turned) {
+    leverDial(DialUse::Mixture);
+    auto& d = sim().datarefs;
+    d[kMixture] = 1.0;
+    gApp->profile.axes.lowerFrom = gApp->profile.axes.lowerTo = 80;
+    gApp->resetDials();
+    sim().frame();
+    CHECK(nearTo(d[kMixture], 1.0));                        // not turned yet: left alone
+    dialTo(0x33, 60);
+    CHECK(nearTo(d[kMixture], 0.8));                        // turned: the one value
+    d[kMixture] = 0.3;                                      // moved by the mouse
+    sim().frame();
+    CHECK(nearTo(d[kMixture], 0.3));
+    dialTo(0x33, 160);                                      // turned again: back to it
+    CHECK(nearTo(d[kMixture], 0.8));
+    gApp->profile.axes = AxisSettings();
+}
+
+TEST(the_takeover_hint_follows_the_dial_as_shown_when_inverted) {
+    leverDial(DialUse::Mixture);
+    sim().datarefs[kMixture] = 0.3;
+    gApp->profile.axes.lowerRotary.invert = true;
+    gApp->resetDials();
+    dialTo(0x33, 240);
+    CHECK(has(gApp->leverNote(0x33), "about 70 %"));        // inverted: X-Plane's 0.3 is where the bar reads 70 %
+    gApp->profile.axes = AxisSettings();
+}
+
+TEST(a_lever_x_plane_also_drives_is_left_alone) {
+    leverDial(DialUse::Mixture);
+    sim().axisAssignments = {2, 1, 3, 4, 29};               // X-Plane: an axis for mixture 2
+    gApp->nextSlowCheck = 0;
+    sim().frame();
+    auto& d = sim().datarefs;
+    double m0 = d[kMixture];
+    dialTo(0x33, 20);
+    dialTo(0x33, 200);
+    CHECK(nearTo(d[kMixture], m0));
+    sim().axisAssignments.clear();
+    gApp->nextSlowCheck = 0;
+    sim().frame();
+    gApp->profile.axes = AxisSettings();
+}
+
+TEST(a_dial_set_to_prop_sets_the_governor_between_the_aircrafts_limits) {
+    const char* kRpm = "sim/cockpit2/engine/actuators/prop_rotation_speed_rad_sec_all";
+    leverDial(DialUse::Prop);
+    auto& d = sim().datarefs;
+    d["sim/aircraft/controls/acf_RSC_mingov_prp"] = 115.0;
+    d["sim/aircraft/controls/acf_RSC_redline_prp"] = 283.0;
+    d[kRpm] = 283.0;                                         // full forward, as the aircraft loads
+    gApp->resetDials();
+    sim().frame();
+    CHECK(nearTo(d[kRpm], 283.0));                           // resting at half way: waiting
+    dialTo(0x33, 255);                                       // up to X-Plane's lever: taken over
+    dialTo(0x33, 0);
+    CHECK(nearTo(d[kRpm], 115.0));                           // the minimum governor speed
+    dialTo(0x33, 255);
+    CHECK(nearTo(d[kRpm], 283.0));                           // redline
+    d["sim/aircraft/controls/acf_RSC_mingov_prp"] = 0;      // no governor: the dial leaves the prop alone
+    d["sim/aircraft/controls/acf_RSC_redline_prp"] = 0;
+    gApp->resetDials();
+    dialTo(0x33, 0);
+    CHECK(nearTo(d[kRpm], 283.0));
+    gApp->profile.axes = AxisSettings();
+}
+
+TEST(an_aircraft_without_rudder_trim_leaves_the_dial_idle_and_says_so) {
+    leverDial(DialUse::RudderTrim, 0.0);
+    auto& d = sim().datarefs;
+    d["sim/aircraft/controls/acf_min_trim_rudd"] = 0;
+    d["sim/aircraft/controls/acf_max_trim_rudd"] = 0;
+    dialTo(0x33, 0);
+    dialTo(0x33, 255);
+    CHECK(nearTo(d[kRudTrim], 0.0));
+    CHECK(has(gApp->leverNote(0x33), "no rudder trim"));
+}
+
+TEST(switching_a_dial_from_a_lever_to_zoom_stops_the_lever) {
+    leverDial(DialUse::Mixture);
+    auto& d = sim().datarefs;
+    dialTo(0x33, 200);
+    CHECK(nearTo(d[kMixture], 200 / 255.0));
+    gApp->setDialUse(0x33, DialUse::Zoom);
+    sim().frame();
+    int in0 = sim().onces["sim/general/zoom_in"], out0 = sim().onces["sim/general/zoom_out"];
+    dialTo(0x33, 100);
+    CHECK(nearTo(d[kMixture], 200 / 255.0));
+    CHECK(sim().onces["sim/general/zoom_out"] - out0 > 0);
+    CHECK_EQ(sim().onces["sim/general/zoom_in"], in0);
+    gApp->profile.axes = AxisSettings();
+    gApp->profileChanged();
+}
+
 TEST(a_dial_x_plane_also_drives_is_left_alone_and_the_window_says_so) {
     freshDials();
     sim().axisAssignments = {2, 1, 3, 4, 14};              // X-Plane: lower dial = speed brakes
@@ -558,12 +712,48 @@ TEST(the_window_cycles_a_dials_job_and_saves_it) {
     sim().frame();
     CHECK(gApp->profile.axes.lowerUse == DialUse::Zoom);
     CHECK(has(slurp(gApp->store.pathFor(gApp->profileKey())), "rotary_lower = 2"));
-    CHECK(sim().clickText("Zoom", 0, true));                 // -> nothing
-    sim().frame();
-    CHECK(gApp->profile.axes.lowerUse == DialUse::None);
+    const char* next[] = {"Zoom", "Prop", "Mixture", "Rudder trim", "Aileron trim", "Cowl flaps", "Carb heat"};
+    for (int i = 0; i < 7; ++i) {                           // every job in turn...
+        CHECK(sim().clickText(next[i], 0, true));
+        sim().frame();
+        CHECK_EQ((int)gApp->profile.axes.lowerUse, (i + 3) % kDialUseCount);
+    }
+    CHECK(gApp->profile.axes.lowerUse == DialUse::None);    // ...then nothing
+    CHECK(has(slurp(gApp->store.pathFor(gApp->profileKey())), "rotary_lower = 0"));
     CHECK(sim().clickText("Nothing", 0, true));              // -> speed brake again
     sim().frame();
     CHECK(gApp->profile.axes.lowerUse == DialUse::SpeedBrake);
+    gApp->profile.axes = AxisSettings();
+    gApp->profileChanged();
+}
+
+// Clicks the "+" (plus) or "-" of the stepper labelled `label`.
+static bool clickStepper(const std::string& label, bool plus) {
+    int signs = 0;
+    for (const DrawnText& d : sim().drawn) {
+        if (d.text == label) return sim().clickText(plus ? "+" : "-", signs, true);
+        if (d.text == (plus ? "+" : "-")) ++signs;
+    }
+    return false;
+}
+
+TEST(a_lever_dial_has_a_from_to_range_in_the_window_and_says_when_it_waits) {
+    leverDial(DialUse::Mixture);
+    sim().datarefs[kMixture] = 0.2;                        // the dial rests at half way: away from it
+    gApp->resetDials();
+    gApp->profileChanged();
+    if (!sim().windowVisible) XPLMCommandOnce(XPLMFindCommand("x52pro/toggle_window"));
+    sim().frame();
+    CHECK(sim().clickText("Axes", 0, true));
+    sim().frame();
+    CHECK(sim().sees("Turn the dial to"));                  // resting away from X-Plane's mixture: waiting
+    CHECK(clickStepper("From", true));
+    sim().frame();
+    CHECK(clickStepper("To", false));
+    sim().frame();
+    CHECK_EQ(gApp->profile.axes.lowerFrom, 5);
+    CHECK_EQ(gApp->profile.axes.lowerTo, 95);
+    CHECK(has(slurp(gApp->store.pathFor(gApp->profileKey())), "rotary_lower_range = 5 95"));
     gApp->profile.axes = AxisSettings();
     gApp->profileChanged();
 }
@@ -907,7 +1097,7 @@ TEST(a_profile_from_the_older_plugin_gets_the_wheel_bindings) {
     }
     gApp->reload();
     CHECK(has(slurp(defaultFile()), "cmd:x52pro/mfd_select"));
-    CHECK(has(slurp(defaultFile()), "x52pro-profile 7"));
+    CHECK(has(slurp(defaultFile()), "x52pro-profile 8"));
     CHECK(has(slurp(defaultFile()), std::string("cmd:") + kGear));
 }
 

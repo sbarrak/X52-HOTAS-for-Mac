@@ -174,12 +174,20 @@ public:
     void resetDials();                     // after an aircraft or profile change, or a dial's job changed
     void setDialUse(int usage, DialUse use);   // the window's choice: saves the profile and starts the dial afresh
     bool xplaneDrives(int assignment) const;   // some X-Plane axis is assigned to this job (kXpAxis...)
+    bool xplaneDrives(const LeverJob& job) const;   // ...to any of a lever job's own numbers
     void readAxisAssignments();            // X-Plane's axis assignments, read once a second
     double speedBrakeWritten = -9;         // the speed-brake handle a dial last set (-9: none since resetDials)
     std::map<int, double> zoomAnchor;      // per dial usage: the position zoom steps are counted from
     bool dialsResetPending = false;
     double dialsResetAt = 0;               // a dial must have moved after this to set the speed brake
     std::vector<int> xpAxisUse;            // X-Plane's axis assignments
+    // Lever jobs (prop, mixture, trims, cowl flaps, carb heat): soft takeover per dial usage, cleared by resetDials().
+    std::map<int, LeverPickup> leverState;
+    std::map<int, std::string> leverNotes;  // per dial usage: what the window says (waiting, no range), "" when held
+    // The job's range for this aircraft (its own limits where X-Plane has them). False when it is empty.
+    bool leverRange(const LeverJob& job, double& lo, double& hi);
+    std::string leverNote(int usage) const;
+    void applyLever(int usage, const LeverJob& job, const AxisLive& l, double now);   // one frame of a dial on a lever job
     std::map<std::pair<int, int>, long> axisShown;   // test mode: last value shown per moving control
 };
 

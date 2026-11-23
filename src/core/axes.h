@@ -13,7 +13,10 @@ struct AxisCurve {
 };
 
 // What a throttle dial does (lower "i" dial 0x33, upper "E" dial 0x34). The plugin drives it from the dial's steady value.
-enum class DialUse { None = 0, SpeedBrake = 1, Zoom = 2 };
+// 3 and up are smooth levers (see LeverJob).
+enum class DialUse { None = 0, SpeedBrake = 1, Zoom = 2, Prop = 3, Mixture = 4, RudderTrim = 5, AileronTrim = 6,
+                     CowlFlaps = 7, CarbHeat = 8 };
+constexpr int kDialUseCount = 9;
 
 struct AxisSettings {
     // true: the plugin writes the stick and twist (roll, pitch, yaw) into X-Plane, replacing its own joystick reading.
@@ -44,6 +47,9 @@ struct AxisSettings {
     DialUse lowerUse = DialUse::SpeedBrake, upperUse = DialUse::Zoom;
     // Zoom strength: steps of X-Plane's own zoom (sim/general/zoom_in / zoom_out) per full turn of a dial, 12..480.
     int zoomSteps = 96;
+    // A dial set to a lever job covers From..To percent of the job's range (after the aircraft's limits) in one full
+    // turn. From above To turns it the other way.
+    int lowerFrom = 0, lowerTo = 100, upperFrom = 0, upperTo = 100;
 };
 
 // The X-Plane value a stick axis replaces.
@@ -130,6 +136,38 @@ double speedBrakeFor(double x);
 // Whole zoom steps between `anchor` and `x` (both 0..1), positive = zoom in. `anchor` moves by the steps returned, so
 // what is left over counts towards the next step.
 int zoomClicks(double& anchor, double x, int clicksPerTravel = kZoomClicksPerTravel);
+
+// A smooth dial job: the dial sets an X-Plane value anywhere in the game's range, like a knob or lever.
+struct LeverJob {
+    DialUse use;
+    const char* name;          // "Prop", "Rudder trim", ... (window and app labels)
+    const char* dataref;
+    bool perEngine;            // an array with one value per engine: every engine is written
+    double lo, hi;             // the game's range
+    const char* limLow;        // aircraft limits (nullptr: none): the range becomes -limLow .. +limHigh,
+    const char* limHigh;
+    bool limAbsolute;          // or limLow .. limHigh as they are (the prop governor's speeds)
+    // X-Plane's own axis assignments for the same job (its joy_use numbers; 0 ends the list): with one in use,
+    // X-Plane drives the job itself and the plugin leaves it alone.
+    int xpAxis[5];
+};
+const LeverJob* leverJob(DialUse use);   // nullptr for None, SpeedBrake and Zoom
+const char* dialUseName(DialUse use);    // every job; "Nothing" for None
+// The lever value for a dial position x (0..1, after Invert): From..To percent of lo..hi.
+double leverValue(double x, double lo, double hi, int fromPct, int toPct);
+// Soft takeover, one per dial. Waiting (not held), the dial writes nothing until it reaches X-Plane's own value;
+// held, it writes every change until X-Plane's value moves away from what it last wrote (a button, the mouse or
+// the autopilot), and then it waits again.
+struct LeverPickup {
+    bool held = false;
+    double lastWritten = 0;
+    double lastTarget = 0;
+    bool seen = false;         // lastTarget is set
+    double waitingSince = 0;   // From = To: when it last let go (the dial must be turned after this to write)
+};
+// target: the dial's lever value now; sim: X-Plane's value; tol: 1 % of the range. True: write `target` now.
+// An empty range (tol 0) never writes.
+bool leverMayWrite(LeverPickup& s, double target, double sim, double tol);
 
 // The flap handle (0 up .. 1 fully down) for a slider position 0..1: the nearest of the aircraft's `detents` stops
 // (0, 1/n, ..., 1), or the position itself when the aircraft reports no detents.

@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.1
+
+### Added
+- **More jobs for the throttle's dials: smooth levers within the game's limits.** Besides Speed brake, Zoom and
+  Nothing, the lower dial (i) and the E dial can each be *Prop*, *Mixture*, *Rudder trim*, *Aileron trim*, *Cowl
+  flaps* or *Carb heat*. A full turn covers the game's range for the job, within the aircraft's own rudder and
+  aileron trim limits; prop, mixture, cowl flaps and carb heat move every engine together. *From* and *To* (percent)
+  narrow the range a full turn covers, for finer control. **Soft takeover:** after loading an aircraft or profile, or
+  when a button, the mouse or the autopilot moved the value, the dial does nothing until it is turned to X-Plane's
+  own value, so nothing jumps; the plugin window says where to turn it. Pick the jobs and ranges on the app's Axes
+  tab or in the plugin window. New profile keys `rotary_lower_range` and `rotary_upper_range` (`0 100` by default),
+  jobs 3 to 8 for `rotary_lower` / `rotary_upper`; profile format 8. The ready-made profiles keep speed brake and
+  zoom. (issue #78)
+
 ## 1.3.0
 
 ### Added

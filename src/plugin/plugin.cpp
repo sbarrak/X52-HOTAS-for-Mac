@@ -659,9 +659,17 @@ bool App::xplaneDrives(int assignment) const {
     return std::find(xpAxisUse.begin(), xpAxisUse.end(), assignment) != xpAxisUse.end();
 }
 
+bool App::xplaneDrives(const LeverJob& job) const {
+    for (int a : job.xpAxis)
+        if (a && xplaneDrives(a)) return true;
+    return false;
+}
+
 void App::resetDials() {
     speedBrakeWritten = -9;
     zoomAnchor.clear();
+    leverState.clear();
+    leverNotes.clear();
     dialsResetPending = true;
 }
 
@@ -680,6 +688,12 @@ void App::applyDials(double now) {
         DialUse use = *dialUse(profile.axes, usage);
         auto it = axisLive.find({0x01, usage});
         if (use == DialUse::None || it == axisLive.end()) continue;
+        if (const LeverJob* job = leverJob(use)) {
+            applyLever(usage, *job, it->second, now);
+            continue;
+        }
+        leverState.erase(usage);
+        leverNotes.erase(usage);
         if (xplaneDrives(use == DialUse::SpeedBrake ? kXpAxisSpeedbrakes : kXpAxisViewZoom)) {
             zoomAnchor.erase(usage);   // counted afresh once X-Plane lets go of it
             continue;
@@ -703,6 +717,100 @@ void App::applyDials(double now) {
                 commandOnce(c > 0 ? "sim/general/zoom_in" : "sim/general/zoom_out");
         }
     }
+}
+
+bool App::leverRange(const LeverJob& job, double& lo, double& hi) {
+    lo = job.lo;
+    hi = job.hi;
+    if (job.limLow && job.limHigh) {
+        XPLMDataRef l = cachedRef(job.limLow), h = cachedRef(job.limHigh);
+        if (l && h) {
+            lo = job.limAbsolute ? (double)XPLMGetDataf(l) : -std::fabs((double)XPLMGetDataf(l));
+            hi = job.limAbsolute ? (double)XPLMGetDataf(h) : std::fabs((double)XPLMGetDataf(h));
+        } else if (job.limAbsolute) {
+            return false;   // the job's own units need the aircraft's limits
+        }
+    }
+    return hi - lo > 1e-6;
+}
+
+std::string App::leverNote(int usage) const {
+    auto it = leverNotes.find(usage);
+    return it == leverNotes.end() ? "" : it->second;
+}
+
+namespace {
+std::string lowerName(const char* n) {
+    std::string s = n;
+    for (char& c : s) c = (char)std::tolower((unsigned char)c);
+    return s;
+}
+}  // namespace
+
+void App::applyLever(int usage, const LeverJob& job, const AxisLive& l, double now) {
+    std::string& note = leverNotes[usage];
+    LeverPickup& st = leverState[usage];
+    note.clear();
+    if (xplaneDrives(job)) {
+        st = LeverPickup();
+        return;
+    }
+    XPLMDataRef r = cachedRef(job.dataref);
+    if (!r) return;
+    double lo, hi;
+    if (!leverRange(job, lo, hi)) {
+        st = LeverPickup();
+        note = "This aircraft has no " + lowerName(job.name) + ".";
+        return;
+    }
+    bool lower = usage == 0x33;
+    int from = lower ? profile.axes.lowerFrom : profile.axes.upperFrom;
+    int to = lower ? profile.axes.lowerTo : profile.axes.upperTo;
+    double x = normalizeAxis(l.value, l.min, l.max, false);
+    if (dialCurve(profile.axes, usage)->invert) x = 1.0 - x;
+    double target = leverValue(x, lo, hi, from, to);
+    float v0 = 0;
+    if (job.perEngine) XPLMGetDatavf(r, &v0, 0, 1);
+    else v0 = XPLMGetDataf(r);
+    double sim = v0;
+    double tol = 0.01 * (hi - lo);
+    if (from == to) {   // one value for every position: set it when the dial is turned, then leave it until turned again
+        if (st.held && std::fabs(sim - st.lastWritten) > tol) {
+            st.held = false;
+            st.waitingSince = now;
+        }
+        if (st.held) return;
+        if (l.changedAt <= std::max(dialsResetAt, st.waitingSince)) {
+            note = "Turn the dial to set " + lowerName(job.name) + " to " + std::to_string(from) + " %.";
+            return;
+        }
+        st.held = true;
+        st.lastWritten = target;
+    } else {
+        bool wasHeld = st.held;
+        double before = st.lastWritten;
+        if (!leverMayWrite(st, target, sim, tol)) {
+            // Where the dial takes over: X-Plane's value as a share of this dial's turn.
+            double span = (hi - lo) * (to - from) / 100.0;
+            double at = std::fabs(span) > 1e-9 ? (sim - lo - (hi - lo) * from / 100.0) / span : -1;
+            if (dialCurve(profile.axes, usage)->invert && at >= -0.005 && at <= 1.005) at = 1.0 - at;   // as the bar shows the dial
+            if (at < -0.005 || at > 1.005)
+                note = "X-Plane's " + lowerName(job.name) + " is outside this dial's From/To.";
+            else
+                note = "Turn the dial to about " + std::to_string((int)std::lround(at * 100)) + " % of its turn to take over.";
+            return;
+        }
+        if (wasHeld && std::fabs(target - before) < 1e-6) return;   // the dial did not move
+    }
+    if (!job.perEngine) {
+        XPLMSetDataf(r, (float)target);
+        return;
+    }
+    int n = 1;
+    if (XPLMDataRef e = cachedRef("sim/aircraft/engine/acf_num_engines")) n = XPLMGetDatai(e);
+    n = std::max(1, std::min(n, 16));
+    std::vector<float> all((size_t)n, (float)target);
+    XPLMSetDatavf(r, all.data(), 0, n);
 }
 
 void App::releaseAxes() {

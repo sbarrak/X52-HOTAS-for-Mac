@@ -128,9 +128,22 @@ int XPLMCanWriteDataRef(XPLMDataRef r) {
 void XPLMSetDatai(XPLMDataRef r, int v) { refStore(r, v); }
 void XPLMSetDataf(XPLMDataRef r, float v) { refStore(r, v); }
 void XPLMSetDatad(XPLMDataRef r, double v) { refStore(r, v); }
-void XPLMSetDatavf(XPLMDataRef r, float* v, int, int) { refStore(r, *v); }
+// Arrays: index 0 is stored under the name itself (as before), and every index written also as "name[i]".
+void XPLMSetDatavf(XPLMDataRef r, float* v, int offset, int n) {
+    size_t i = (size_t)(intptr_t)r - 1;
+    if (i >= refNames.size()) return;
+    if (offset == 0 && n > 0) refStore(r, *v);
+    for (int k = 0; k < n; ++k) sim().datarefs[refNames[i] + "[" + std::to_string(offset + k) + "]"] = v[k];
+}
 void XPLMSetDatavi(XPLMDataRef r, int* v, int, int) { refStore(r, *v); }
-int XPLMGetDatavf(XPLMDataRef r, float* out, int, int) { *out = (float)refValue(r); return 1; }
+int XPLMGetDatavf(XPLMDataRef r, float* out, int offset, int n) {
+    size_t i = (size_t)(intptr_t)r - 1;
+    for (int k = 0; k < n; ++k) {
+        std::string at = i < refNames.size() ? refNames[i] + "[" + std::to_string(offset + k) + "]" : "";
+        out[k] = (float)(sim().datarefs.count(at) ? sim().datarefs[at] : refValue(r));
+    }
+    return n;
+}
 int XPLMGetDatavi(XPLMDataRef r, int* out, int offset, int n) {
     size_t i = (size_t)(intptr_t)r - 1;
     if (i < refNames.size() && refNames[i] == "sim/joystick/joystick_button_values") {
