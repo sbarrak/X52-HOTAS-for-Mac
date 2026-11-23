@@ -2906,6 +2906,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             if n < shots.count {
                 let (name, tab) = shots[n]; n += 1
                 model.tab = tab
+                window?.setContentSize(NSSize(width: 960, height: tab == 7 ? 1000 : 800))   // Axes is taller than the rest
                 if tab == 6 { model.btn = 4; model.btnLayer = 1 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [self] in
                     draw(window, to: dir + "/" + name + ".png"); next()

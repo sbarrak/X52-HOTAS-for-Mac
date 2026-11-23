@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.4
+
+### Changed
+- **Manual and pictures brought up to date.** The pictures in `docs/images` and the Word manual now show the
+  grouped profile picker, the undo and redo buttons, the calibration and the update check. The manual describes the
+  new menu bar items. The picture maker (`X52Pro --snapshot`) gives the Axes tab a taller window so its top is no
+  longer cut off.
+
 ## 1.2.3
 
 ### Added
