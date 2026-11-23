@@ -2450,6 +2450,22 @@ TEST(a_dial_set_to_nothing_stays_nothing_in_an_older_file) {
     CHECK(q.axes.upperRotary.invert);
 }
 
+TEST(zoom_strength_is_kept_in_the_profile) {
+    Profile p;
+    CHECK_EQ(p.axes.zoomSteps, 96);                      // steps of X-Plane's zoom per full turn of a dial
+    p.axes.zoomSteps = 200;
+    std::string text = serialize(p);
+    CHECK(text.find("rotary_zoom_steps = 200\n") != std::string::npos);
+    Profile q;
+    std::string err;
+    CHECK(parse(text, q, &err));
+    CHECK_EQ(q.axes.zoomSteps, 200);
+    CHECK(parse("x52pro-profile 7\nrotary_zoom_steps = 5000\n", q, &err));
+    CHECK_EQ(q.axes.zoomSteps, 480);
+    CHECK(parse("x52pro-profile 7\nrotary_zoom_steps = 1\n", q, &err));
+    CHECK_EQ(q.axes.zoomSteps, 12);
+}
+
 TEST(an_unknown_dial_function_reads_as_nothing) {
     Profile q;
     std::string err;

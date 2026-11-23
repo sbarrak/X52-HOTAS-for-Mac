@@ -362,6 +362,10 @@ TEST(each_throttle_dials_job_is_picked_in_the_app_and_saved) {
     CHECK(has(file, "rotary_upper = 0"));
     CHECK(has(file, "rotary_lower = 2"));
     CHECK(has(file, "rotary_lower_invert = 1"));
+    CHECK_EQ(x52_get("rotary_zoom_steps"), 96);
+    x52_set("rotary_zoom_steps", 5000);                      // kept inside the allowed range
+    CHECK_EQ(x52_get("rotary_zoom_steps"), 480);
+    CHECK(has(slurp(dir + "/default.x52"), "rotary_zoom_steps = 480"));
     x52_stop();
 }
 

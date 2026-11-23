@@ -49,7 +49,7 @@ live in the Citation X: X-Plane saw the stick and throttle move, but the yoke an
 - The slider is the flaps (above). If X-Plane also uses the slider for something, set it to None in X-Plane's
   Joystick settings. **The dials:** the lower dial (i, by the clutch) is the speed brake in four steps (Armed,
   Retracted, Half, Full) in the aircraft that have one (Citation X, 737, A330, MD-82, F-4, F-14; `rotary_lower = 1`),
-  nothing elsewhere; the E dial zooms the view everywhere (`rotary_upper = 2`). Set both dials to None in X-Plane's
+  nothing elsewhere; the E dial zooms the view everywhere (`rotary_upper = 2`, `rotary_zoom_steps = 96`: zoom steps per full turn). Set both dials to None in X-Plane's
   Joystick settings. **POV 1** (the main hat on top of the stick) looks around in every mode (buttons 40 to 43, X-Plane's rotate-view commands: the same as the Q, E, R and F keys); set that hat to None in X-Plane's Joystick settings, and hold the clutch to use it as the profile picker instead. The **mouse nub** on the throttle pans the view in every mode (X-Plane's pan commands, the same as the arrow keys; pushed all the way, the fast pan, the same as Shift + arrow keys; buttons 44 to 51).
 
 All of it can be changed per profile on the app's Axes tab (dead zone, expo, invert, Invert flaps, what each dial does).

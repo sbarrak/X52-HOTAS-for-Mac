@@ -699,7 +699,7 @@ void App::applyDials(double now) {
                 zoomAnchor[usage] = x;   // where the dial is now is not a turn
                 continue;
             }
-            for (int c = zoomClicks(a->second, x); c != 0; c += c > 0 ? -1 : 1)
+            for (int c = zoomClicks(a->second, x, profile.axes.zoomSteps); c != 0; c += c > 0 ? -1 : 1)
                 commandOnce(c > 0 ? "sim/general/zoom_in" : "sim/general/zoom_out");
         }
     }

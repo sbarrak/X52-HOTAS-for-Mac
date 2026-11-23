@@ -1390,6 +1390,13 @@ void drawAxesTab(const Rect& area) {
                 rc.t -= kRow;
             }
         }
+        if (usage == 0x34 && (a.profile.axes.lowerUse == DialUse::Zoom || a.profile.axes.upperUse == DialUse::Zoom)) {
+            rc.x = area.l;   // how far a full turn zooms
+            r = rc.take(110);
+            text(r.l, r, "Zoom strength");
+            stepper("Steps per turn", a.profile.axes.zoomSteps, "", 12, 480, 12, &a.profile.axes.zoomSteps);
+            rc.t -= kRow + kGap;
+        }
     }
     // Stick handling while the plugin drives it: smoothing, the damper, and the stick's calibration.
     rc.x = area.l;

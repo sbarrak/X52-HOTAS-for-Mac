@@ -42,6 +42,8 @@ struct AxisSettings {
     // The dials: SpeedBrake sets the speed brake in four steps (armed, retracted, half, full), Zoom zooms the view a
     // step at a time. lowerRotary.invert / upperRotary.invert turn them the other way.
     DialUse lowerUse = DialUse::SpeedBrake, upperUse = DialUse::Zoom;
+    // Zoom strength: steps of X-Plane's own zoom (sim/general/zoom_in / zoom_out) per full turn of a dial, 12..480.
+    int zoomSteps = 96;
 };
 
 // The X-Plane value a stick axis replaces.
@@ -117,7 +119,7 @@ double smoothStick(double prev, double x, double dt, int ms);
 // 15 % of the travel at full strength. The pilot can always override it.
 double dampStick(double cmd, double rateDegS, int strength);
 
-// The dials. kZoomClicksPerTravel: zoom steps over a whole turn of a dial set to zoom. The kXpAxis values are X-Plane's
+// The dials. kZoomClicksPerTravel: the zoomClicks default (a profile's zoomSteps is what the plugin uses). The kXpAxis values are X-Plane's
 // own axis assignments (sim/joystick/joystick_axis_assignments) for the same jobs: with one of them in use, X-Plane
 // drives that job itself and the plugin leaves it alone.
 constexpr int kZoomClicksPerTravel = 24;

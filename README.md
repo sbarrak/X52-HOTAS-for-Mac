@@ -372,12 +372,13 @@ Other things to know:
   `override_joystick` / `override_throttles`, and releases them when you untick it). The throttle is only
   taken over once it has moved. Test mode on the Settings tab also names moving controls on the stick's screen.
   **The dials:** each profile says what the lower dial (i, by the clutch) and the E dial do: *Speed brake* (four
-  steps over the dial's turn: Armed, Retracted, Half, Full), *Zoom* (one zoom step per 1/24 of a turn, with X-Plane's
-  zoom commands) or *Nothing*, each with *Invert*. The plugin reads the dial's steady value, so its one-step flicker
+  steps over the dial's turn: Armed, Retracted, Half, Full), *Zoom* (X-Plane's own zoom commands; *Zoom
+  strength* sets how many zoom steps a full turn gives, 96 by default, 12 to 480) or *Nothing*, each with *Invert*. The plugin reads the dial's steady value, so its one-step flicker
   never reaches X-Plane, and acts only while you turn it: speed-brake buttons, the mouse wheel and the auto-spoilers
   still work in between. Set the dials to None in X-Plane's Joystick settings; if X-Plane still uses one for speed
   brakes or zoom, the plugin leaves that job to X-Plane and its window says so. Profile keys `rotary_lower`,
-  `rotary_upper` (0 nothing, 1 speed brake, 2 zoom) and `rotary_lower_invert`, `rotary_upper_invert`.
+  `rotary_upper` (0 nothing, 1 speed brake, 2 zoom), `rotary_lower_invert`, `rotary_upper_invert` and `rotary_zoom_steps`.
+  An aircraft that does not take the armed position (the Citation X) stays retracted in the first step.
 - **Plugin on/off:** the button at the left of the status row (green *Plugin on*, red *Plugin off*). Off, the plugin
   does nothing in X-Plane (no buttons, axes, dials, screen or lights) and the status says "Stick connected, plugin
   off"; the app drives the stick's screen and lights instead. It takes effect within a second and lasts until you

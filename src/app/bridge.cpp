@@ -58,6 +58,7 @@ int* field(Profile& p, const std::string& n, int& lo, int& hi) {
     if (n == "steady_lower") { lo = 0; hi = 20; return &p.axes.lowerRotary.deadzone; }
     if (n == "steady_upper") { lo = 0; hi = 20; return &p.axes.upperRotary.deadzone; }
     if (n == "steady_slider") { lo = 0; hi = 20; return &p.axes.slider.deadzone; }
+    if (n == "rotary_zoom_steps") { lo = 12; hi = 480; return &p.axes.zoomSteps; }
     return nullptr;
 }
 

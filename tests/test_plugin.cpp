@@ -498,10 +498,20 @@ TEST(the_e_dial_zooms_one_click_per_step_and_back) {
     int in0 = sim().onces["sim/general/zoom_in"], out0 = sim().onces["sim/general/zoom_out"];
     sim().frame();
     CHECK_EQ(sim().onces["sim/general/zoom_in"], in0);     // where it rests is not a turn
-    dialTo(0x34, 160);                                     // 32 of 255 = 3 clicks of 24 per turn
-    CHECK_EQ(sim().onces["sim/general/zoom_in"] - in0, 3);
+    dialTo(0x34, 160);                                     // 32 of 255 = 12 steps of 96 per turn
+    CHECK_EQ(sim().onces["sim/general/zoom_in"] - in0, 12);
     dialTo(0x34, 128);
-    CHECK_EQ(sim().onces["sim/general/zoom_out"] - out0, 3);
+    CHECK_EQ(sim().onces["sim/general/zoom_out"] - out0, 12);
+}
+
+TEST(the_zoom_strength_follows_the_profile) {
+    freshDials();
+    gApp->profile.axes.zoomSteps = 24;
+    int in0 = sim().onces["sim/general/zoom_in"];
+    sim().frame();
+    dialTo(0x34, 160);                                     // 32 of 255 = 3 steps of 24 per turn
+    CHECK_EQ(sim().onces["sim/general/zoom_in"] - in0, 3);
+    gApp->profile.axes = AxisSettings();
 }
 
 TEST(a_dial_x_plane_also_drives_is_left_alone_and_the_window_says_so) {

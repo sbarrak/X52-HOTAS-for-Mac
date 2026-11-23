@@ -2054,6 +2054,14 @@ struct AxesTab: View {
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             DialSteadyRow(m: m, title: "Lower rotary (i)", key: "lower", usage: 0x33)
             DialSteadyRow(m: m, title: "Upper rotary (E)", key: "upper", usage: 0x34)
+            if m.get("rotary_lower") == 2 || m.get("rotary_upper") == 2 {
+                let zs = Binding<Int>(get: { m.get("rotary_zoom_steps") }, set: { m.set("rotary_zoom_steps", $0) })
+                HStack(spacing: 12) {
+                    Text("Zoom strength").frame(width: 120, alignment: .leading)
+                    Stepper("\(zs.wrappedValue) zoom steps per turn", value: zs, in: 12...480, step: 12).frame(width: 260, alignment: .leading)
+                        .help("How far one full turn of a dial set to Zoom zooms the view, in steps of X-Plane's own zoom. More is a stronger zoom. You can change it while flying.")
+                }
+            }
             Text("The lower dial (i) and the E dial can set the speed brake in four steps (Armed, Retracted, Half, Full) or zoom the view. The plugin only acts while you turn the dial, so buttons, the mouse and the auto-spoilers still work. Set the dial to None in X-Plane's Joystick settings if X-Plane uses it too.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             DialSteadyRow(m: m, title: "Slider", key: "slider", usage: 0x36)
