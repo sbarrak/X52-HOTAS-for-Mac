@@ -25,3 +25,13 @@
 - Docs-only and housekeeping branches get an issue too, kept short. A change that does not touch the app (rules, docs, tooling) gets no version bump, so its issue names no version.
 - Issues are public (the repository is public): no personal data, no local paths, no secrets.
 - Before a release, check that every branch merged since the last release has its issue.
+
+## Branches
+
+- Once a branch's pull request is merged into `main`, delete the branch right away, on GitHub and locally, without waiting to be asked (`gh pr merge --delete-branch`, or `git push origin --delete <branch>` and `git branch -d <branch>`). Then switch to `main` and pull.
+
+## Releases
+
+- Every merged change that raised `VERSION` gets its release as soon as it is merged, without waiting to be asked: tag `vX.Y.Z` on the merge commit in `main`, run `make release`, and create the GitHub release from that tag with `X52-Pro-X.Y.Z.zip` attached, as was done for 1.2.5.
+- The release title is `X52 Pro X.Y.Z`. The notes say what was fixed or changed in that version, with the issue number, and link to `CHANGELOG.md`.
+- A change that does not raise `VERSION` (rules, docs, tooling) gets no tag and no release.
