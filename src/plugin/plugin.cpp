@@ -336,6 +336,7 @@ float flightLoop(float elapsed, float, int, void*) {
         long long stamp = a.store.stamp(a.profileKey());
         if (stamp && stamp != a.loadedStamp) a.reload();   // changed outside X-Plane (menu bar app, text editor)
         if (x52::calibrationStamp(a.store.dir) != a.calibrationStamp) a.loadCalibration();   // calibrated in the app
+        a.readAxisAssignments();
     }
 
     bool axisNews = false;
@@ -353,6 +354,7 @@ float flightLoop(float elapsed, float, int, void*) {
     a.trackAxes(now);
     a.applyAxes(elapsed);
     a.applySliderFlaps();
+    a.applyDials(now);
     if (a.testMode) {
         for (const AxisEvent& m : moves) {
             auto key = std::make_pair(m.usagePage, m.usage);
@@ -619,6 +621,65 @@ void App::applySliderFlaps() {
     flapWritten = handle;
 }
 
+void App::readAxisAssignments() {
+    xpAxisUse.clear();
+    XPLMDataRef r = cachedRef("sim/joystick/joystick_axis_assignments");
+    if (!r) return;
+    xpAxisUse.assign(500, 0);
+    int n = XPLMGetDatavi(r, xpAxisUse.data(), 0, (int)xpAxisUse.size());
+    xpAxisUse.resize(std::max(0, std::min(n, (int)xpAxisUse.size())));
+}
+
+bool App::xplaneDrives(int assignment) const {
+    return std::find(xpAxisUse.begin(), xpAxisUse.end(), assignment) != xpAxisUse.end();
+}
+
+void App::resetDials() {
+    speedBrakeWritten = -9;
+    zoomAnchor.clear();
+    dialsResetPending = true;
+}
+
+void App::setDialUse(int usage, DialUse use) {
+    if (DialUse* u = dialUse(profile.axes, usage)) *u = use;
+    resetDials();
+    profileChanged();
+}
+
+void App::applyDials(double now) {
+    if (dialsResetPending) {
+        dialsResetAt = now;
+        dialsResetPending = false;
+    }
+    for (int usage : {0x33, 0x34}) {
+        DialUse use = *dialUse(profile.axes, usage);
+        auto it = axisLive.find({0x01, usage});
+        if (use == DialUse::None || it == axisLive.end()) continue;
+        if (xplaneDrives(use == DialUse::SpeedBrake ? kXpAxisSpeedbrakes : kXpAxisViewZoom)) {
+            zoomAnchor.erase(usage);   // counted afresh once X-Plane lets go of it
+            continue;
+        }
+        const AxisLive& l = it->second;
+        double x = normalizeAxis(l.value, l.min, l.max, false);
+        if (dialCurve(profile.axes, usage)->invert) x = 1.0 - x;
+        if (use == DialUse::SpeedBrake) {
+            if (l.changedAt <= dialsResetAt) continue;   // not turned since the aircraft or profile changed
+            double h = speedBrakeFor(x);
+            if (std::fabs(h - speedBrakeWritten) < 1e-4) continue;
+            if (XPLMDataRef r = cachedRef("sim/cockpit2/controls/speedbrake_ratio")) XPLMSetDataf(r, (float)h);
+            speedBrakeWritten = h;
+        } else {
+            auto a = zoomAnchor.find(usage);
+            if (a == zoomAnchor.end()) {
+                zoomAnchor[usage] = x;   // where the dial is now is not a turn
+                continue;
+            }
+            for (int c = zoomClicks(a->second, x); c != 0; c += c > 0 ? -1 : 1)
+                commandOnce(c > 0 ? "sim/general/zoom_in" : "sim/general/zoom_out");
+        }
+    }
+}
+
 void App::releaseAxes() {
     for (const char* n : {"sim/operation/override/override_joystick", "sim/operation/override/override_throttles"})
         if (XPLMDataRef r = cachedRef(n)) XPLMSetDatai(r, 0);
@@ -840,6 +901,7 @@ void App::loadForAircraft(const std::string& acfName) {
 }
 
 void App::reload() {
+    resetDials();
     std::string err;
     Profile p;
     std::string key = profileKey();

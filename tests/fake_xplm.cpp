@@ -139,6 +139,11 @@ int XPLMGetDatavi(XPLMDataRef r, int* out, int offset, int n) {
         for (int k = got; k < n; ++k) out[k] = 0;
         return n;
     }
+    if (i < refNames.size() && refNames[i] == "sim/joystick/joystick_axis_assignments") {
+        const std::vector<int>& a = sim().axisAssignments;
+        for (int k = 0; k < n; ++k) out[k] = offset + k < (int)a.size() ? a[offset + k] : 0;
+        return n;
+    }
     *out = (int)refValue(r);
     return 1;
 }

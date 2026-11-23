@@ -1369,6 +1369,16 @@ void drawAxesTab(const Rect& area) {
             }, inv);
         }
         rc.t -= kRow + kGap;
+        if (const DialUse* use = dialUse(a.profile.axes, usage)) {   // X-Plane doing the same job wins: say so
+            bool brake = *use == DialUse::SpeedBrake;
+            if (*use != DialUse::None && a.xplaneDrives(brake ? kXpAxisSpeedbrakes : kXpAxisViewZoom)) {
+                r = {area.l + 110, rc.t, area.r, rc.t - kRow};
+                std::string note = std::string("X-Plane also uses a dial for ") + (brake ? "speed brakes" : "zoom") +
+                                   ": set it to None in X-Plane's Joystick settings.";
+                text(r.l, r, fit(note, r.w()), kAmber);
+                rc.t -= kRow;
+            }
+        }
     }
     // Stick handling while the plugin drives it: smoothing, the damper, and the stick's calibration.
     rc.x = area.l;

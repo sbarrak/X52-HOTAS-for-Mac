@@ -441,6 +441,102 @@ TEST(the_throttle_moves_the_cockpit_levers_too_and_the_slider_sets_the_flaps_at_
     sim().frame();
 }
 
+static const char* kSpeedBrake = "sim/cockpit2/controls/speedbrake_ratio";
+static void dialTo(int usage, long v) {
+    gApp->input.pushAxis({0x01, usage, v, 0, 255});
+    sim().frame();
+}
+// Dials with their defaults (lower: speed brake, upper: zoom), both resting at 128 when the profile was (re)loaded,
+// X-Plane using neither.
+static void freshDials() {
+    for (const char* c : {"sim/general/zoom_in", "sim/general/zoom_out"}) sim().knownCommands.push_back(c);
+    sim().axisAssignments.clear();
+    gApp->profile.axes = AxisSettings();
+    gApp->profile.axes.lowerUse = gApp->profile.axes.upperUse = DialUse::None;
+    dialTo(0x33, 128);
+    dialTo(0x34, 128);
+    gApp->profile.axes = AxisSettings();
+    gApp->resetDials();
+    gApp->nextSlowCheck = 0;
+    sim().datarefs[kSpeedBrake] = 0.0;
+    sim().datarefs["sim/joystick/joystick_axis_assignments"] = 0;   // findable; the values come from axisAssignments
+    sim().frame();
+}
+
+TEST(the_lower_dial_sets_the_speed_brake_in_steps_and_leaves_it_alone_in_between) {
+    freshDials();
+    auto& d = sim().datarefs;
+    d[kSpeedBrake] = 0.3;
+    sim().frame();                                         // where the dial rests: nothing yet
+    CHECK(nearTo(d[kSpeedBrake], 0.3));
+    dialTo(0x33, 100);
+    CHECK(nearTo(d[kSpeedBrake], 0.0));                    // retracted
+    dialTo(0x33, 140);
+    CHECK(nearTo(d[kSpeedBrake], 0.5));                    // half
+    d[kSpeedBrake] = 0.8;                                  // a speed-brake button in between is left alone...
+    sim().frame();
+    CHECK(nearTo(d[kSpeedBrake], 0.8));
+    dialTo(0x33, 250);                                     // ...until the dial reaches another step
+    CHECK(nearTo(d[kSpeedBrake], 1.0));
+    dialTo(0x33, 10);
+    CHECK(nearTo(d[kSpeedBrake], -0.5));                   // armed
+}
+
+TEST(a_dial_flickering_on_a_step_border_sets_the_speed_brake_once) {
+    freshDials();
+    auto& d = sim().datarefs;
+    dialTo(0x33, 60);
+    dialTo(0x33, 125);                                     // just below half way: retracted
+    CHECK(nearTo(d[kSpeedBrake], 0.0));
+    d[kSpeedBrake] = 0.3;
+    for (int i = 0; i < 10; ++i) dialTo(0x33, i % 2 ? 127 : 128);   // one count either side of the border
+    CHECK(nearTo(d[kSpeedBrake], 0.3));
+}
+
+TEST(the_e_dial_zooms_one_click_per_step_and_back) {
+    freshDials();
+    int in0 = sim().onces["sim/general/zoom_in"], out0 = sim().onces["sim/general/zoom_out"];
+    sim().frame();
+    CHECK_EQ(sim().onces["sim/general/zoom_in"], in0);     // where it rests is not a turn
+    dialTo(0x34, 160);                                     // 32 of 255 = 3 clicks of 24 per turn
+    CHECK_EQ(sim().onces["sim/general/zoom_in"] - in0, 3);
+    dialTo(0x34, 128);
+    CHECK_EQ(sim().onces["sim/general/zoom_out"] - out0, 3);
+}
+
+TEST(a_dial_x_plane_also_drives_is_left_alone_and_the_window_says_so) {
+    freshDials();
+    sim().axisAssignments = {2, 1, 3, 4, 14};              // X-Plane: lower dial = speed brakes
+    gApp->nextSlowCheck = 0;
+    sim().frame();
+    auto& d = sim().datarefs;
+    d[kSpeedBrake] = 0.3;
+    dialTo(0x33, 20);
+    dialTo(0x33, 200);
+    CHECK(nearTo(d[kSpeedBrake], 0.3));
+    if (!sim().windowVisible) XPLMCommandOnce(XPLMFindCommand("x52pro/toggle_window"));
+    sim().frame();
+    CHECK(sim().clickText("Axes", 0, true));
+    sim().frame();
+    CHECK(sim().sees("set it to None in X-Plane"));
+    sim().axisAssignments.clear();
+    gApp->nextSlowCheck = 0;
+    sim().frame();
+}
+
+TEST(changing_a_dial_function_does_not_zoom_by_the_distance_already_turned) {
+    freshDials();
+    gApp->profile.axes.upperUse = DialUse::None;
+    dialTo(0x34, 128);
+    dialTo(0x34, 250);
+    int in0 = sim().onces["sim/general/zoom_in"];
+    gApp->setDialUse(0x34, DialUse::Zoom);                 // as the window and the app do
+    sim().frame();
+    dialTo(0x34, 255);
+    CHECK(sim().onces["sim/general/zoom_in"] - in0 <= 1);
+    gApp->profile.axes = AxisSettings();
+}
+
 TEST(the_plugin_can_drive_the_throttle_alone_and_leave_the_stick_to_x_plane) {
     auto& d = sim().datarefs;
     const char* thr = "sim/flightmodel/engine/ENGN_thro_use";

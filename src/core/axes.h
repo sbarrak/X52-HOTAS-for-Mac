@@ -117,6 +117,18 @@ double smoothStick(double prev, double x, double dt, int ms);
 // 15 % of the travel at full strength. The pilot can always override it.
 double dampStick(double cmd, double rateDegS, int strength);
 
+// The dials. kZoomClicksPerTravel: zoom steps over a whole turn of a dial set to zoom. The kXpAxis values are X-Plane's
+// own axis assignments (sim/joystick/joystick_axis_assignments) for the same jobs: with one of them in use, X-Plane
+// drives that job itself and the plugin leaves it alone.
+constexpr int kZoomClicksPerTravel = 24;
+constexpr int kXpAxisSpeedbrakes = 14, kXpAxisViewZoom = 43;
+// The speed-brake handle for a dial position 0..1 (after Invert), in four equal steps: -0.5 armed, 0 retracted,
+// 0.5 half, 1 full (X-Plane's sim/cockpit2/controls/speedbrake_ratio).
+double speedBrakeFor(double x);
+// Whole zoom steps between `anchor` and `x` (both 0..1), positive = zoom in. `anchor` moves by the steps returned, so
+// what is left over counts towards the next step.
+int zoomClicks(double& anchor, double x, int clicksPerTravel = kZoomClicksPerTravel);
+
 // The flap handle (0 up .. 1 fully down) for a slider position 0..1: the nearest of the aircraft's `detents` stops
 // (0, 1/n, ..., 1), or the position itself when the aircraft reports no detents.
 double flapHandleFor(double slider, int detents);

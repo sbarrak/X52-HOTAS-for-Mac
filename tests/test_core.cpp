@@ -2457,3 +2457,22 @@ TEST(an_unknown_dial_function_reads_as_nothing) {
     CHECK(q.axes.upperUse == DialUse::None);
     CHECK(q.axes.lowerUse == DialUse::None);
 }
+
+TEST(speed_brake_steps) {
+    CHECK_EQ(speedBrakeFor(0.0), -0.5);    // armed
+    CHECK_EQ(speedBrakeFor(0.25), 0.0);    // retracted
+    CHECK_EQ(speedBrakeFor(0.3), 0.0);
+    CHECK_EQ(speedBrakeFor(0.6), 0.5);     // half
+    CHECK_EQ(speedBrakeFor(0.99), 1.0);    // full
+    CHECK_EQ(speedBrakeFor(1.0), 1.0);
+}
+
+TEST(zoom_clicks_carry_the_remainder) {
+    double anchor = 0.5;
+    CHECK_EQ(zoomClicks(anchor, 0.5 + 1.5 / 24), 1);
+    CHECK(std::fabs(anchor - (0.5 + 1.0 / 24)) < 1e-9);
+    CHECK_EQ(zoomClicks(anchor, 0.5), -1);
+    CHECK(std::fabs(anchor - 0.5) < 1e-9);
+    CHECK_EQ(zoomClicks(anchor, 0.5 + 0.4 / 24), 0);
+    CHECK_EQ(zoomClicks(anchor, 0.0), -12);
+}

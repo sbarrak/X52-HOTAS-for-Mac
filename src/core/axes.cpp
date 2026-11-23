@@ -185,4 +185,15 @@ double flapHandleFor(double slider, int detents) {
     return std::round(x * detents) / detents;
 }
 
+double speedBrakeFor(double x) {
+    return x < 0.25 ? -0.5 : x < 0.5 ? 0.0 : x < 0.75 ? 0.5 : 1.0;
+}
+
+int zoomClicks(double& anchor, double x, int clicksPerTravel) {
+    double d = (x - anchor) * clicksPerTravel;
+    int c = (int)std::trunc(d + (d > 0 ? 1e-9 : -1e-9));   // whole steps only, towards zero
+    anchor += (double)c / clicksPerTravel;
+    return c;
+}
+
 }  // namespace x52
