@@ -221,6 +221,9 @@ int x52_can_undo(void);
 int x52_can_redo(void);
 int x52_undo(void);
 int x52_redo(void);
+
+// Update check: 1 when `latest` (a release tag such as "v1.3.0") is a higher version than `current`.
+int x52_version_newer(const char* current, const char* latest);
 int x52_standard(void);                        // the profile being edited is a ready-made one
 int x52_profile_standard(const char* key);
 int x52_copy_needed(void);

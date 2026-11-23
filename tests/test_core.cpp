@@ -11,6 +11,7 @@
 #include "../src/core/pageview.h"
 #include "../src/core/engine.h"
 #include "../src/core/history.h"
+#include "../src/core/update.h"
 #include "../src/core/keys.h"
 #include "../src/core/mfd.h"
 #include "../src/core/pages.h"
@@ -2309,4 +2310,22 @@ TEST(history_ignores_no_change_and_is_capped) {
     h.reset("z");
     CHECK(!h.canUndo());
     CHECK_EQ(h.current(), std::string("z"));
+}
+
+TEST(update_compares_versions) {
+    CHECK(isNewerVersion("1.2.2", "v1.3.0"));
+    CHECK(isNewerVersion("1.9.9", "2.0.0"));
+    CHECK(isNewerVersion("1.2", "1.10.0"));        // numbers, not text: 10 > 2
+    CHECK(isNewerVersion("1.2.2", "1.3.0-beta"));  // suffix ignored
+    // The third number is for small changes: never worth an update prompt.
+    CHECK(!isNewerVersion("1.2.2", "1.2.3"));
+    CHECK(!isNewerVersion("1.2.2", "v1.2.10"));
+    CHECK(!isNewerVersion("1.2.0", "1.2.100"));
+    CHECK(!isNewerVersion("1.2.2", "1.2.2"));
+    CHECK(!isNewerVersion("1.3.0", "1.2.9"));
+    CHECK(!isNewerVersion("dev", "1.0.0"));        // a development build never reports an update
+    CHECK(!isNewerVersion("1.0.0", ""));
+    CHECK(!isNewerVersion("1.0.0", "latest"));
+    int v[3];
+    CHECK(parseVersion("v10.20.300", v) && v[0] == 10 && v[1] == 20 && v[2] == 300);
 }

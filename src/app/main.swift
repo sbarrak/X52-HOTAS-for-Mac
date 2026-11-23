@@ -2660,6 +2660,55 @@ struct SettingsView: View {
     }
 }
 
+// MARK: - Update check
+
+/// Asks GitHub for the latest release of the project and says whether it is newer than this app. It only
+/// reads (one GET, nothing about the user or the Mac is sent) and never downloads or installs anything:
+/// the person opens the release page and takes the new version from there.
+enum UpdateCheck {
+    static let api = "https://api.github.com/repos/sbarrak/X52-HOTAS-for-Mac/releases/latest"
+    static let enabledKey = "checkForUpdates"      // default on
+    static let lastKey = "lastUpdateCheck"
+
+    struct Release { let version: String; let page: URL }
+    enum Outcome { case newer(Release), current, failed(String) }
+
+    static var automatic: Bool {
+        get { UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: enabledKey) }
+    }
+    /// The automatic check runs at most once a day.
+    static var dueToday: Bool {
+        guard let last = UserDefaults.standard.object(forKey: lastKey) as? Date else { return true }
+        return Date().timeIntervalSince(last) > 24 * 3600
+    }
+
+    static func run(_ done: @escaping (Outcome) -> Void) {
+        guard let url = URL(string: api) else { return done(.failed("Bad address.")) }
+        var req = URLRequest(url: url, timeoutInterval: 10)
+        req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        req.setValue("X52Pro/\(appVersion)", forHTTPHeaderField: "User-Agent")
+        URLSession.shared.dataTask(with: req) { data, response, error in
+            let outcome: Outcome
+            if let error = error {
+                outcome = .failed(error.localizedDescription)
+            } else if let code = (response as? HTTPURLResponse)?.statusCode, code != 200 {
+                outcome = .failed("GitHub answered \(code).")
+            } else if let data = data,
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let tag = json["tag_name"] as? String,
+                      let page = (json["html_url"] as? String).flatMap(URL.init(string:)),
+                      page.scheme == "https", page.host == "github.com" {
+                UserDefaults.standard.set(Date(), forKey: lastKey)
+                outcome = x52_version_newer(appVersion, tag) != 0 ? .newer(Release(version: tag, page: page)) : .current
+            } else {
+                outcome = .failed("Could not read GitHub's answer.")
+            }
+            DispatchQueue.main.async { done(outcome) }
+        }.resume()
+    }
+}
+
 // MARK: - App
 
 /// The version in the app's Info.plist (set from the VERSION file when the app is built).
@@ -2671,6 +2720,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     var window: NSWindow?
     let statusLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     let loginLine = NSMenuItem(title: "Start at login", action: #selector(toggleLogin), keyEquivalent: "")
+    let updateLine = NSMenuItem(title: "Check for updates...", action: #selector(checkForUpdatesByHand), keyEquivalent: "")
+    let autoUpdateLine = NSMenuItem(title: "Check for updates automatically", action: #selector(toggleAutoUpdate), keyEquivalent: "")
+    var newRelease: UpdateCheck.Release?
 
     func applicationDidFinishLaunching(_ note: Notification) {
         model.start()
@@ -2691,6 +2743,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         versionLine.isEnabled = false
         menu.addItem(versionLine)
         menu.addItem(withTitle: "About X52 Pro", action: #selector(showAbout), keyEquivalent: "").target = self
+        updateLine.target = self
+        menu.addItem(updateLine)
+        autoUpdateLine.target = self
+        menu.addItem(autoUpdateLine)
         menu.addItem(.separator())
         menu.addItem(withTitle: "Open settings...", action: #selector(openSettings), keyEquivalent: ",").target = self
         menu.addItem(withTitle: "Open pages editor...", action: #selector(openPagesEditor), keyEquivalent: "").target = self
@@ -2710,6 +2766,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                                     j + 1 < CommandLine.arguments.count ? CommandLine.arguments[j + 1] : nil })
             }
             return
+        }
+
+        if UpdateCheck.automatic && UpdateCheck.dueToday {
+            UpdateCheck.run { [weak self] outcome in
+                if case .newer(let r) = outcome { self?.setNewRelease(r) }   // quiet: no answer, no error shown
+            }
         }
 
         // Opened by hand (not at login): show the window so there is something to see.
@@ -2818,6 +2880,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         statusLine.title = model.statusText
         model.loginItem = SMAppService.mainApp.status == .enabled
         loginLine.state = model.loginItem ? .on : .off
+        autoUpdateLine.state = UpdateCheck.automatic ? .on : .off
     }
 
     // Draws a window, title bar included, into a PNG file.
@@ -2881,6 +2944,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             .credits: credits
         ])
     }
+
+    /// An update was found: the menu item turns into "Update available" and opens the release page.
+    func setNewRelease(_ r: UpdateCheck.Release) {
+        newRelease = r
+        updateLine.title = "Update available: \(r.version)..."
+    }
+
+    @objc func checkForUpdatesByHand() {
+        if let r = newRelease { return offer(r) }
+        updateLine.isEnabled = false
+        UpdateCheck.run { [weak self] outcome in
+            guard let self = self else { return }
+            self.updateLine.isEnabled = true
+            NSApp.activate(ignoringOtherApps: true)
+            switch outcome {
+            case .newer(let r): self.setNewRelease(r); self.offer(r)
+            case .current:
+                let a = NSAlert()
+                a.messageText = "X52 Pro is up to date"
+                a.informativeText = "You have the latest version (\(appVersion))."
+                a.runModal()
+            case .failed(let why):
+                let a = NSAlert()
+                a.messageText = "Could not check for updates"
+                a.informativeText = why + " Check your internet connection and try again."
+                a.runModal()
+            }
+        }
+    }
+
+    private func offer(_ r: UpdateCheck.Release) {
+        NSApp.activate(ignoringOtherApps: true)
+        let a = NSAlert()
+        a.messageText = "A new version is available: \(r.version)"
+        a.informativeText = "You have \(appVersion). The release page has the download and what changed."
+        a.addButton(withTitle: "Open release page")
+        a.addButton(withTitle: "Later")
+        if a.runModal() == .alertFirstButtonReturn { NSWorkspace.shared.open(r.page) }
+    }
+
+    @objc func toggleAutoUpdate() { UpdateCheck.automatic.toggle() }
 
     @objc func toggleLogin() { model.setLoginItem(!model.loginItem) }
 
