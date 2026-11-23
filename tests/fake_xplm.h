@@ -18,6 +18,7 @@ struct FakeSim {
     std::vector<std::string> knownCommands; // XPLMFindCommand succeeds for these
     std::string acfDescrip;                 // sim/aircraft/view/acf_descrip
     std::vector<int> joyValues;             // what sim/joystick/joystick_button_values reports (slot by slot)
+    std::vector<int> axisAssignments;       // what sim/joystick/joystick_axis_assignments reports (axis by axis)
     bool windowVisible = false;
     bool hasKeyboardFocus = false;
 

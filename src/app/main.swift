@@ -31,6 +31,7 @@ final class Model: ObservableObject {
     @Published var connected = false
     @Published var isPro = true
     @Published var pluginActive = false
+    @Published var pluginEnabled = true   // the app's switch for the X-Plane plugin
     @Published var mode = 1
     @Published var shift = false        // pinkie switch held
     @Published var lightsPinkie = false // Lights tab: editing the pinkie-held colours
@@ -130,6 +131,7 @@ final class Model: ObservableObject {
         set(\.connected, x52_connected() != 0)
         set(\.isPro, x52_is_pro() != 0 || x52_connected() == 0)
         set(\.pluginActive, x52_plugin_active() != 0)
+        set(\.pluginEnabled, x52_plugin_enabled() != 0)
         set(\.mode, Int(x52_mode()))
         set(\.shift, x52_shift() != 0)
         set(\.error, str(x52_error()))
@@ -342,6 +344,7 @@ final class Model: ObservableObject {
 
     var layerText: String { shift ? "Pinkie + \(mode)" : "Mode \(mode)" }
     var statusText: String {
+        if !pluginEnabled { return connected ? "Stick connected, plugin off" : "Stick not connected, plugin off" }
         if pluginActive { return "X-Plane is running and its plugin is driving the stick (\(layerText))" }
         if !connected { return "Stick not connected" }
         return "Stick connected, \(layerText)"
@@ -2001,6 +2004,16 @@ struct DialSteadyRow: View {
             ProgressView(value: Double(row?.percent ?? 0), total: 100).frame(width: 110)
             Text(row.map { "\($0.percent) %" } ?? "-").frame(width: 48, alignment: .trailing).monospacedDigit()
             Stepper("Steady \(st.wrappedValue) %", value: st, in: 0...20).frame(width: 170, alignment: .leading)
+            if key != "slider" {   // the dials: their job in X-Plane, and which way they turn
+                Picker("", selection: Binding<Int>(get: { m.get("rotary_\(key)") }, set: { m.set("rotary_\(key)", $0) })) {
+                    Text("Nothing").tag(0)
+                    Text("Speed brake").tag(1)
+                    Text("Zoom").tag(2)
+                }
+                .labelsHidden().frame(width: 130)
+                Toggle("Invert", isOn: Binding(get: { m.get("rotary_\(key)_invert") != 0 }, set: { m.set("rotary_\(key)_invert", $0 ? 1 : 0) }))
+                    .disabled(m.get("rotary_\(key)") == 0)
+            }
         }
     }
 }
@@ -2041,6 +2054,16 @@ struct AxesTab: View {
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             DialSteadyRow(m: m, title: "Lower rotary (i)", key: "lower", usage: 0x33)
             DialSteadyRow(m: m, title: "Upper rotary (E)", key: "upper", usage: 0x34)
+            if m.get("rotary_lower") == 2 || m.get("rotary_upper") == 2 {
+                let zs = Binding<Int>(get: { m.get("rotary_zoom_steps") }, set: { m.set("rotary_zoom_steps", $0) })
+                HStack(spacing: 12) {
+                    Text("Zoom strength").frame(width: 120, alignment: .leading)
+                    Stepper("\(zs.wrappedValue) zoom steps per turn", value: zs, in: 12...480, step: 12).frame(width: 260, alignment: .leading)
+                        .help("How far one full turn of a dial set to Zoom zooms the view, in steps of X-Plane's own zoom. More is a stronger zoom. You can change it while flying.")
+                }
+            }
+            Text("The lower dial (i) and the E dial can set the speed brake in four steps (Armed, Retracted, Half, Full) or zoom the view. The plugin only acts while you turn the dial, so buttons, the mouse and the auto-spoilers still work. Set the dial to None in X-Plane's Joystick settings if X-Plane uses it too.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             DialSteadyRow(m: m, title: "Slider", key: "slider", usage: 0x36)
             HStack(spacing: 16) {
                 Toggle("Slider sets the flaps", isOn: Binding(get: { m.get("slider_flaps") != 0 }, set: { m.set("slider_flaps", $0 ? 1 : 0) }))
@@ -2578,6 +2601,17 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
+                Button {   // the switch for the X-Plane plugin: green on, red off
+                    x52_set_plugin_enabled(m.pluginEnabled ? 0 : 1)
+                    m.tick()
+                } label: {
+                    HStack(spacing: 6) {
+                        Circle().fill(m.pluginEnabled ? Color.green : Color.red).frame(width: 9, height: 9)
+                        Text(m.pluginEnabled ? "Plugin on" : "Plugin off")
+                    }
+                }
+                .help("Switches the X-Plane plugin on or off. Off: the plugin does nothing in X-Plane, and X-Plane's own Joystick settings are in charge. Takes effect within a second and is kept until you switch it back on.")
+                Divider().frame(height: 14)
                 Circle().fill(m.pluginActive ? Color.blue : m.connected ? Color.green : Color.gray).frame(width: 9, height: 9)
                 Text(m.statusText)
                 Spacer()

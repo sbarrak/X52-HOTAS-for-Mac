@@ -402,7 +402,12 @@ def axes(f):
             "slider_flaps = %d" % (1 if f["flaps"] else 0),
             # Invert flaps off: the X52 slider pushed away from you deploys the flaps, towards you retracts them
             # (confirmed by the user in the Citation X cockpit).
-            "slider_invert = 0"]
+            "slider_invert = 0",
+            # The lower dial (i) sets the speed brake in four steps where the aircraft has one; the E dial zooms.
+            "rotary_lower = %d" % (1 if f["speedbrake"] else 0), "rotary_lower_invert = 0",
+            "rotary_upper = 2", "rotary_upper_invert = 0",
+            # Zoom strength: X-Plane zoom steps per full turn of the E dial (tried in the Citation X; 24 was too little).
+            "rotary_zoom_steps = 96"]
 
 
 def alarms(f):

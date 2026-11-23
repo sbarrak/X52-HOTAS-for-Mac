@@ -12,6 +12,9 @@ struct AxisCurve {
     bool invert = false;
 };
 
+// What a throttle dial does (lower "i" dial 0x33, upper "E" dial 0x34). The plugin drives it from the dial's steady value.
+enum class DialUse { None = 0, SpeedBrake = 1, Zoom = 2 };
+
 struct AxisSettings {
     // true: the plugin writes the stick and twist (roll, pitch, yaw) into X-Plane, replacing its own joystick reading.
     bool overrideXPlane = false;
@@ -36,6 +39,11 @@ struct AxisSettings {
     // A high slider reading is flaps fully deployed, a low one flaps up; slider.invert ("Invert flaps") swaps that.
     // On the X52, with it off (as in the ready-made profiles), the slider pushed away from you deploys the flaps.
     bool sliderFlaps = false;
+    // The dials: SpeedBrake sets the speed brake in four steps (armed, retracted, half, full), Zoom zooms the view a
+    // step at a time. lowerRotary.invert / upperRotary.invert turn them the other way.
+    DialUse lowerUse = DialUse::SpeedBrake, upperUse = DialUse::Zoom;
+    // Zoom strength: steps of X-Plane's own zoom (sim/general/zoom_in / zoom_out) per full turn of a dial, 12..480.
+    int zoomSteps = 96;
 };
 
 // The X-Plane value a stick axis replaces.
@@ -53,6 +61,8 @@ const AxisCurve& axisCurve(const AxisSettings& s, int usage);
 
 // The curve of a dial (0x33 lower rotary, 0x34 upper rotary, 0x36 slider); nullptr for anything else.
 AxisCurve* dialCurve(AxisSettings& s, int usage);
+// What a dial does (0x33 lower, 0x34 upper); nullptr for anything else.
+DialUse* dialUse(AxisSettings& s, int usage);
 // The value to show: `shown` stays until `value` is more than pct % of the travel away; the ends are always reached.
 long steadyValue(long shown, long value, long min, long max, int pct);
 
@@ -108,6 +118,18 @@ double smoothStick(double prev, double x, double dt, int ms);
 // against the rate, fading out as the stick moves away from the centre (none from half travel) and capped at
 // 15 % of the travel at full strength. The pilot can always override it.
 double dampStick(double cmd, double rateDegS, int strength);
+
+// The dials. kZoomClicksPerTravel: the zoomClicks default (a profile's zoomSteps is what the plugin uses). The kXpAxis values are X-Plane's
+// own axis assignments (sim/joystick/joystick_axis_assignments) for the same jobs: with one of them in use, X-Plane
+// drives that job itself and the plugin leaves it alone.
+constexpr int kZoomClicksPerTravel = 24;
+constexpr int kXpAxisSpeedbrakes = 14, kXpAxisViewZoom = 43;
+// The speed-brake handle for a dial position 0..1 (after Invert), in four equal steps: -0.5 armed, 0 retracted,
+// 0.5 half, 1 full (X-Plane's sim/cockpit2/controls/speedbrake_ratio).
+double speedBrakeFor(double x);
+// Whole zoom steps between `anchor` and `x` (both 0..1), positive = zoom in. `anchor` moves by the steps returned, so
+// what is left over counts towards the next step.
+int zoomClicks(double& anchor, double x, int clicksPerTravel = kZoomClicksPerTravel);
 
 // The flap handle (0 up .. 1 fully down) for a slider position 0..1: the nearest of the aircraft's `detents` stops
 // (0, 1/n, ..., 1), or the position itself when the aircraft reports no detents.

@@ -441,6 +441,197 @@ TEST(the_throttle_moves_the_cockpit_levers_too_and_the_slider_sets_the_flaps_at_
     sim().frame();
 }
 
+static const char* kSpeedBrake = "sim/cockpit2/controls/speedbrake_ratio";
+static void dialTo(int usage, long v) {
+    gApp->input.pushAxis({0x01, usage, v, 0, 255});
+    sim().frame();
+}
+// Dials with their defaults (lower: speed brake, upper: zoom), both resting at 128 when the profile was (re)loaded,
+// X-Plane using neither.
+static void freshDials() {
+    for (const char* c : {"sim/general/zoom_in", "sim/general/zoom_out"}) sim().knownCommands.push_back(c);
+    sim().axisAssignments.clear();
+    gApp->profile.axes = AxisSettings();
+    gApp->profile.axes.lowerUse = gApp->profile.axes.upperUse = DialUse::None;
+    dialTo(0x33, 128);
+    dialTo(0x34, 128);
+    gApp->profile.axes = AxisSettings();
+    gApp->resetDials();
+    gApp->nextSlowCheck = 0;
+    sim().datarefs[kSpeedBrake] = 0.0;
+    sim().datarefs["sim/joystick/joystick_axis_assignments"] = 0;   // findable; the values come from axisAssignments
+    sim().frame();
+}
+
+TEST(the_lower_dial_sets_the_speed_brake_in_steps_and_leaves_it_alone_in_between) {
+    freshDials();
+    auto& d = sim().datarefs;
+    d[kSpeedBrake] = 0.3;
+    sim().frame();                                         // where the dial rests: nothing yet
+    CHECK(nearTo(d[kSpeedBrake], 0.3));
+    dialTo(0x33, 100);
+    CHECK(nearTo(d[kSpeedBrake], 0.0));                    // retracted
+    dialTo(0x33, 140);
+    CHECK(nearTo(d[kSpeedBrake], 0.5));                    // half
+    d[kSpeedBrake] = 0.8;                                  // a speed-brake button in between is left alone...
+    sim().frame();
+    CHECK(nearTo(d[kSpeedBrake], 0.8));
+    dialTo(0x33, 250);                                     // ...until the dial reaches another step
+    CHECK(nearTo(d[kSpeedBrake], 1.0));
+    dialTo(0x33, 10);
+    CHECK(nearTo(d[kSpeedBrake], -0.5));                   // armed
+}
+
+TEST(a_dial_flickering_on_a_step_border_sets_the_speed_brake_once) {
+    freshDials();
+    auto& d = sim().datarefs;
+    dialTo(0x33, 60);
+    dialTo(0x33, 125);                                     // just below half way: retracted
+    CHECK(nearTo(d[kSpeedBrake], 0.0));
+    d[kSpeedBrake] = 0.3;
+    for (int i = 0; i < 10; ++i) dialTo(0x33, i % 2 ? 127 : 128);   // one count either side of the border
+    CHECK(nearTo(d[kSpeedBrake], 0.3));
+}
+
+TEST(the_e_dial_zooms_one_click_per_step_and_back) {
+    freshDials();
+    int in0 = sim().onces["sim/general/zoom_in"], out0 = sim().onces["sim/general/zoom_out"];
+    sim().frame();
+    CHECK_EQ(sim().onces["sim/general/zoom_in"], in0);     // where it rests is not a turn
+    dialTo(0x34, 160);                                     // 32 of 255 = 12 steps of 96 per turn
+    CHECK_EQ(sim().onces["sim/general/zoom_in"] - in0, 12);
+    dialTo(0x34, 128);
+    CHECK_EQ(sim().onces["sim/general/zoom_out"] - out0, 12);
+}
+
+TEST(the_zoom_strength_follows_the_profile) {
+    freshDials();
+    gApp->profile.axes.zoomSteps = 24;
+    int in0 = sim().onces["sim/general/zoom_in"];
+    sim().frame();
+    dialTo(0x34, 160);                                     // 32 of 255 = 3 steps of 24 per turn
+    CHECK_EQ(sim().onces["sim/general/zoom_in"] - in0, 3);
+    gApp->profile.axes = AxisSettings();
+}
+
+TEST(a_dial_x_plane_also_drives_is_left_alone_and_the_window_says_so) {
+    freshDials();
+    sim().axisAssignments = {2, 1, 3, 4, 14};              // X-Plane: lower dial = speed brakes
+    gApp->nextSlowCheck = 0;
+    sim().frame();
+    auto& d = sim().datarefs;
+    d[kSpeedBrake] = 0.3;
+    dialTo(0x33, 20);
+    dialTo(0x33, 200);
+    CHECK(nearTo(d[kSpeedBrake], 0.3));
+    if (!sim().windowVisible) XPLMCommandOnce(XPLMFindCommand("x52pro/toggle_window"));
+    sim().frame();
+    CHECK(sim().clickText("Axes", 0, true));
+    sim().frame();
+    CHECK(sim().sees("set it to None in X-Plane"));
+    sim().axisAssignments.clear();
+    gApp->nextSlowCheck = 0;
+    sim().frame();
+}
+
+TEST(changing_a_dial_function_does_not_zoom_by_the_distance_already_turned) {
+    freshDials();
+    gApp->profile.axes.upperUse = DialUse::None;
+    dialTo(0x34, 128);
+    dialTo(0x34, 250);
+    int in0 = sim().onces["sim/general/zoom_in"];
+    gApp->setDialUse(0x34, DialUse::Zoom);                 // as the window and the app do
+    sim().frame();
+    dialTo(0x34, 255);
+    CHECK(sim().onces["sim/general/zoom_in"] - in0 <= 1);
+    gApp->profile.axes = AxisSettings();
+}
+
+TEST(the_window_cycles_a_dials_job_and_saves_it) {
+    freshDials();
+    gApp->profileChanged();
+    if (!sim().windowVisible) XPLMCommandOnce(XPLMFindCommand("x52pro/toggle_window"));
+    sim().frame();
+    CHECK(sim().clickText("Axes", 0, true));
+    sim().frame();
+    CHECK(sim().clickText("Speed brake", 0, true));          // the lower dial: speed brake -> zoom
+    sim().frame();
+    CHECK(gApp->profile.axes.lowerUse == DialUse::Zoom);
+    CHECK(has(slurp(gApp->store.pathFor(gApp->profileKey())), "rotary_lower = 2"));
+    CHECK(sim().clickText("Zoom", 0, true));                 // -> nothing
+    sim().frame();
+    CHECK(gApp->profile.axes.lowerUse == DialUse::None);
+    CHECK(sim().clickText("Nothing", 0, true));              // -> speed brake again
+    sim().frame();
+    CHECK(gApp->profile.axes.lowerUse == DialUse::SpeedBrake);
+    gApp->profile.axes = AxisSettings();
+    gApp->profileChanged();
+}
+
+static int gearRuns() { return sim().onces[kGear] + sim().begins[kGear]; }
+static void bindGearTo(int button) {
+    Binding& b = gApp->profile.edit(button, kLayerAny);
+    b.press.clear();
+    b.press.push_back({StepKind::Command, kGear, 0});
+    gApp->profileChanged();
+}
+
+TEST(the_plugin_switched_off_leaves_everything_to_x_plane) {
+    auto& d = sim().datarefs;
+    sim().knownCommands.push_back(kGear);
+    bindGearTo(9);
+    gApp->profile.axes = AxisSettings();
+    gApp->profile.axes.overrideXPlane = true;
+    gApp->profileChanged();
+    gApp->input.pushAxis({0x01, 0x30, 700, 0, 1023});
+    sim().frame();
+    CHECK_EQ((int)d["sim/operation/override/override_joystick"], 1);
+    CHECK(setPluginOff(gApp->store.dir, true));
+    gApp->nextOffCheck = 0;
+    sim().frame();
+    CHECK(gApp->off);
+    CHECK_EQ((int)d["sim/operation/override/override_joystick"], 0);   // the stick is X-Plane's again
+    int gear = gearRuns();
+    press(9, true);
+    press(9, false);
+    CHECK_EQ(gearRuns(), gear);                                        // buttons do nothing
+    d[kSpeedBrake] = 0.3;
+    dialTo(0x33, 20);
+    dialTo(0x33, 240);
+    CHECK(nearTo(d[kSpeedBrake], 0.3));                                // nor do the dials
+    CHECK(!StickLock::heldByOther(gApp->store.dir) || !gApp->lock.held());   // the menu bar app may drive the stick
+}
+
+TEST(the_switch_survives_a_restart_of_the_plugin) {
+    CHECK(pluginOff(gApp->store.dir));
+    bool shown = sim().windowVisible;
+    XPluginDisable();
+    CHECK_EQ(XPluginEnable(), 1);
+    sim().frame();
+    CHECK(gApp->off);
+    if (shown && !sim().windowVisible) XPLMCommandOnce(XPLMFindCommand("x52pro/toggle_window"));   // as it was
+}
+
+TEST(the_plugin_switched_back_on_takes_over_again) {
+    auto& d = sim().datarefs;
+    CHECK(setPluginOff(gApp->store.dir, false));
+    CHECK(!pluginOff(gApp->store.dir));
+    gApp->nextOffCheck = 0;
+    sim().frame();
+    CHECK(!gApp->off);
+    gApp->input.pushAxis({0x01, 0x30, 600, 0, 1023});
+    sim().frame();
+    CHECK_EQ((int)d["sim/operation/override/override_joystick"], 1);
+    int gear = gearRuns();
+    press(9, true);
+    press(9, false);
+    CHECK_EQ(gearRuns(), gear + 1);
+    gApp->profile.axes = AxisSettings();
+    gApp->profile.edit(9, kLayerAny).press.clear();
+    gApp->profileChanged();
+    sim().frame();
+}
+
 TEST(the_plugin_can_drive_the_throttle_alone_and_leave_the_stick_to_x_plane) {
     auto& d = sim().datarefs;
     const char* thr = "sim/flightmodel/engine/ENGN_thro_use";
@@ -716,7 +907,7 @@ TEST(a_profile_from_the_older_plugin_gets_the_wheel_bindings) {
     }
     gApp->reload();
     CHECK(has(slurp(defaultFile()), "cmd:x52pro/mfd_select"));
-    CHECK(has(slurp(defaultFile()), "x52pro-profile 6"));
+    CHECK(has(slurp(defaultFile()), "x52pro-profile 7"));
     CHECK(has(slurp(defaultFile()), std::string("cmd:") + kGear));
 }
 

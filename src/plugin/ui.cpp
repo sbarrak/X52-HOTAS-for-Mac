@@ -1355,6 +1355,17 @@ void drawAxesTab(const Rect& area) {
         Rect vr = rc.take(46);
         text(vr.l, vr, val);
         stepper("Steady", c->deadzone, " %", 0, 20, 1, &c->deadzone);
+        if (const DialUse* use = dialUse(a.profile.axes, usage)) {   // the dial's job, and which way it turns
+            const char* name = *use == DialUse::SpeedBrake ? "Speed brake" : *use == DialUse::Zoom ? "Zoom" : "Nothing";
+            button(rc.take(100), name, [usage, use] {
+                DialUse next = *use == DialUse::SpeedBrake ? DialUse::Zoom : *use == DialUse::Zoom ? DialUse::None : DialUse::SpeedBrake;
+                gApp->setDialUse(usage, next);
+            }, *use != DialUse::None);
+            button(rc.take(90), c->invert ? "[x] Invert" : "[  ] Invert", [usage, c] {
+                c->invert = !c->invert;
+                gApp->setDialUse(usage, *dialUse(gApp->profile.axes, usage));   // starts the dial afresh, and saves
+            }, c->invert);
+        }
         if (usage == 0x36) {   // the slider can set the flaps
             bool fl = a.profile.axes.sliderFlaps, inv = a.profile.axes.slider.invert;
             button(rc.take(80), fl ? "[x] Flaps" : "[  ] Flaps", [] {
@@ -1369,6 +1380,23 @@ void drawAxesTab(const Rect& area) {
             }, inv);
         }
         rc.t -= kRow + kGap;
+        if (const DialUse* use = dialUse(a.profile.axes, usage)) {   // X-Plane doing the same job wins: say so
+            bool brake = *use == DialUse::SpeedBrake;
+            if (*use != DialUse::None && a.xplaneDrives(brake ? kXpAxisSpeedbrakes : kXpAxisViewZoom)) {
+                r = {area.l + 110, rc.t, area.r, rc.t - kRow};
+                std::string note = std::string("X-Plane also uses a dial for ") + (brake ? "speed brakes" : "zoom") +
+                                   ": set it to None in X-Plane's Joystick settings.";
+                text(r.l, r, fit(note, r.w()), kAmber);
+                rc.t -= kRow;
+            }
+        }
+        if (usage == 0x34 && (a.profile.axes.lowerUse == DialUse::Zoom || a.profile.axes.upperUse == DialUse::Zoom)) {
+            rc.x = area.l;   // how far a full turn zooms
+            r = rc.take(110);
+            text(r.l, r, "Zoom strength");
+            stepper("Steps per turn", a.profile.axes.zoomSteps, "", 12, 480, 12, &a.profile.axes.zoomSteps);
+            rc.t -= kRow + kGap;
+        }
     }
     // Stick handling while the plugin drives it: smoothing, the damper, and the stick's calibration.
     rc.x = area.l;

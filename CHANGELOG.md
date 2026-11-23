@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.3.0
+
+### Added
+- **The throttle's dials can be the speed brake or the zoom, chosen per profile.** Each profile says what the lower
+  dial (i, by the clutch) and the E dial do: *Speed brake*, in four steps over the dial's turn (Armed, Retracted,
+  Half, Full: X-Plane's `speedbrake_ratio` -0.5, 0, 0.5, 1), *Zoom*, with X-Plane's own zoom commands (so the mouse wheel
+  and the zoom keys still work; *Zoom strength* sets how many zoom steps a full turn gives, 96 by default, 12 to 480,
+  and can be changed while flying), or *Nothing*, each with *Invert*. Pick them on the app's Axes tab
+  or in the plugin window. The speed brake is set only when the dial reaches another step, so speed-brake buttons and
+  the auto-spoilers at touchdown still work in between. If X-Plane's own Joystick settings still use a dial for speed
+  brakes or zoom, the plugin leaves that job to X-Plane and its window says to set the dial to None there. The
+  ready-made profiles have the speed brake on the lower dial in the Citation X, 737, A330, MD-82, F-4 and F-14 and
+  zoom on the E dial in every aircraft; any other profile (including your own) gets the speed brake and the zoom when
+  it is read. New profile keys `rotary_lower`, `rotary_upper` (0 nothing, 1 speed brake, 2 zoom),
+  `rotary_lower_invert`, `rotary_upper_invert` and `rotary_zoom_steps`; profile format 7. An aircraft that does not
+  take the armed position (the Citation X) stays retracted in the first step. (issue #75)
+- **Switch the plugin off and on from the app.** A button at the left of the app's status row: green *Plugin on*,
+  red *Plugin off*. Off, the plugin does nothing in X-Plane (no buttons, axes, dials, screen or lights), X-Plane's own
+  Joystick settings are in charge and the app drives the stick's screen and lights; the status reads "Stick
+  connected, plugin off". It takes effect within a second and lasts until switched back on, across restarts of the
+  app and of X-Plane. (issue #75)
+
+### Fixed
+- **A dial assigned in X-Plane flickered: the zoom shivered in and out.** With the E dial assigned to zoom (or the
+  lower dial to speed brakes) in X-Plane's Joystick settings, the view zoomed in and out by tiny amounts all the
+  time, and even X-Plane's Joystick panel showed the curve flickering. The cause is the dial itself: resting between
+  two of its 256 positions, its reading flips by one, and X-Plane passes every reading on. The plugin now drives the
+  dials from a steady reading (a change under 2 % of the turn is ignored), so the flicker never reaches X-Plane; set
+  the dials to None in X-Plane's Joystick settings. Fixed in 1.3.0 (issue #75).
+
 ## 1.2.7
 
 ### Added

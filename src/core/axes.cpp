@@ -41,6 +41,10 @@ AxisCurve* dialCurve(AxisSettings& s, int usage) {
     }
 }
 
+DialUse* dialUse(AxisSettings& s, int usage) {
+    return usage == 0x33 ? &s.lowerUse : usage == 0x34 ? &s.upperUse : nullptr;
+}
+
 long steadyValue(long shown, long value, long min, long max, int pct) {
     if (value <= min || value >= max) return value;
     return labs(value - shown) * 100 > (long)pct * (max - min) ? value : shown;
@@ -179,6 +183,17 @@ double flapHandleFor(double slider, int detents) {
     double x = std::max(0.0, std::min(1.0, slider));
     if (detents <= 0) return x;
     return std::round(x * detents) / detents;
+}
+
+double speedBrakeFor(double x) {
+    return x < 0.25 ? -0.5 : x < 0.5 ? 0.0 : x < 0.75 ? 0.5 : 1.0;
+}
+
+int zoomClicks(double& anchor, double x, int clicksPerTravel) {
+    double d = (x - anchor) * clicksPerTravel;
+    int c = (int)std::trunc(d + (d > 0 ? 1e-9 : -1e-9));   // whole steps only, towards zero
+    anchor += (double)c / clicksPerTravel;
+    return c;
 }
 
 }  // namespace x52

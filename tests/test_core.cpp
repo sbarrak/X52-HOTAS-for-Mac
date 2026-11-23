@@ -915,7 +915,7 @@ TEST(clock_and_clutch_settings_survive_save_and_load) {
     CHECK(q.clock12h[1]);
     CHECK_EQ(q.dateFormat, 2);
     CHECK(q.com833);
-    CHECK_EQ(q.version, 6);
+    CHECK_EQ(q.version, 7);
 }
 
 TEST(out_of_range_clock_settings_are_pulled_into_range) {
@@ -939,7 +939,7 @@ TEST(profile_from_the_older_plugin_gains_the_wheel_bindings_once) {
     CHECK(!addWheelBindings(q));
     Profile again;
     CHECK(parse(serialize(q), again, &err));
-    CHECK_EQ(again.version, 6);
+    CHECK_EQ(again.version, 7);
 }
 
 TEST(profile_from_before_pov_1_gains_the_look_around_bindings_once) {
@@ -954,7 +954,7 @@ TEST(profile_from_before_pov_1_gains_the_look_around_bindings_once) {
     CHECK(!addLookBindings(q));
     Profile again;
     CHECK(parse(serialize(q), again, &err));
-    CHECK_EQ(again.version, 6);
+    CHECK_EQ(again.version, 7);
     CHECK(defaultProfile().exact(40, kLayerAny) != nullptr);
     // a current profile whose owner removed the look-around binding keeps it removed
     q.edit(40, kLayerAny).press.clear();
@@ -976,7 +976,7 @@ TEST(profile_from_before_the_nub_gains_the_pan_bindings_once) {
     CHECK(!addNubBindings(q));
     Profile again;
     CHECK(parse(serialize(q), again, &err));
-    CHECK_EQ(again.version, 6);
+    CHECK_EQ(again.version, 7);
     CHECK(defaultProfile().exact(kNubUp, kLayerAny) != nullptr);
 }
 
@@ -2412,4 +2412,83 @@ TEST(update_compares_versions) {
     CHECK(!isNewerVersion("1.0.0", "latest"));
     int v[3];
     CHECK(parseVersion("v10.20.300", v) && v[0] == 10 && v[1] == 20 && v[2] == 300);
+}
+
+TEST(dial_functions_round_trip_through_the_profile) {
+    Profile p;
+    p.axes.lowerUse = DialUse::Zoom;
+    p.axes.upperUse = DialUse::None;
+    p.axes.lowerRotary.invert = true;
+    std::string text = serialize(p);
+    CHECK(text.find("rotary_lower = 2\n") != std::string::npos);
+    CHECK(text.find("rotary_lower_invert = 1\n") != std::string::npos);
+    CHECK(text.find("x52pro-profile 7\n") == 0);
+    Profile q;
+    std::string err;
+    CHECK(parse(text, q, &err));
+    CHECK(q.axes.lowerUse == DialUse::Zoom);
+    CHECK(q.axes.upperUse == DialUse::None);
+    CHECK(q.axes.lowerRotary.invert);
+    CHECK(!q.axes.upperRotary.invert);
+}
+
+TEST(an_older_profile_gets_speed_brake_and_zoom_on_the_dials) {
+    Profile q;
+    std::string err;
+    CHECK(parse("x52pro-profile 6\nname = old\n", q, &err));
+    CHECK(q.axes.lowerUse == DialUse::SpeedBrake);
+    CHECK(q.axes.upperUse == DialUse::Zoom);
+    CHECK(!q.axes.lowerRotary.invert && !q.axes.upperRotary.invert);
+}
+
+TEST(a_dial_set_to_nothing_stays_nothing_in_an_older_file) {
+    Profile q;
+    std::string err;
+    CHECK(parse("x52pro-profile 3\nrotary_lower = 0\nrotary_upper_invert = 1\n", q, &err));
+    CHECK(q.axes.lowerUse == DialUse::None);
+    CHECK(q.axes.upperUse == DialUse::Zoom);
+    CHECK(q.axes.upperRotary.invert);
+}
+
+TEST(zoom_strength_is_kept_in_the_profile) {
+    Profile p;
+    CHECK_EQ(p.axes.zoomSteps, 96);                      // steps of X-Plane's zoom per full turn of a dial
+    p.axes.zoomSteps = 200;
+    std::string text = serialize(p);
+    CHECK(text.find("rotary_zoom_steps = 200\n") != std::string::npos);
+    Profile q;
+    std::string err;
+    CHECK(parse(text, q, &err));
+    CHECK_EQ(q.axes.zoomSteps, 200);
+    CHECK(parse("x52pro-profile 7\nrotary_zoom_steps = 5000\n", q, &err));
+    CHECK_EQ(q.axes.zoomSteps, 480);
+    CHECK(parse("x52pro-profile 7\nrotary_zoom_steps = 1\n", q, &err));
+    CHECK_EQ(q.axes.zoomSteps, 12);
+}
+
+TEST(an_unknown_dial_function_reads_as_nothing) {
+    Profile q;
+    std::string err;
+    CHECK(parse("x52pro-profile 7\nrotary_upper = 9\nrotary_lower = -1\n", q, &err));
+    CHECK(q.axes.upperUse == DialUse::None);
+    CHECK(q.axes.lowerUse == DialUse::None);
+}
+
+TEST(speed_brake_steps) {
+    CHECK_EQ(speedBrakeFor(0.0), -0.5);    // armed
+    CHECK_EQ(speedBrakeFor(0.25), 0.0);    // retracted
+    CHECK_EQ(speedBrakeFor(0.3), 0.0);
+    CHECK_EQ(speedBrakeFor(0.6), 0.5);     // half
+    CHECK_EQ(speedBrakeFor(0.99), 1.0);    // full
+    CHECK_EQ(speedBrakeFor(1.0), 1.0);
+}
+
+TEST(zoom_clicks_carry_the_remainder) {
+    double anchor = 0.5;
+    CHECK_EQ(zoomClicks(anchor, 0.5 + 1.5 / 24), 1);
+    CHECK(std::fabs(anchor - (0.5 + 1.0 / 24)) < 1e-9);
+    CHECK_EQ(zoomClicks(anchor, 0.5), -1);
+    CHECK(std::fabs(anchor - 0.5) < 1e-9);
+    CHECK_EQ(zoomClicks(anchor, 0.5 + 0.4 / 24), 0);
+    CHECK_EQ(zoomClicks(anchor, 0.0), -12);
 }

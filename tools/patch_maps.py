@@ -29,13 +29,19 @@ from pypdf.generic import ArrayObject, ContentStream, NameObject, TextStringObje
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 
-# The change made for POV 1 and the mouse nub (1.2.6 / 1.2.7). `pages` is how many times each rule must match in a
-# PDF (the three mode pages) and in a Word file.
+# The change made for the dials (1.3.0): the plugin drives them too (E: zoom; i: speed brake where the aircraft has
+# one). Earlier rules (POV 1 and the mouse nub, 1.2.6 / 1.2.7) are already in the files. `pages` is how many times each
+# rule must match in a PDF (the three mode pages) and in a Word file.
+# Maps with other footer wording were patched one wording at a time with a rule each, no longer than the original so
+# the text after it is not overlapped:
+#   ultralight, glider: "The plugin drives the stick and throttle; the slider, rotaries stay in X-Plane."
+#                    -> "The plugin drives the stick, throttle, rotaries; the slider stays in X-Plane."
+#   helicopters:     "The plugin drives the stick; the throttle, slider, rotaries stay in X-Plane."
+#                    -> "Plugin: stick, rotaries; throttle, slider stay in X-Plane."
+#   my_profiles:     "Stick and throttle axes, rotaries, slider stay in X-Plane."
+#                    -> "Stick, throttle, slider stay in X-Plane; plugin: rotaries."
 RULES = [
-    dict(find="Look around: X-Plane", replace="Look around", append="", pages=3),
-    dict(find=" and the main hat stay in X-Plane.", replace=" stay in X-Plane.",
-         append=" The main hat looks around (POV 1: Q, E, R, F); the throttle's mouse nub pans "
-                "(arrows; all the way: Shift + arrows).", pages=3),
+    dict(find="throttle and slider; rotaries stay in X-Plane.", replace="throttle, slider and rotaries.", append="", pages=3),
 ]
 
 

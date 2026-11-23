@@ -71,6 +71,10 @@ struct App : Host {
     StickLock lock;              // held while the plugin drives the stick
     long long loadedStamp = 0;   // the profile file as last read or written
     double nextSlowCheck = 0;
+    // Switched off in the app (the plugin-off file): the flight loop only checks, once a second, whether it is on again.
+    bool off = false;
+    double nextOffCheck = 0;
+    void setOff(bool off);
     bool testMode = false;       // the stick's screen names whatever is moved or pressed; buttons do nothing
     Lines testLines;
     Lines screen;                // what the stick's screen shows right now (mirrored in the window)
@@ -162,6 +166,20 @@ public:
     bool joyOverridden = false;            // ... the stick's one (override_joystick) among them
     double flapWritten = -1;               // the flap handle the slider last set (-1: not since the aircraft loaded)
     void applySliderFlaps();
+    // The throttle's dials (speed brake in steps, zoom), driven from their steady values. The speed brake is written
+    // only when the dial reaches another step and only after it moved since resetDials(); zoom steps go from where the
+    // dial was when it was first seen after resetDials(). A job X-Plane drives itself (its own axis assignment) is
+    // left alone.
+    void applyDials(double now);
+    void resetDials();                     // after an aircraft or profile change, or a dial's job changed
+    void setDialUse(int usage, DialUse use);   // the window's choice: saves the profile and starts the dial afresh
+    bool xplaneDrives(int assignment) const;   // some X-Plane axis is assigned to this job (kXpAxis...)
+    void readAxisAssignments();            // X-Plane's axis assignments, read once a second
+    double speedBrakeWritten = -9;         // the speed-brake handle a dial last set (-9: none since resetDials)
+    std::map<int, double> zoomAnchor;      // per dial usage: the position zoom steps are counted from
+    bool dialsResetPending = false;
+    double dialsResetAt = 0;               // a dial must have moved after this to set the speed brake
+    std::vector<int> xpAxisUse;            // X-Plane's axis assignments
     std::map<std::pair<int, int>, long> axisShown;   // test mode: last value shown per moving control
 };
 

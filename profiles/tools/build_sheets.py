@@ -286,7 +286,7 @@ class Sheet:
         self.box(rx, y, bw, "T3", [("u", T3U), ("d", T3D)], mode, (cx + 36, 124), side="r")
         self.footer([
             "Bold = this mode only.  Regular = the same in every mode.  -  = not used.  Mode dial: 1 / 2 / 3.  Pinkie is a normal button (not a shift).",
-            "Set every button used here to 'Do nothing' in X-Plane > Settings > Joystick.  Stick and throttle axes, rotaries, slider stay in X-Plane. The main hat looks around (POV 1: Q, E, R, F); the throttle's mouse nub pans (arrows; all the way: Shift + arrows).",
+            "Set every button used here to 'Do nothing' in X-Plane > Settings > Joystick.  The plugin drives the stick, throttle, slider and rotaries (E: zoom; i: speed brake where fitted). The main hat looks around (POV 1: Q, E, R, F); the throttle's mouse nub pans (arrows; all the way: Shift + arrows).",
         ])
         c.showPage()
 

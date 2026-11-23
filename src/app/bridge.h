@@ -20,6 +20,9 @@ void x52_tick(void);
 int x52_connected(void);
 int x52_is_pro(void);
 int x52_plugin_active(void);
+// The switch for the X-Plane plugin (kept in the profiles folder): 1 on, 0 off (the plugin then does nothing in X-Plane).
+int x52_plugin_enabled(void);
+void x52_set_plugin_enabled(int on);
 int x52_mode(void);
 int x52_shift(void);                           // 1 while the pinkie switch is held
 int x52_revision(void);
@@ -198,7 +201,9 @@ void x52_set(const char* name, int value);
 // Every analog control the stick reports, one line each: "name<TAB>percent<TAB>value text<TAB>raw<TAB>moving 1/0<TAB>usage".
 // Settings by name for the flight axes: axis_override, axis_<roll|pitch|yaw|throttle>_deadzone (0..40 %),
 // _expo (0..100 %) and _invert; stick_smoothing (0..200 ms) and stick_damping (0..100); for the right wheel: dial_accel and dial_factor (2..50); throttle_plugin (the plugin drives the throttle on its own), slider_flaps (the slider
-// sets the flap lever) and slider_invert (invert the flaps: slider towards you = deployed).
+// sets the flap lever) and slider_invert (invert the flaps: slider towards you = deployed); rotary_lower and rotary_upper
+// (what the dial does: 0 nothing, 1 speed brake in steps, 2 zoom), rotary_lower_invert / rotary_upper_invert and
+// rotary_zoom_steps (zoom strength: X-Plane zoom steps per full turn, 12..480).
 const char* x52_axes(void);
 
 // The stick calibration (shared with the plugin). action: 1 start, 2 Done (on a problem it keeps calibrating and the

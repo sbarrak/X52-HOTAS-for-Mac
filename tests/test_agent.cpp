@@ -62,7 +62,7 @@ TEST(saving_an_older_file_from_the_app_still_adds_the_wheel_bindings) {
     a.open(dir, "default");
     CHECK(a.change([](Profile& p) { p.ledBrightness = 90; }));
     std::string file = slurp(dir + "/default.x52");
-    CHECK(has(file, "x52pro-profile 6"));
+    CHECK(has(file, "x52pro-profile 7"));
     CHECK(has(file, "cmd:x52pro/mfd_select"));
     CHECK(has(file, "cmd:x52pro/mfd_page_prev"));
 }
@@ -345,6 +345,44 @@ int main() {
     }
     root = buf.data();
     return runAllTests();
+}
+
+TEST(each_throttle_dials_job_is_picked_in_the_app_and_saved) {
+    std::string dir = freshDir("dial_jobs");
+    x52_start("", dir.c_str(), "default");
+    CHECK_EQ(x52_get("rotary_lower"), 1);   // speed brake
+    CHECK_EQ(x52_get("rotary_upper"), 2);   // zoom
+    x52_set("rotary_upper", 0);
+    x52_set("rotary_lower", 7);             // kept inside the allowed range
+    x52_set("rotary_lower_invert", 1);
+    CHECK_EQ(x52_get("rotary_upper"), 0);
+    CHECK_EQ(x52_get("rotary_lower"), 2);
+    CHECK_EQ(x52_get("rotary_lower_invert"), 1);
+    std::string file = slurp(dir + "/default.x52");
+    CHECK(has(file, "rotary_upper = 0"));
+    CHECK(has(file, "rotary_lower = 2"));
+    CHECK(has(file, "rotary_lower_invert = 1"));
+    CHECK_EQ(x52_get("rotary_zoom_steps"), 96);
+    x52_set("rotary_zoom_steps", 5000);                      // kept inside the allowed range
+    CHECK_EQ(x52_get("rotary_zoom_steps"), 480);
+    CHECK(has(slurp(dir + "/default.x52"), "rotary_zoom_steps = 480"));
+    x52_stop();
+}
+
+TEST(the_plugin_is_switched_off_and_on_from_the_app_and_it_lasts) {
+    std::string dir = freshDir("plugin_switch");
+    x52_start("", dir.c_str(), "default");
+    CHECK_EQ(x52_plugin_enabled(), 1);
+    x52_set_plugin_enabled(0);
+    CHECK_EQ(x52_plugin_enabled(), 0);
+    CHECK(access((dir + "/plugin-off").c_str(), F_OK) == 0);   // the plugin reads this file
+    x52_stop();
+    x52_start("", dir.c_str(), "default");
+    CHECK_EQ(x52_plugin_enabled(), 0);                          // still off after a restart of the app
+    x52_set_plugin_enabled(1);
+    CHECK_EQ(x52_plugin_enabled(), 1);
+    CHECK(access((dir + "/plugin-off").c_str(), F_OK) != 0);
+    x52_stop();
 }
 
 TEST(axis_and_dial_settings_are_edited_from_the_app_and_saved) {
