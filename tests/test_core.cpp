@@ -915,7 +915,7 @@ TEST(clock_and_clutch_settings_survive_save_and_load) {
     CHECK(q.clock12h[1]);
     CHECK_EQ(q.dateFormat, 2);
     CHECK(q.com833);
-    CHECK_EQ(q.version, 7);
+    CHECK_EQ(q.version, 8);
 }
 
 TEST(out_of_range_clock_settings_are_pulled_into_range) {
@@ -939,7 +939,7 @@ TEST(profile_from_the_older_plugin_gains_the_wheel_bindings_once) {
     CHECK(!addWheelBindings(q));
     Profile again;
     CHECK(parse(serialize(q), again, &err));
-    CHECK_EQ(again.version, 7);
+    CHECK_EQ(again.version, 8);
 }
 
 TEST(profile_from_before_pov_1_gains_the_look_around_bindings_once) {
@@ -954,7 +954,7 @@ TEST(profile_from_before_pov_1_gains_the_look_around_bindings_once) {
     CHECK(!addLookBindings(q));
     Profile again;
     CHECK(parse(serialize(q), again, &err));
-    CHECK_EQ(again.version, 7);
+    CHECK_EQ(again.version, 8);
     CHECK(defaultProfile().exact(40, kLayerAny) != nullptr);
     // a current profile whose owner removed the look-around binding keeps it removed
     q.edit(40, kLayerAny).press.clear();
@@ -976,7 +976,7 @@ TEST(profile_from_before_the_nub_gains_the_pan_bindings_once) {
     CHECK(!addNubBindings(q));
     Profile again;
     CHECK(parse(serialize(q), again, &err));
-    CHECK_EQ(again.version, 7);
+    CHECK_EQ(again.version, 8);
     CHECK(defaultProfile().exact(kNubUp, kLayerAny) != nullptr);
 }
 
@@ -2422,7 +2422,7 @@ TEST(dial_functions_round_trip_through_the_profile) {
     std::string text = serialize(p);
     CHECK(text.find("rotary_lower = 2\n") != std::string::npos);
     CHECK(text.find("rotary_lower_invert = 1\n") != std::string::npos);
-    CHECK(text.find("x52pro-profile 7\n") == 0);
+    CHECK(text.find("x52pro-profile 8\n") == 0);
     Profile q;
     std::string err;
     CHECK(parse(text, q, &err));
@@ -2460,18 +2460,89 @@ TEST(zoom_strength_is_kept_in_the_profile) {
     std::string err;
     CHECK(parse(text, q, &err));
     CHECK_EQ(q.axes.zoomSteps, 200);
-    CHECK(parse("x52pro-profile 7\nrotary_zoom_steps = 5000\n", q, &err));
+    CHECK(parse("x52pro-profile 8\nrotary_zoom_steps = 5000\n", q, &err));
     CHECK_EQ(q.axes.zoomSteps, 480);
-    CHECK(parse("x52pro-profile 7\nrotary_zoom_steps = 1\n", q, &err));
+    CHECK(parse("x52pro-profile 8\nrotary_zoom_steps = 1\n", q, &err));
     CHECK_EQ(q.axes.zoomSteps, 12);
 }
 
 TEST(an_unknown_dial_function_reads_as_nothing) {
     Profile q;
     std::string err;
-    CHECK(parse("x52pro-profile 7\nrotary_upper = 9\nrotary_lower = -1\n", q, &err));
+    CHECK(parse("x52pro-profile 8\nrotary_upper = 9\nrotary_lower = -1\n", q, &err));
     CHECK(q.axes.upperUse == DialUse::None);
     CHECK(q.axes.lowerUse == DialUse::None);
+}
+
+
+TEST(lever_value_covers_the_range_from_to) {
+    CHECK(near(leverValue(0, -0.3, 0.5, 0, 100), -0.3));
+    CHECK(near(leverValue(1, -0.3, 0.5, 0, 100), 0.5));
+    CHECK(near(leverValue(0.5, 0, 1, 20, 60), 0.4));
+    CHECK(near(leverValue(0.25, 0, 1, 100, 0), 0.75));   // From above To turns the other way
+    CHECK(near(leverValue(0.7, 0, 1, 50, 50), 0.5));     // From = To: one value
+}
+
+TEST(a_lever_waits_until_the_dial_reaches_x_planes_value) {
+    LeverPickup s;
+    CHECK(!leverMayWrite(s, 0.1, 0.6, 0.02));
+    CHECK(!leverMayWrite(s, 0.3, 0.6, 0.02));
+    CHECK(leverMayWrite(s, 0.65, 0.6, 0.02));           // crossed X-Plane's value: taken over
+    CHECK(s.held);
+    CHECK(near(s.lastWritten, 0.65));
+    CHECK(leverMayWrite(s, 0.7, 0.65, 0.02));           // held: follows the dial
+    CHECK(!leverMayWrite(s, 0.72, 0.2, 0.02));          // a button moved it to 0.2: waiting again
+    CHECK(!s.held);
+    CHECK(leverMayWrite(s, 0.21, 0.2, 0.02));           // within 1 % of the range: taken over
+}
+
+TEST(a_lever_with_an_empty_range_never_writes) {
+    LeverPickup s;
+    CHECK(!leverMayWrite(s, 0, 0, 0));
+    CHECK(!leverMayWrite(s, 0, 0, 0));
+}
+
+TEST(lever_jobs_have_names_and_settings) {
+    CHECK_EQ(std::string(dialUseName(DialUse::None)), std::string("Nothing"));
+    CHECK_EQ(std::string(dialUseName(DialUse::RudderTrim)), std::string("Rudder trim"));
+    CHECK(leverJob(DialUse::Zoom) == nullptr);
+    CHECK(leverJob(DialUse::SpeedBrake) == nullptr);
+    const LeverJob* j = leverJob(DialUse::CowlFlaps);
+    CHECK(j != nullptr && j->perEngine);
+    CHECK(leverJob(DialUse::Mixture) != nullptr);
+    CHECK_EQ(kDialUseCount, 9);
+}
+
+TEST(dial_ranges_and_new_jobs_round_trip_through_the_profile) {
+    Profile p;
+    p.axes.lowerUse = DialUse::RudderTrim;
+    p.axes.lowerFrom = 25;
+    p.axes.lowerTo = 75;
+    std::string text = serialize(p);
+    CHECK(text.find("rotary_lower = 5\n") != std::string::npos);
+    CHECK(text.find("rotary_lower_range = 25 75\n") != std::string::npos);
+    CHECK(text.find("rotary_upper_range = 0 100\n") != std::string::npos);
+    Profile q;
+    std::string err;
+    CHECK(parse(text, q, &err));
+    CHECK(q.axes.lowerUse == DialUse::RudderTrim);
+    CHECK_EQ(q.axes.lowerFrom, 25);
+    CHECK_EQ(q.axes.lowerTo, 75);
+    CHECK(parse("x52pro-profile 8\nrotary_upper_range = 120 -5\nrotary_lower = 8\n", q, &err));
+    CHECK_EQ(q.axes.upperFrom, 100);
+    CHECK_EQ(q.axes.upperTo, 0);
+    CHECK(q.axes.lowerUse == DialUse::CarbHeat);
+}
+
+TEST(an_older_profile_gets_the_full_range) {
+    Profile q;
+    std::string err;
+    CHECK(parse("x52pro-profile 7\nrotary_lower = 3\n", q, &err));
+    CHECK(q.axes.lowerUse == DialUse::Prop);
+    CHECK_EQ(q.axes.lowerFrom, 0);
+    CHECK_EQ(q.axes.lowerTo, 100);
+    CHECK_EQ(q.axes.upperFrom, 0);
+    CHECK_EQ(q.axes.upperTo, 100);
 }
 
 TEST(speed_brake_steps) {

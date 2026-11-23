@@ -512,7 +512,7 @@ std::string secondText(const Trigger& t) {
 
 std::string serialize(const Profile& p) {
     std::ostringstream o;
-    o << "x52pro-profile 7\n";
+    o << "x52pro-profile 8\n";
     o << "# X52 Pro button profile. Written by the X52 Pro plugin; safe to edit by hand.\n";
     o << "name = " << cleanLabel(p.name) << "\n";
     if (p.standard) o << "# standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)\nstandard = 1\n";
@@ -551,11 +551,15 @@ std::string serialize(const Profile& p) {
     o << "steady_lower = " << p.axes.lowerRotary.deadzone << "\n";
     o << "steady_upper = " << p.axes.upperRotary.deadzone << "\n";
     o << "steady_slider = " << p.axes.slider.deadzone << "\n";
-    o << "# rotary_<lower|upper> = what the dial does: 0 nothing, 1 speed brake (armed, retracted, half, full), 2 zoom. rotary_<lower|upper>_invert = 1 turns it the other way\n";
+    o << "# rotary_<lower|upper> = what the dial does: 0 nothing, 1 speed brake (armed, retracted, half, full), 2 zoom, 3 prop,\n";
+    o << "#   4 mixture, 5 rudder trim, 6 aileron trim, 7 cowl flaps, 8 carb heat. rotary_<lower|upper>_invert = 1 turns it the other way\n";
     o << "rotary_lower = " << (int)p.axes.lowerUse << "\n";
     o << "rotary_lower_invert = " << (p.axes.lowerRotary.invert ? 1 : 0) << "\n";
     o << "rotary_upper = " << (int)p.axes.upperUse << "\n";
     o << "rotary_upper_invert = " << (p.axes.upperRotary.invert ? 1 : 0) << "\n";
+    o << "# rotary_<lower|upper>_range = <from> <to>: the part of a lever job's range (percent) one full turn covers\n";
+    o << "rotary_lower_range = " << p.axes.lowerFrom << " " << p.axes.lowerTo << "\n";
+    o << "rotary_upper_range = " << p.axes.upperFrom << " " << p.axes.upperTo << "\n";
     o << "# rotary_zoom_steps = how far a dial set to zoom zooms: steps of X-Plane's zoom per full turn (12..480)\n";
     o << "rotary_zoom_steps = " << p.axes.zoomSteps << "\n";
     o << "# slider_flaps = 1: the slider on the throttle sets the flaps, at the aircraft's detents (high reading = deployed; slider_invert = 1 swaps)\n";
@@ -942,6 +946,13 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
             v.clear();
             std::stringstream mw(value);
             for (std::string w; mw >> w;) v.push_back(w);
+        } else if (key == "rotary_lower_range" || key == "rotary_upper_range") {
+            std::stringstream rs(value);
+            int from = 0, to = 100;
+            if (!(rs >> from >> to)) return fail("'" + key + "' needs from and to (percent)");
+            bool lower = key == "rotary_lower_range";
+            (lower ? p.axes.lowerFrom : p.axes.upperFrom) = clampInt(from, 0, 100);
+            (lower ? p.axes.lowerTo : p.axes.upperTo) = clampInt(to, 0, 100);
         } else if (key == "radio_layout") {
             p.radioSide = value == "side";
         } else if (key == "wheel_order" || key == "wheel_hidden") {
@@ -1001,7 +1012,7 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
             AxisCurve& c = key == "steady_lower" ? p.axes.lowerRotary : key == "steady_upper" ? p.axes.upperRotary : p.axes.slider;
             c.deadzone = clampInt((int)n, 0, 20);
         } else if (key == "rotary_lower" || key == "rotary_upper") {
-            (key == "rotary_lower" ? p.axes.lowerUse : p.axes.upperUse) = n >= 0 && n <= 2 ? (DialUse)(int)n : DialUse::None;
+            (key == "rotary_lower" ? p.axes.lowerUse : p.axes.upperUse) = n >= 0 && n < kDialUseCount ? (DialUse)(int)n : DialUse::None;
         } else if (key == "rotary_zoom_steps") {
             p.axes.zoomSteps = clampInt(n, 12, 480);
         } else if (key == "rotary_lower_invert") {
