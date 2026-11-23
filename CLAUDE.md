@@ -35,6 +35,17 @@
 - If the code changed, run `make` (it builds the app and plugin and runs the tests) just before every commit, so the committed change is known to build and a current app is in `bin/` to test.
 - Do not commit when the build or the tests fail.
 
+## Feature checklist
+
+For a change to buttons, controls or profiles, besides the code and its tests:
+
+- **Profiles:** add the change to the generator (`profiles/tools/aircraft.py`) and regenerate the ready-made profiles (`python3 profiles/tools/build_profiles.py`). Keep their header at `x52pro-profile 3` so they still get the soft stick curves when read. Bump the plugin's own profile version (`Profile::version`) and add a migration, so every older profile gets the change when read, unless the user programmed those buttons.
+- **Every profile on disk:** the three hand-made files in `profiles/` (`default.x52`, `A330_new.x52`, `aircraft-Cessna_CitationX_mine.x52`), `my_profiles/out/profiles/`, and the user's X-Plane folder (`.../Output/preferences/X52Pro/`, including their own profiles). Back that folder up first. Edit only the lines the change adds.
+- **Button maps:** the PDFs and Word files in `docs/mapping/` and `my_profiles/out/mapping/` come from a generator outside the repo, so patch their text in place (the PDF page content with `pypdf`, the Word `document.xml`) and look at a rendered page afterwards. Keep `profiles/tools/build_sheets.py` in step.
+- **Documents:** `README.md`, `profiles/README.md`, `my_profiles/README.md`, `CHANGELOG.md`, the manual (`docs/manual/build_manual.js`, rebuilt with `node`; it needs the `docx` npm package, installed outside the repo) and the in-app help text.
+- **Testing in X-Plane:** run `make install` when the user wants to try the plugin, and tell them to restart X-Plane. Prefer X-Plane commands over keystrokes for buttons made by the plugin (keystrokes need macOS permission and queue up behind a busy simulator).
+- **Housekeeping:** do not leave long-running commands in the background (no `find /`); stop them when done. If git fails with "Stale NFS file handle", the folder is on a synced drive: retry, and check `git status` for a half-finished checkout before going on.
+
 ## Releases
 
 - Every merged change that raised `VERSION` gets its release as soon as it is merged, without waiting to be asked: tag `vX.Y.Z` on the merge commit in `main`, run `make release`, and create the GitHub release from that tag with `X52-Pro-X.Y.Z.zip` attached, as was done for 1.2.5.
