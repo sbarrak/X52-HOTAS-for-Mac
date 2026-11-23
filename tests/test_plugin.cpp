@@ -537,6 +537,27 @@ TEST(changing_a_dial_function_does_not_zoom_by_the_distance_already_turned) {
     gApp->profile.axes = AxisSettings();
 }
 
+TEST(the_window_cycles_a_dials_job_and_saves_it) {
+    freshDials();
+    gApp->profileChanged();
+    if (!sim().windowVisible) XPLMCommandOnce(XPLMFindCommand("x52pro/toggle_window"));
+    sim().frame();
+    CHECK(sim().clickText("Axes", 0, true));
+    sim().frame();
+    CHECK(sim().clickText("Speed brake", 0, true));          // the lower dial: speed brake -> zoom
+    sim().frame();
+    CHECK(gApp->profile.axes.lowerUse == DialUse::Zoom);
+    CHECK(has(slurp(gApp->store.pathFor(gApp->profileKey())), "rotary_lower = 2"));
+    CHECK(sim().clickText("Zoom", 0, true));                 // -> nothing
+    sim().frame();
+    CHECK(gApp->profile.axes.lowerUse == DialUse::None);
+    CHECK(sim().clickText("Nothing", 0, true));              // -> speed brake again
+    sim().frame();
+    CHECK(gApp->profile.axes.lowerUse == DialUse::SpeedBrake);
+    gApp->profile.axes = AxisSettings();
+    gApp->profileChanged();
+}
+
 TEST(the_plugin_can_drive_the_throttle_alone_and_leave_the_stick_to_x_plane) {
     auto& d = sim().datarefs;
     const char* thr = "sim/flightmodel/engine/ENGN_thro_use";

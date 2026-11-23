@@ -72,9 +72,16 @@ bool* flag(Profile& p, const std::string& n) {
     if (n == "radio_side") return &p.radioSide;
     if (n == "throttle_plugin") return &p.axes.pluginThrottle;
     if (n == "slider_invert") return &p.axes.slider.invert;
+    if (n == "rotary_lower_invert") return &p.axes.lowerRotary.invert;
+    if (n == "rotary_upper_invert") return &p.axes.upperRotary.invert;
     for (int u : {0x30, 0x31, 0x35, 0x32})
         if (n == std::string("axis_") + axisTarget(0x01, u)->name + "_invert") return &axisCurve(p.axes, u).invert;
     return nullptr;
+}
+
+// rotary_lower / rotary_upper: what the dial does (DialUse: 0 nothing, 1 speed brake, 2 zoom).
+DialUse* dialUseByName(Profile& p, const std::string& n) {
+    return n == "rotary_lower" ? &p.axes.lowerUse : n == "rotary_upper" ? &p.axes.upperUse : nullptr;
 }
 
 bool okLed(int mode, int led) { return mode >= 1 && mode <= 3 && led >= 0 && led < kLedCount; }
@@ -753,6 +760,7 @@ int x52_get(const char* name) {
     if (!agent || !name) return 0;
     Profile p = agent->profile();
     int lo, hi;
+    if (DialUse* u = dialUseByName(p, name)) return (int)*u;
     if (int* f = field(p, name, lo, hi)) return *f;
     if (bool* b = flag(p, name)) return *b;
     return 0;
@@ -763,7 +771,8 @@ void x52_set(const char* name, int value) {
     std::string n = name;
     agent->change([=](Profile& p) {
         int lo, hi;
-        if (int* f = field(p, n, lo, hi)) *f = std::max(lo, std::min(hi, value));
+        if (DialUse* u = dialUseByName(p, n)) *u = (DialUse)std::max(0, std::min(2, value));
+        else if (int* f = field(p, n, lo, hi)) *f = std::max(lo, std::min(hi, value));
         else if (bool* b = flag(p, n)) *b = value != 0;
     });
 }

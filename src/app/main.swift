@@ -2001,6 +2001,16 @@ struct DialSteadyRow: View {
             ProgressView(value: Double(row?.percent ?? 0), total: 100).frame(width: 110)
             Text(row.map { "\($0.percent) %" } ?? "-").frame(width: 48, alignment: .trailing).monospacedDigit()
             Stepper("Steady \(st.wrappedValue) %", value: st, in: 0...20).frame(width: 170, alignment: .leading)
+            if key != "slider" {   // the dials: their job in X-Plane, and which way they turn
+                Picker("", selection: Binding<Int>(get: { m.get("rotary_\(key)") }, set: { m.set("rotary_\(key)", $0) })) {
+                    Text("Nothing").tag(0)
+                    Text("Speed brake").tag(1)
+                    Text("Zoom").tag(2)
+                }
+                .labelsHidden().frame(width: 130)
+                Toggle("Invert", isOn: Binding(get: { m.get("rotary_\(key)_invert") != 0 }, set: { m.set("rotary_\(key)_invert", $0 ? 1 : 0) }))
+                    .disabled(m.get("rotary_\(key)") == 0)
+            }
         }
     }
 }
@@ -2041,6 +2051,8 @@ struct AxesTab: View {
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             DialSteadyRow(m: m, title: "Lower rotary (i)", key: "lower", usage: 0x33)
             DialSteadyRow(m: m, title: "Upper rotary (E)", key: "upper", usage: 0x34)
+            Text("The lower dial (i) and the E dial can set the speed brake in four steps (Armed, Retracted, Half, Full) or zoom the view. The plugin only acts while you turn the dial, so buttons, the mouse and the auto-spoilers still work. Set the dial to None in X-Plane's Joystick settings if X-Plane uses it too.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             DialSteadyRow(m: m, title: "Slider", key: "slider", usage: 0x36)
             HStack(spacing: 16) {
                 Toggle("Slider sets the flaps", isOn: Binding(get: { m.get("slider_flaps") != 0 }, set: { m.set("slider_flaps", $0 ? 1 : 0) }))

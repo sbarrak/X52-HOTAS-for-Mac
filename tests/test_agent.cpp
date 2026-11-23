@@ -347,6 +347,24 @@ int main() {
     return runAllTests();
 }
 
+TEST(each_throttle_dials_job_is_picked_in_the_app_and_saved) {
+    std::string dir = freshDir("dial_jobs");
+    x52_start("", dir.c_str(), "default");
+    CHECK_EQ(x52_get("rotary_lower"), 1);   // speed brake
+    CHECK_EQ(x52_get("rotary_upper"), 2);   // zoom
+    x52_set("rotary_upper", 0);
+    x52_set("rotary_lower", 7);             // kept inside the allowed range
+    x52_set("rotary_lower_invert", 1);
+    CHECK_EQ(x52_get("rotary_upper"), 0);
+    CHECK_EQ(x52_get("rotary_lower"), 2);
+    CHECK_EQ(x52_get("rotary_lower_invert"), 1);
+    std::string file = slurp(dir + "/default.x52");
+    CHECK(has(file, "rotary_upper = 0"));
+    CHECK(has(file, "rotary_lower = 2"));
+    CHECK(has(file, "rotary_lower_invert = 1"));
+    x52_stop();
+}
+
 TEST(axis_and_dial_settings_are_edited_from_the_app_and_saved) {
     std::string dir = freshDir("axes_settings");
     x52_start("", dir.c_str(), "default");

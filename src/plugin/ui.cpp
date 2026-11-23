@@ -1355,6 +1355,17 @@ void drawAxesTab(const Rect& area) {
         Rect vr = rc.take(46);
         text(vr.l, vr, val);
         stepper("Steady", c->deadzone, " %", 0, 20, 1, &c->deadzone);
+        if (const DialUse* use = dialUse(a.profile.axes, usage)) {   // the dial's job, and which way it turns
+            const char* name = *use == DialUse::SpeedBrake ? "Speed brake" : *use == DialUse::Zoom ? "Zoom" : "Nothing";
+            button(rc.take(100), name, [usage, use] {
+                DialUse next = *use == DialUse::SpeedBrake ? DialUse::Zoom : *use == DialUse::Zoom ? DialUse::None : DialUse::SpeedBrake;
+                gApp->setDialUse(usage, next);
+            }, *use != DialUse::None);
+            button(rc.take(90), c->invert ? "[x] Invert" : "[  ] Invert", [usage, c] {
+                c->invert = !c->invert;
+                gApp->setDialUse(usage, *dialUse(gApp->profile.axes, usage));   // starts the dial afresh, and saves
+            }, c->invert);
+        }
         if (usage == 0x36) {   // the slider can set the flaps
             bool fl = a.profile.axes.sliderFlaps, inv = a.profile.axes.slider.invert;
             button(rc.take(80), fl ? "[x] Flaps" : "[  ] Flaps", [] {
