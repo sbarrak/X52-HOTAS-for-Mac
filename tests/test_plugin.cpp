@@ -618,6 +618,29 @@ TEST(a_lever_x_plane_also_drives_is_left_alone) {
     gApp->profile.axes = AxisSettings();
 }
 
+TEST(a_dial_set_to_prop_sets_the_governor_between_the_aircrafts_limits) {
+    const char* kRpm = "sim/cockpit2/engine/actuators/prop_rotation_speed_rad_sec_all";
+    leverDial(DialUse::Prop);
+    auto& d = sim().datarefs;
+    d["sim/aircraft/controls/acf_RSC_mingov_prp"] = 115.0;
+    d["sim/aircraft/controls/acf_RSC_redline_prp"] = 283.0;
+    d[kRpm] = 283.0;                                         // full forward, as the aircraft loads
+    gApp->resetDials();
+    sim().frame();
+    CHECK(nearTo(d[kRpm], 283.0));                           // resting at half way: waiting
+    dialTo(0x33, 255);                                       // up to X-Plane's lever: taken over
+    dialTo(0x33, 0);
+    CHECK(nearTo(d[kRpm], 115.0));                           // the minimum governor speed
+    dialTo(0x33, 255);
+    CHECK(nearTo(d[kRpm], 283.0));                           // redline
+    d["sim/aircraft/controls/acf_RSC_mingov_prp"] = 0;      // no governor: the dial leaves the prop alone
+    d["sim/aircraft/controls/acf_RSC_redline_prp"] = 0;
+    gApp->resetDials();
+    dialTo(0x33, 0);
+    CHECK(nearTo(d[kRpm], 283.0));
+    gApp->profile.axes = AxisSettings();
+}
+
 TEST(an_aircraft_without_rudder_trim_leaves_the_dial_idle_and_says_so) {
     leverDial(DialUse::RudderTrim, 0.0);
     auto& d = sim().datarefs;

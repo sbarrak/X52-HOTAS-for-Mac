@@ -725,8 +725,10 @@ bool App::leverRange(const LeverJob& job, double& lo, double& hi) {
     if (job.limLow && job.limHigh) {
         XPLMDataRef l = cachedRef(job.limLow), h = cachedRef(job.limHigh);
         if (l && h) {
-            lo = -std::fabs((double)XPLMGetDataf(l));
-            hi = std::fabs((double)XPLMGetDataf(h));
+            lo = job.limAbsolute ? (double)XPLMGetDataf(l) : -std::fabs((double)XPLMGetDataf(l));
+            hi = job.limAbsolute ? (double)XPLMGetDataf(h) : std::fabs((double)XPLMGetDataf(h));
+        } else if (job.limAbsolute) {
+            return false;   // the job's own units need the aircraft's limits
         }
     }
     return hi - lo > 1e-6;

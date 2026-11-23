@@ -144,8 +144,9 @@ struct LeverJob {
     const char* dataref;
     bool perEngine;            // an array with one value per engine: every engine is written
     double lo, hi;             // the game's range
-    const char* limLow;        // aircraft limits (nullptr: none): the range becomes -limLow .. +limHigh
+    const char* limLow;        // aircraft limits (nullptr: none): the range becomes -limLow .. +limHigh,
     const char* limHigh;
+    bool limAbsolute;          // or limLow .. limHigh as they are (the prop governor's speeds)
     // X-Plane's own axis assignments for the same job (its joy_use numbers; 0 ends the list): with one in use,
     // X-Plane drives the job itself and the plugin leaves it alone.
     int xpAxis[5];

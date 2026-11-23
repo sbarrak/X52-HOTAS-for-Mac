@@ -2510,6 +2510,10 @@ TEST(lever_jobs_have_names_and_settings) {
     const LeverJob* j = leverJob(DialUse::CowlFlaps);
     CHECK(j != nullptr && j->perEngine);
     CHECK(leverJob(DialUse::Mixture) != nullptr);
+    const LeverJob* prop = leverJob(DialUse::Prop);         // the governor's speed, between the aircraft's own limits
+    CHECK_EQ(std::string(prop->dataref), std::string("sim/cockpit2/engine/actuators/prop_rotation_speed_rad_sec_all"));
+    CHECK(prop->limAbsolute);
+    CHECK(!leverJob(DialUse::RudderTrim)->limAbsolute);
     CHECK_EQ(kDialUseCount, 9);
 }
 

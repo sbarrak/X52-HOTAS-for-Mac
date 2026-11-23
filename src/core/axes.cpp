@@ -198,14 +198,15 @@ int zoomClicks(double& anchor, double x, int clicksPerTravel) {
 
 namespace {
 const LeverJob kLevers[] = {
-    {DialUse::Prop, "Prop", "sim/cockpit2/engine/actuators/prop_ratio_all", false, 0, 1, nullptr, nullptr, {8, 24, 25, 26, 27}},
-    {DialUse::Mixture, "Mixture", "sim/cockpit2/engine/actuators/mixture_ratio_all", false, 0, 1, nullptr, nullptr, {9, 28, 29, 30, 31}},
+    {DialUse::Prop, "Prop", "sim/cockpit2/engine/actuators/prop_rotation_speed_rad_sec_all", false, 0, 1,
+     "sim/aircraft/controls/acf_RSC_mingov_prp", "sim/aircraft/controls/acf_RSC_redline_prp", true, {8, 24, 25, 26, 27}},
+    {DialUse::Mixture, "Mixture", "sim/cockpit2/engine/actuators/mixture_ratio_all", false, 0, 1, nullptr, nullptr, false, {9, 28, 29, 30, 31}},
     {DialUse::RudderTrim, "Rudder trim", "sim/cockpit2/controls/rudder_trim", false, -1, 1,
-     "sim/aircraft/controls/acf_min_trim_rudd", "sim/aircraft/controls/acf_max_trim_rudd", {19}},
+     "sim/aircraft/controls/acf_min_trim_rudd", "sim/aircraft/controls/acf_max_trim_rudd", false, {19}},
     {DialUse::AileronTrim, "Aileron trim", "sim/cockpit2/controls/aileron_trim", false, -1, 1,
-     "sim/aircraft/controls/acf_min_trim_ailn", "sim/aircraft/controls/acf_max_trim_ailn", {18}},
-    {DialUse::CowlFlaps, "Cowl flaps", "sim/cockpit2/engine/actuators/cowl_flap_ratio", true, 0, 1, nullptr, nullptr, {39}},
-    {DialUse::CarbHeat, "Carb heat", "sim/cockpit2/engine/actuators/carb_heat_ratio", true, 0, 1, nullptr, nullptr, {10}},
+     "sim/aircraft/controls/acf_min_trim_ailn", "sim/aircraft/controls/acf_max_trim_ailn", false, {18}},
+    {DialUse::CowlFlaps, "Cowl flaps", "sim/cockpit2/engine/actuators/cowl_flap_ratio", true, 0, 1, nullptr, nullptr, false, {39}},
+    {DialUse::CarbHeat, "Carb heat", "sim/cockpit2/engine/actuators/carb_heat_ratio", true, 0, 1, nullptr, nullptr, false, {10}},
 };
 }  // namespace
 
