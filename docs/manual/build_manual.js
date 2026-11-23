@@ -220,7 +220,7 @@ add(...numbered([
 add(h2("3.4  The stick and X-Plane both see the buttons"));
 add(important("A button you program in X52 Pro must be set to **Do nothing** in X-Plane's own **Settings > Joystick**, otherwise X-Plane and the plugin both act on it. Buttons you leave unprogrammed keep working through X-Plane as before."));
 add(p("The app helps: on the Buttons tab, **Set to Do nothing in X-Plane** lists the buttons you program and shows what X-Plane has on each one (green when it is already Do nothing, orange when it is still set). This is read-only: X52 Pro never changes X-Plane's joystick settings."));
-add(p("The flight axes (roll, pitch, twist, throttle) and the main POV hat stay with X-Plane unless you turn on the axis processing in the plugin (section 4.9)."));
+add(p("The flight axes (roll, pitch, twist, throttle) stay with X-Plane unless you turn on the axis processing in the plugin (section 4.9). The main POV hat and the throttle's mouse nub are buttons of X52 Pro (section 3.6): set both to **None** in X-Plane's Joystick settings."));
 add(h2("3.5  Profiles"));
 add(p("A profile is one text file with everything: buttons, lights, live lights, alarms, screen pages, clocks and axis settings. There is a **Default** profile for all aircraft and there can be one profile per aircraft; X-Plane uses the aircraft's own profile when it has one, and Default otherwise."));
 add(h3("Ready-made profiles are never changed"));
@@ -235,6 +235,13 @@ add(h3("Import what X-Plane has"));
 add(p("On the Buttons tab, **Import what X-Plane has...** asks which of X-Plane's joystick profiles to import (the one for the aircraft last loaded is first) and suggests a name. It creates a new profile whose buttons carry X-Plane's commands as Any mode assignments, and switches to it. An existing profile is never overwritten."));
 
 // ---- 4
+add(h2("3.6  POV 1 (the main hat) and the mouse nub"));
+add(p("The stick reports its main hat (POV 1) and the small stick on the throttle (the mouse nub) as moving controls, not as buttons. X52 Pro turns each of them into buttons, so that every profile can bind them like any other button (Appendix A):"));
+add(bullet("**POV 1** gives buttons 40 to 43: up, right, down, left. A diagonal holds two of them at once."));
+add(bullet("**The mouse nub** gives buttons 44 to 47 when it is pushed part way (up, right, down, left) and buttons 48 to 51 when it is pushed all the way. Only one of the two sets is held in a direction at a time, so the far button takes over from the near one."));
+add(p("Every profile has them set, the ready-made ones and your own: POV 1 **looks around** (`sim/general/rot_up`, `rot_right`, `rot_down`, `rot_left`: what the Q, E, R and F keys do in X-Plane), and the nub **pans the view** (`sim/general/up`, `right`, `down`, `left`: what the arrow keys do), and pushed all the way it pans faster (`up_fast` and so on: what Shift and an arrow key do). They are ordinary Command bindings, so you can change or clear them on the Buttons tab like any other. A profile made before these existed gets them when it is read, except for any of these buttons you had already programmed."));
+add(important("Set POV 1 and the mouse nub to **None** in X-Plane's **Settings > Joystick**, otherwise X-Plane and the plugin both act on them. Holding the clutch (i) hands POV 1 to the profile picker (section 5.3): the look-around bindings pause until you let go. The nub is not affected by the clutch."));
+add(p("X52 Pro 1.2.6 sent the keys Q, E, R and F for POV 1. Keystrokes need macOS permission and queue up behind a busy simulator, so from 1.2.7 both use X-Plane's own commands. A binding still exactly as 1.2.6 made it is switched over when the profile is read."));
 add(h1("4  The app and its windows"));
 add(p("Open the window from the menu bar icon (**Open settings...**, Command-comma). It has a bar at the top, a row of tabs, and a status area at the bottom. The pages editor opens in a window of its own."));
 add(h2("4.1  The top bar"));
@@ -356,7 +363,7 @@ add(h3("Axes"));
 add(p("The same as the app's Axes tab (section 4.9): every control the stick reports, the two switches that let the plugin process the flight axes, the dead zone, expo, smoothing, damping and steady values, and the stick calibration."));
 add(h2("5.3  Picking a profile"));
 add(bullet("**In the window:** **Change profile...** lists every profile in two groups, **Your profiles** and **Ready-made profiles** (click **[+]** / **[-]** to unfold or fold a group; a long list scrolls), including ones you imported, and **Automatic** to go back to the aircraft's own profile or Default. A profile picked here stays until the aircraft changes; the window says \"(picked)\"."));
-add(bullet("**On the stick:** hold the clutch, push the main POV hat up or down to scroll through the profiles, right to use the one shown, left to go back to automatic. (X-Plane also sees the hat, so the view may move while you do this.)"));
+add(bullet("**On the stick:** hold the clutch, push the main POV hat (POV 1) up or down to scroll through the profiles, right to use the one shown, left to go back to automatic. While the clutch is held the hat's look-around bindings pause, so the view does not move. (If X-Plane itself also has an assignment on the hat, it may still move: set the hat to **None** in X-Plane.)"));
 add(bullet("**In the app:** the **Profile** picker. The app's choice is used when X-Plane is not running."));
 add(h2("5.4  The stick while you fly"));
 add(bullet("**Mode dial.** A worn dial can flicker between positions; the mode only changes once the dial has rested for 0.1 s (`mode_settle_ms` in the profile file)."));
@@ -442,7 +449,7 @@ add(p("`make` builds everything into `bin/` and runs the tests. `make install-ap
 
 // ---- appendix
 add(h1("Appendix A  Button numbers"));
-add(p("The numbers are the usual X52 button numbers (JOY1 to JOY39 in Windows lists):"));
+add(p("The numbers are the usual X52 button numbers (JOY1 to JOY39 in Windows lists). Numbers 40 to 51 are not buttons on the stick: X52 Pro makes them from POV 1 and the mouse nub (section 3.6)."));
 add(table([2200, 7098], ["Numbers", "Buttons"], [
   ["1 to 8", "Trigger, Fire, A, B, C, Pinkie, D, E"],
   ["9 to 14", "Toggle 1 up / down (9, 10), toggle 2 (11, 12), toggle 3 (13, 14)"],
@@ -453,6 +460,9 @@ add(table([2200, 7098], ["Numbers", "Buttons"], [
   ["24 to 27", "The throttle's hat"],
   ["28 to 30", "The mode dial"],
   ["31", "The clutch (i)"],
+  ["40 to 43", "POV 1, the stick's main hat: up, right, down, left (a diagonal holds two). Look around."],
+  ["44 to 47", "The throttle's mouse nub pushed part way: up, right, down, left. Pan."],
+  ["48 to 51", "The mouse nub pushed all the way: up, right, down, left. Pan faster."],
 ]));
 add(gap());
 add(h1("Appendix B  Words used in this manual"));
