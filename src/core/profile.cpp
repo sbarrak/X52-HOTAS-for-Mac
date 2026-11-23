@@ -320,11 +320,11 @@ bool addWheelBindings(Profile& p) {
 }
 
 bool addLookBindings(Profile& p) {
-    static const struct { int button; const char* label; const char* cmd; } kLook[] = {
-        {kPov1Up, "Look up", "sim/general/up"},
-        {kPov1Up + 1, "Look right", "sim/general/right"},
-        {kPov1Up + 2, "Look down", "sim/general/down"},
-        {kPov1Up + 3, "Look left", "sim/general/left"},
+    static const struct { int button; const char* label; const char* key; } kLook[] = {
+        {kPov1Up, "Look up", "r"},          // X-Plane's own keys for looking around: Q left, E right, R up, F down
+        {kPov1Up + 1, "Look right", "e"},
+        {kPov1Up + 2, "Look down", "f"},
+        {kPov1Up + 3, "Look left", "q"},
     };
     bool added = false;
     for (const auto& w : kLook) {
@@ -334,7 +334,7 @@ bool addLookBindings(Profile& p) {
         if (used) continue;
         Binding& b = p.edit(w.button, kLayerAny);
         b.label = w.label;
-        b.press.push_back({StepKind::Command, w.cmd, 0});
+        b.press.push_back({StepKind::Key, w.key, 0});
         added = true;
     }
     return added;

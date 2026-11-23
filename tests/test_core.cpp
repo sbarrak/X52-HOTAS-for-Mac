@@ -945,9 +945,9 @@ TEST(profile_from_before_pov_1_gains_the_look_around_bindings_once) {
     std::string err;
     CHECK(parse("x52pro-profile 4\nname = mine\nbind 41 any press \"Mine\" cmd:my/command\n", q, &err));
     CHECK_EQ(q.version, 4);
-    CHECK_EQ(actionToText(q.exact(40, kLayerAny)->press), std::string("cmd:sim/general/up"));
-    CHECK_EQ(actionToText(q.exact(42, kLayerAny)->press), std::string("cmd:sim/general/down"));
-    CHECK_EQ(actionToText(q.exact(43, kLayerAny)->press), std::string("cmd:sim/general/left"));
+    CHECK_EQ(actionToText(q.exact(40, kLayerAny)->press), std::string("key:r"));
+    CHECK_EQ(actionToText(q.exact(42, kLayerAny)->press), std::string("key:f"));
+    CHECK_EQ(actionToText(q.exact(43, kLayerAny)->press), std::string("key:q"));
     CHECK_EQ(actionToText(q.exact(41, kLayerAny)->press), std::string("cmd:my/command"));   // theirs is kept
     CHECK(!addLookBindings(q));
     Profile again;

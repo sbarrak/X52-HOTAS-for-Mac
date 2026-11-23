@@ -646,8 +646,19 @@ TEST(clutch_flashes_and_the_pov_hat_picks_a_profile) {
 }
 
 TEST(pov_1_looks_around_while_pushed_and_picks_profiles_only_with_the_clutch) {
+    // The default bindings send keys (Q E R F), which a test must not type into the Mac: bind commands instead.
     for (const char* c : {"sim/general/up", "sim/general/right", "sim/general/down", "sim/general/left"})
         sim().knownCommands.push_back(c);
+    {
+        Profile p = gApp->profile;
+        const char* cmds[4] = {"sim/general/up", "sim/general/right", "sim/general/down", "sim/general/left"};
+        for (int i = 0; i < 4; ++i) {
+            Binding& b = p.edit(kPov1Up + i, kLayerAny);
+            b.press.clear();
+            b.press.push_back({StepKind::Command, cmds[i], 0});
+        }
+        gApp->engine.setProfile(p);
+    }
     auto hat = [](long v) {
         gApp->input.pushAxis({0x01, 0x39, v, 1, 8});
         sim().frame();
@@ -664,6 +675,7 @@ TEST(pov_1_looks_around_while_pushed_and_picks_profiles_only_with_the_clutch) {
     CHECK_EQ(sim().begins["sim/general/left"], 1);
     hat(0);
     press(31, false);
+    gApp->engine.setProfile(gApp->profile);
 }
 
 TEST(a_profile_changed_outside_x_plane_is_picked_up) {
