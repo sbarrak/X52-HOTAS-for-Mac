@@ -574,6 +574,34 @@ TEST(cowl_flaps_move_every_engine) {
     CHECK(nearTo(d[std::string(kCowl) + "[0]"], 30 / 255.0));
 }
 
+TEST(a_dial_with_from_equal_to_to_sets_that_value_once_turned) {
+    leverDial(DialUse::Mixture);
+    auto& d = sim().datarefs;
+    d[kMixture] = 1.0;
+    gApp->profile.axes.lowerFrom = gApp->profile.axes.lowerTo = 80;
+    gApp->resetDials();
+    sim().frame();
+    CHECK(nearTo(d[kMixture], 1.0));                        // not turned yet: left alone
+    dialTo(0x33, 60);
+    CHECK(nearTo(d[kMixture], 0.8));                        // turned: the one value
+    d[kMixture] = 0.3;                                      // moved by the mouse
+    sim().frame();
+    CHECK(nearTo(d[kMixture], 0.3));
+    dialTo(0x33, 160);                                      // turned again: back to it
+    CHECK(nearTo(d[kMixture], 0.8));
+    gApp->profile.axes = AxisSettings();
+}
+
+TEST(the_takeover_hint_follows_the_dial_as_shown_when_inverted) {
+    leverDial(DialUse::Mixture);
+    sim().datarefs[kMixture] = 0.3;
+    gApp->profile.axes.lowerRotary.invert = true;
+    gApp->resetDials();
+    dialTo(0x33, 240);
+    CHECK(has(gApp->leverNote(0x33), "about 70 %"));        // inverted: X-Plane's 0.3 is where the bar reads 70 %
+    gApp->profile.axes = AxisSettings();
+}
+
 TEST(an_aircraft_without_rudder_trim_leaves_the_dial_idle_and_says_so) {
     leverDial(DialUse::RudderTrim, 0.0);
     auto& d = sim().datarefs;

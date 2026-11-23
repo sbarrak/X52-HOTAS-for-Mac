@@ -683,7 +683,7 @@ void App::applyDials(double now) {
         auto it = axisLive.find({0x01, usage});
         if (use == DialUse::None || it == axisLive.end()) continue;
         if (const LeverJob* job = leverJob(use)) {
-            applyLever(usage, *job, it->second);
+            applyLever(usage, *job, it->second, now);
             continue;
         }
         leverState.erase(usage);
@@ -739,7 +739,7 @@ std::string lowerName(const char* n) {
 }
 }  // namespace
 
-void App::applyLever(int usage, const LeverJob& job, const AxisLive& l) {
+void App::applyLever(int usage, const LeverJob& job, const AxisLive& l, double now) {
     std::string& note = leverNotes[usage];
     LeverPickup& st = leverState[usage];
     note.clear();
@@ -765,19 +765,35 @@ void App::applyLever(int usage, const LeverJob& job, const AxisLive& l) {
     if (job.perEngine) XPLMGetDatavf(r, &v0, 0, 1);
     else v0 = XPLMGetDataf(r);
     double sim = v0;
-    bool wasHeld = st.held;
-    double before = st.lastWritten;
-    if (!leverMayWrite(st, target, sim, 0.01 * (hi - lo))) {
-        // Where the dial takes over: X-Plane's value as a share of this dial's turn.
-        double span = (hi - lo) * (to - from) / 100.0;
-        double at = std::fabs(span) > 1e-9 ? (sim - lo - (hi - lo) * from / 100.0) / span : -1;
-        if (at < -0.005 || at > 1.005)
-            note = "X-Plane's " + lowerName(job.name) + " is outside this dial's From/To.";
-        else
-            note = "Turn the dial to about " + std::to_string((int)std::lround(at * 100)) + " % of its turn to take over.";
-        return;
+    double tol = 0.01 * (hi - lo);
+    if (from == to) {   // one value for every position: set it when the dial is turned, then leave it until turned again
+        if (st.held && std::fabs(sim - st.lastWritten) > tol) {
+            st.held = false;
+            st.waitingSince = now;
+        }
+        if (st.held) return;
+        if (l.changedAt <= std::max(dialsResetAt, st.waitingSince)) {
+            note = "Turn the dial to set " + lowerName(job.name) + " to " + std::to_string(from) + " %.";
+            return;
+        }
+        st.held = true;
+        st.lastWritten = target;
+    } else {
+        bool wasHeld = st.held;
+        double before = st.lastWritten;
+        if (!leverMayWrite(st, target, sim, tol)) {
+            // Where the dial takes over: X-Plane's value as a share of this dial's turn.
+            double span = (hi - lo) * (to - from) / 100.0;
+            double at = std::fabs(span) > 1e-9 ? (sim - lo - (hi - lo) * from / 100.0) / span : -1;
+            if (dialCurve(profile.axes, usage)->invert && at >= -0.005 && at <= 1.005) at = 1.0 - at;   // as the bar shows the dial
+            if (at < -0.005 || at > 1.005)
+                note = "X-Plane's " + lowerName(job.name) + " is outside this dial's From/To.";
+            else
+                note = "Turn the dial to about " + std::to_string((int)std::lround(at * 100)) + " % of its turn to take over.";
+            return;
+        }
+        if (wasHeld && std::fabs(target - before) < 1e-6) return;   // the dial did not move
     }
-    if (wasHeld && std::fabs(target - before) < 1e-6) return;   // the dial did not move
     if (!job.perEngine) {
         XPLMSetDataf(r, (float)target);
         return;

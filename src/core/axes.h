@@ -160,6 +160,7 @@ struct LeverPickup {
     double lastWritten = 0;
     double lastTarget = 0;
     bool seen = false;         // lastTarget is set
+    double waitingSince = 0;   // From = To: when it last let go (the dial must be turned after this to write)
 };
 // target: the dial's lever value now; sim: X-Plane's value; tol: 1 % of the range. True: write `target` now.
 // An empty range (tol 0) never writes.

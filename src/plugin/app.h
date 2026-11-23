@@ -186,7 +186,7 @@ public:
     // The job's range for this aircraft (its own limits where X-Plane has them). False when it is empty.
     bool leverRange(const LeverJob& job, double& lo, double& hi);
     std::string leverNote(int usage) const;
-    void applyLever(int usage, const LeverJob& job, const AxisLive& l);   // one frame of a dial on a lever job
+    void applyLever(int usage, const LeverJob& job, const AxisLive& l, double now);   // one frame of a dial on a lever job
     std::map<std::pair<int, int>, long> axisShown;   // test mode: last value shown per moving control
 };
 
