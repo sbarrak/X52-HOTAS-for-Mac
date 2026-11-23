@@ -2739,9 +2739,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let editItem = NSMenuItem()
         main.addItem(editItem)
         let edit = NSMenu(title: "Edit")
-        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
-        let redo = edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        // Aimed at this delegate, not left to the responder chain: the SwiftUI window answers undo: first with
+        // its own (empty) undo manager, which greyed the items out. The delegate hands the command to a text
+        // field being edited, else to the profile history.
+        edit.addItem(withTitle: "Undo", action: #selector(undo(_:)), keyEquivalent: "z").target = self
+        let redo = edit.addItem(withTitle: "Redo", action: #selector(redo(_:)), keyEquivalent: "z")
         redo.keyEquivalentModifierMask = [.command, .shift]
+        redo.target = self
         edit.addItem(.separator())
         edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
@@ -2794,11 +2798,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     }
 
     // Edit > Undo / Redo (Command+Z, Shift+Command+Z) when no text field is being edited: a field keeps its own.
-    @objc func undo(_ sender: Any?) { model.undo() }
-    @objc func redo(_ sender: Any?) { model.redo() }
+    // The undo manager of a text field that is being edited (it keeps its own undo), if any.
+    private var fieldUndo: UndoManager? {
+        (NSApp.keyWindow?.firstResponder as? NSTextView)?.undoManager
+    }
+    @objc func undo(_ sender: Any?) {
+        if let u = fieldUndo, u.canUndo { u.undo() } else { model.undo() }
+    }
+    @objc func redo(_ sender: Any?) {
+        if let u = fieldUndo, u.canRedo { u.redo() } else { model.redo() }
+    }
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
-        if item.action == #selector(undo(_:)) { return model.canUndo }
-        if item.action == #selector(redo(_:)) { return model.canRedo }
+        if item.action == #selector(undo(_:)) { return (fieldUndo?.canUndo ?? false) || model.canUndo }
+        if item.action == #selector(redo(_:)) { return (fieldUndo?.canRedo ?? false) || model.canRedo }
         return true
     }
 

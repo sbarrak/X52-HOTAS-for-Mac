@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.2
+
+### Fixed
+- **Command+Z and Shift+Command+Z did nothing in the app** (the Undo and Redo buttons worked). Edit > Undo and Redo
+  were left to the responder chain, and the SwiftUI window answered them first with its own, always empty, undo
+  manager, so the items stayed greyed out and the keys went nowhere. They are now aimed at the app itself: they
+  undo and redo the profile, and while a text field is being edited they still undo that field's typing.
+  Fixed in 1.2.2.
+
 ## 1.2.1
 
 ### Added
