@@ -67,7 +67,10 @@ write macros, put radios and autopilot on the throttle's screen, and have the li
 **Flying**
 
 - **Axes** – dead zone, expo curve and inversion for the stick, twist and throttle; the slider as a flap lever; the
-  rotaries; a view of every control the stick reports.
+  dials on the throttle as the speed brake (in four steps: Armed, Retracted, Half, Full) or the zoom, chosen per
+  profile; a view of every control the stick reports.
+- **Plugin on/off** – a switch in the app's status row turns the X-Plane plugin off completely (red light) and back
+  on (green light), for when you want X-Plane's own Joystick settings alone.
 - **Clutch safe mode** – while the clutch (i) is held, buttons only show their name, so you can look at the stick
   without doing anything.
 - **Test mode** – the screen names whatever you move or press.
@@ -368,6 +371,17 @@ Other things to know:
   expo curve and optional inversion, and writes the result into X-Plane (it sets X-Plane's
   `override_joystick` / `override_throttles`, and releases them when you untick it). The throttle is only
   taken over once it has moved. Test mode on the Settings tab also names moving controls on the stick's screen.
+  **The dials:** each profile says what the lower dial (i, by the clutch) and the E dial do: *Speed brake* (four
+  steps over the dial's turn: Armed, Retracted, Half, Full), *Zoom* (one zoom step per 1/24 of a turn, with X-Plane's
+  zoom commands) or *Nothing*, each with *Invert*. The plugin reads the dial's steady value, so its one-step flicker
+  never reaches X-Plane, and acts only while you turn it: speed-brake buttons, the mouse wheel and the auto-spoilers
+  still work in between. Set the dials to None in X-Plane's Joystick settings; if X-Plane still uses one for speed
+  brakes or zoom, the plugin leaves that job to X-Plane and its window says so. Profile keys `rotary_lower`,
+  `rotary_upper` (0 nothing, 1 speed brake, 2 zoom) and `rotary_lower_invert`, `rotary_upper_invert`.
+- **Plugin on/off:** the button at the left of the status row (green *Plugin on*, red *Plugin off*). Off, the plugin
+  does nothing in X-Plane (no buttons, axes, dials, screen or lights) and the status says "Stick connected, plugin
+  off"; the app drives the stick's screen and lights instead. It takes effect within a second and lasts until you
+  switch it back on (a file `plugin-off` in the profiles folder).
   While the plugin drives the stick, X-Plane's own response curve and stability augmentation are skipped, so the
   plugin stands in for them: soft default curves (expo 50 pitch, 40 roll, 30 twist), **Smoothing** (60 ms for
   small jitter; big moves such as letting go of the stick reach X-Plane at once) and a light pitch/roll
