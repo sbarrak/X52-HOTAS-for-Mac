@@ -2072,9 +2072,9 @@ struct AxesTab: View {
                         .help("How far one full turn of a dial set to Zoom zooms the view, in steps of X-Plane's own zoom. More is a stronger zoom. You can change it while flying.")
                 }
             }
-            Text("Smooth jobs (prop, mixture, trims, cowl flaps, carb heat) cover the game's range for this aircraft (From/To narrow it). The plugin waits until you turn the dial to X-Plane's own value, so nothing jumps.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Text("The lower dial (i) and the E dial can set the speed brake in four steps (Armed, Retracted, Half, Full) or zoom the view. The plugin only acts while you turn the dial, so buttons, the mouse and the auto-spoilers still work. Set the dial to None in X-Plane's Joystick settings if X-Plane uses it too.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text("Smooth jobs (prop, mixture, trims, cowl flaps, carb heat) cover the game's range for this aircraft (From/To narrow it). The plugin waits until you turn the dial to X-Plane's own value, so nothing jumps.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             DialSteadyRow(m: m, title: "Slider", key: "slider", usage: 0x36)
             HStack(spacing: 16) {

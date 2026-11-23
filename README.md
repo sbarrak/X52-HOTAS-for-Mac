@@ -67,7 +67,8 @@ write macros, put radios and autopilot on the throttle's screen, and have the li
 **Flying**
 
 - **Axes** – dead zone, expo curve and inversion for the stick, twist and throttle; the slider as a flap lever; the
-  dials on the throttle as the speed brake (in four steps: Armed, Retracted, Half, Full) or the zoom, chosen per
+  dials on the throttle as the speed brake (in four steps: Armed, Retracted, Half, Full), the zoom, or a smooth
+  lever for prop, mixture, rudder or aileron trim, cowl flaps or carb heat within the game's limits, chosen per
   profile; a view of every control the stick reports.
 - **Plugin on/off** – a switch in the app's status row turns the X-Plane plugin off completely (red light) and back
   on (green light), for when you want X-Plane's own Joystick settings alone.
@@ -357,6 +358,8 @@ Other things to know:
 - The **Brightness page** sets the screen's and the lights' brightness from the stick: turn the right wheel to
   pick Screen or Lights, press to change (`>>`), turn in 5 % steps, press again to finish. It is saved at once.
   The screen never goes below 10 %. A brightness that follows a dataref shows `dataref` and is not changed here.
+  In X-Plane, changing the screen here also dims the aircraft's instrument panel to the same percent, so one
+  control dims both for night flying (the cockpit's own brightness knob still works in between).
 - The **right wheel and its button** change what the page shows, as in the manual:
   turn to move the cursor, press to act. `[118.000]` is an active frequency: press to
   swap it with standby. `>` or `<` marks a part of a value: press (it becomes `>>` or
@@ -373,11 +376,18 @@ Other things to know:
   taken over once it has moved. Test mode on the Settings tab also names moving controls on the stick's screen.
   **The dials:** each profile says what the lower dial (i, by the clutch) and the E dial do: *Speed brake* (four
   steps over the dial's turn: Armed, Retracted, Half, Full), *Zoom* (X-Plane's own zoom commands; *Zoom
-  strength* sets how many zoom steps a full turn gives, 96 by default, 12 to 480) or *Nothing*, each with *Invert*. The plugin reads the dial's steady value, so its one-step flicker
+  strength* sets how many zoom steps a full turn gives, 96 by default, 12 to 480), a smooth lever (*Prop*,
+  *Mixture*, *Rudder trim*, *Aileron trim*, *Cowl flaps*, *Carb heat*) or *Nothing*, each with *Invert*. A lever
+  covers the game's range in one full turn, within the aircraft's own trim limits; *From* and *To* (percent) narrow
+  it for finer control. Prop, mixture, cowl flaps and carb heat move every engine. **Soft takeover:** after loading
+  an aircraft or profile, or when a button, the mouse or the autopilot moved the value, the dial does nothing until
+  you turn it to X-Plane's own value, so nothing jumps; the plugin window says where to turn it. The plugin reads the dial's steady value, so its one-step flicker
   never reaches X-Plane, and acts only while you turn it: speed-brake buttons, the mouse wheel and the auto-spoilers
   still work in between. Set the dials to None in X-Plane's Joystick settings; if X-Plane still uses one for speed
   brakes or zoom, the plugin leaves that job to X-Plane and its window says so. Profile keys `rotary_lower`,
-  `rotary_upper` (0 nothing, 1 speed brake, 2 zoom), `rotary_lower_invert`, `rotary_upper_invert` and `rotary_zoom_steps`.
+  `rotary_upper` (0 nothing, 1 speed brake, 2 zoom, 3 prop, 4 mixture, 5 rudder trim, 6 aileron trim, 7 cowl flaps,
+  8 carb heat), `rotary_lower_invert`, `rotary_upper_invert`, `rotary_zoom_steps` and
+  `rotary_lower_range` / `rotary_upper_range` (`<from> <to>` in percent, `0 100` by default).
   An aircraft that does not take the armed position (the Citation X) stays retracted in the first step.
 - **Plugin on/off:** the button at the left of the status row (green *Plugin on*, red *Plugin off*). Off, the plugin
   does nothing in X-Plane (no buttons, axes, dials, screen or lights) and the status says "Stick connected, plugin
