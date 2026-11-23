@@ -1,4 +1,4 @@
-x52pro-profile 5
+x52pro-profile 3
 # X52 Pro profile for the Cessna 172 SP Skyhawk (ready-made, see profiles/README.md).
 name = Cessna_172SP
 # standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)

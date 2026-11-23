@@ -1,4 +1,4 @@
-x52pro-profile 5
+x52pro-profile 3
 # X52 Pro profile for the Boeing 737-800 (ready-made, see profiles/README.md).
 name = b738
 # standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)

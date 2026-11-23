@@ -1,4 +1,4 @@
-x52pro-profile 5
+x52pro-profile 3
 # X52 Pro profile for the Grumman F-14 Tomcat (ready-made, see profiles/README.md).
 name = F-14D
 # standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)

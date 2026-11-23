@@ -1,4 +1,4 @@
-x52pro-profile 5
+x52pro-profile 3
 # X52 Pro profile for the Piper PA-18 Super Cub (ready-made, see profiles/README.md).
 name = PA-18-150
 # standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)

@@ -10,6 +10,7 @@
   The ready-made profiles have them, and any other profile (including your own) gets them when it is read, unless
   you had already programmed those buttons; you can change or clear them in the app like any button. With the
   clutch held the hat still picks a profile. If X-Plane also has an assignment for that hat, set it to None.
+  The printed button maps (PDF and Word) now show the main hat as "Look around" and say so in their footer.
   Fixed in 1.2.6 (issue #63).
 
 ## 1.2.5

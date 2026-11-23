@@ -22,7 +22,7 @@ def key_for(acf):
 def profile_text(ac, acf):
     f = features(ac)
     o = []
-    o.append("x52pro-profile 5")
+    o.append("x52pro-profile 3")
     o.append("# X52 Pro profile for the %s (ready-made, see profiles/README.md)." % ac["name"])
     o.append("name = " + acf)
     o.append("# standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)")

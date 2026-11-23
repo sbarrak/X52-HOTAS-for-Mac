@@ -1,4 +1,4 @@
-x52pro-profile 5
+x52pro-profile 3
 # X52 Pro profile for the Airbus A330-300 (ready-made, see profiles/README.md).
 name = A330
 # standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)
