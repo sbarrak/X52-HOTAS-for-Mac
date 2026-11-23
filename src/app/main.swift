@@ -65,6 +65,14 @@ final class Model: ObservableObject {
     @Published var loginItem = false
     @Published var testLines = ["", "", ""]   // text typed on the Test tab
     @Published var axes: [AxisRow] = []       // every analog control, while the Axes tab is showing
+    @Published var calibration: [String] = [] // the stick calibration: what to say, then one line per measured axis
+    @Published var calibrating = false
+    @Published var calLive: [Int: CalAxis] = [:]   // the stick axes while the calibration window is open
+    @Published var calibrationOpen = false
+    @Published var calStep = 0           // calibration window: 0 start, 1 stick, 2 twist, 3 let go, 4 save, 5 saved
+    @Published var calTwistSkipped = false
+    @Published var calProblem = ""       // why Save was refused
+    var openCalibration: () -> Void = {}
     @Published var pageSel = ""         // id of the page selected on the Pages tab and in the pages editor
     @Published var wheelMode = 0        // the left wheel's order being edited: 0 every mode, 1..3 that mode's own
     @Published var pageNote = ""        // why a page change was refused
@@ -147,6 +155,11 @@ final class Model: ObservableObject {
         }
         if copyDeclined && NSEvent.pressedMouseButtons == 0 && Date() >= ignoreCopyUntil { copyDeclined = false }
         if tab == 7 { set(\.axes, parseAxes(str(x52_axes()))) }   // changes constantly: only while it is shown
+        if tab == 7 || calibrationOpen {
+            set(\.calibration, str(x52_calibration()).split(separator: "\n", omittingEmptySubsequences: true).map(String.init))
+            set(\.calibrating, x52_calibrating() != 0)
+        }
+        if calibrationOpen { set(\.calLive, parseCalLive(str(x52_calibration_live()))) }
         set(\.liveStatus, statusMap())
         set(\.tried, Int(x52_alarm_tried()))
         set(\.masterTried, Int(x52_master_tried()))
@@ -1684,6 +1697,292 @@ struct AxisCurveRow: View {
     }
 }
 
+// The stick's own centre and ends, measured here or in X-Plane's plugin window (the same file).
+struct CalibrationRow: View {
+    @ObservedObject var m: Model
+    var body: some View {
+        let status = m.calibration.first ?? ""
+        let measured = Array(m.calibration.dropFirst())
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 12) {
+                Text("Calibration").frame(width: 120, alignment: .leading)
+                Button("Calibrate stick...") { m.openCalibration() }
+                    .help("Opens a window that guides you step by step: the stick to its four edges, the twist both ways, let go, save.")
+                Button("Reset") { x52_calibrate(3); m.tick() }
+                    .disabled(measured.isEmpty || m.calibrating)
+                    .help("Forget the calibration: the stick's full range is used again.")
+                Text(m.calibrating ? "Calibrating..." : status).foregroundStyle(m.calibrating ? Color.orange : Color.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(measured, id: \.self) { line in
+                Text(line).font(.callout.monospacedDigit()).foregroundStyle(.secondary).padding(.leading, 132)
+            }
+            Text("Measures where your stick really rests and how far it really goes (min .. centre .. max), so the centre is exactly zero and the ends give full travel. It belongs to the stick, not to a profile, and is used by the plugin while it drives the stick. Do it with the aircraft on the ground or paused: the stick still flies the aircraft meanwhile.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+// MARK: - Stick calibration window
+
+// One stick axis as the calibration window sees it: where it is now and how far it has gone each way.
+struct CalAxis: Equatable {
+    var usage = 0, value = 0, lo = 0, hi = 0, min = 0, max = 0
+    var mid: Double { Double(min + max) / 2 }
+    // -1 .. 1 of the HID range (the middle of the range is 0)
+    var pos: Double { max > min ? Swift.max(-1, Swift.min(1, (Double(value) - mid) / ((Double(max) - Double(min)) / 2))) : 0 }
+    // How far each side has been reached, 0 .. 1 of that half of the range.
+    var lowReach: Double { max > min ? Swift.max(0, Swift.min(1, (mid - Double(lo)) / (mid - Double(min)))) : 0 }
+    var highReach: Double { max > min ? Swift.max(0, Swift.min(1, (Double(hi) - mid) / (Double(max) - mid))) : 0 }
+}
+
+func parseCalLive(_ text: String) -> [Int: CalAxis] {
+    var out: [Int: CalAxis] = [:]
+    for line in text.split(separator: "\n") {
+        let f = line.split(separator: "\t").compactMap { Int($0) }
+        guard f.count >= 6 else { continue }
+        out[f[0]] = CalAxis(usage: f[0], value: f[1], lo: f[2], hi: f[3], min: f[4], max: f[5])
+    }
+    return out
+}
+
+let kCalDone = 0.9    // a side counts as reached (green) at 90 % of its half of the range
+let kCalEnough = 0.5  // the least the calibration accepts (a quarter of the whole range)
+
+// The stick seen from above: a circle with a target dot at each edge, a bar growing from the centre towards
+// each edge as far as the stick has gone, and the stick's position now.
+struct StickTarget: View {
+    let x: CalAxis?
+    let y: CalAxis?
+    var centreZone = false   // show the middle zone the stick must rest in
+    var body: some View {
+        Canvas { ctx, size in
+            let r = Swift.min(size.width, size.height) / 2 - 16
+            let c = CGPoint(x: size.width / 2, y: size.height / 2)
+            ctx.stroke(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)), with: .color(.secondary.opacity(0.6)), lineWidth: 2)
+            var cross = Path()
+            cross.move(to: CGPoint(x: c.x - r, y: c.y)); cross.addLine(to: CGPoint(x: c.x + r, y: c.y))
+            cross.move(to: CGPoint(x: c.x, y: c.y - r)); cross.addLine(to: CGPoint(x: c.x, y: c.y + r))
+            ctx.stroke(cross, with: .color(.secondary.opacity(0.25)), lineWidth: 1)
+            if centreZone {
+                let z = r * 0.3
+                let inside = abs(x?.pos ?? 1) <= 0.3 && abs(y?.pos ?? 1) <= 0.3
+                ctx.fill(Path(ellipseIn: CGRect(x: c.x - z, y: c.y - z, width: 2 * z, height: 2 * z)),
+                         with: .color((inside ? Color.green : Color.orange).opacity(0.25)))
+            } else {
+                // up: stick forward (the low end of fwd/back), down: back, left / right: the ends of left/right
+                let sides: [(CGFloat, CGFloat, Double)] = [(0, -1, y?.lowReach ?? 0), (0, 1, y?.highReach ?? 0),
+                                                           (-1, 0, x?.lowReach ?? 0), (1, 0, x?.highReach ?? 0)]
+                for (dx, dy, reach) in sides {
+                    var p = Path()
+                    p.move(to: c)
+                    p.addLine(to: CGPoint(x: c.x + dx * r * reach, y: c.y + dy * r * reach))
+                    ctx.stroke(p, with: .color(reach >= kCalDone ? .green : .accentColor), style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                    let d = CGPoint(x: c.x + dx * r, y: c.y + dy * r)
+                    ctx.fill(Path(ellipseIn: CGRect(x: d.x - 9, y: d.y - 9, width: 18, height: 18)),
+                             with: .color(reach >= kCalDone ? .green : .secondary.opacity(0.5)))
+                }
+            }
+            let p = CGPoint(x: c.x + r * (x?.pos ?? 0), y: c.y + r * (y?.pos ?? 0))
+            ctx.fill(Path(ellipseIn: CGRect(x: p.x - 7, y: p.y - 7, width: 14, height: 14)), with: .color(.primary))
+        }
+        .frame(width: 260, height: 260)
+    }
+}
+
+// The twist seen from above: an arc grows left and right of the top as far as the stick has been turned, with a
+// target dot at each end and a pointer showing the twist now.
+struct TwistRing: View {
+    let z: CalAxis?
+    var body: some View {
+        Canvas { ctx, size in
+            let r = Swift.min(size.width, size.height) / 2 - 16
+            let c = CGPoint(x: size.width / 2, y: size.height / 2)
+            let sweep = 135.0   // degrees each way for a full twist
+            ctx.stroke(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)), with: .color(.secondary.opacity(0.6)), lineWidth: 2)
+            func point(_ deg: Double, _ radius: CGFloat) -> CGPoint {
+                let a = (deg - 90) * .pi / 180
+                return CGPoint(x: c.x + radius * CGFloat(cos(a)), y: c.y + radius * CGFloat(sin(a)))
+            }
+            for (sign, reach) in [(-1.0, z?.lowReach ?? 0), (1.0, z?.highReach ?? 0)] {
+                var arc = Path()
+                arc.addArc(center: c, radius: r, startAngle: .degrees(-90), endAngle: .degrees(-90 + sign * sweep * reach), clockwise: sign < 0)
+                ctx.stroke(arc, with: .color(reach >= kCalDone ? .green : .accentColor), style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                let d = point(sign * sweep, r)
+                ctx.fill(Path(ellipseIn: CGRect(x: d.x - 9, y: d.y - 9, width: 18, height: 18)),
+                         with: .color(reach >= kCalDone ? .green : .secondary.opacity(0.5)))
+            }
+            var needle = Path()
+            needle.move(to: c)
+            needle.addLine(to: point(sweep * (z?.pos ?? 0), r - 14))
+            ctx.stroke(needle, with: .color(.primary), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+            ctx.fill(Path(ellipseIn: CGRect(x: c.x - 6, y: c.y - 6, width: 12, height: 12)), with: .color(.primary))
+        }
+        .frame(width: 260, height: 260)
+    }
+}
+
+struct CalValues: View {
+    let title: String
+    let a: CalAxis?
+    var body: some View {
+        HStack(spacing: 14) {
+            Text(title).frame(width: 110, alignment: .leading)
+            if let a = a {
+                Text("now \(a.value)").frame(width: 80, alignment: .leading)
+                Text("reached \(a.lo) .. \(a.hi)").frame(width: 160, alignment: .leading)
+                Text("of \(a.min) .. \(a.max)").foregroundStyle(.secondary)
+            } else {
+                Text("not reported yet: move it").foregroundStyle(.secondary)
+            }
+        }
+        .font(.body.monospacedDigit())
+    }
+}
+
+// A guided calibration, one step at a time: the stick to its four edges, the twist both ways, let go, save.
+// Nothing changes until Save; the plugin picks the saved calibration up within a second.
+struct CalibrationWizard: View {
+    @ObservedObject var m: Model
+    let close: () -> Void
+    private let steps = ["Start", "Stick", "Twist", "Let go", "Save"]
+
+    var body: some View {
+        let x = m.calLive[0x30], y = m.calLive[0x31], z = m.calLive[0x35]
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 8) {
+                ForEach(0..<steps.count, id: \.self) { i in
+                    Text("\(i + 1)  \(steps[i])")
+                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .background(Capsule().fill(i == Swift.min(m.calStep, 4) ? Color.accentColor : Color.secondary.opacity(0.15)))
+                        .foregroundStyle(i == Swift.min(m.calStep, 4) ? Color.white : (i < m.calStep ? Color.primary : Color.secondary))
+                }
+            }
+            Divider()
+            switch m.calStep {
+            case 0: start
+            case 1:
+                Text("Step 1: the stick").font(.title3)
+                Text("Push the stick all the way forward, back, left and right, one edge at a time. Each bar grows as you go; push until all four dots turn green.")
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack { Spacer(); StickTarget(x: x, y: y); Spacer() }
+                CalValues(title: "Left/right", a: x)
+                CalValues(title: "Fwd/back", a: y)
+                let reach = [x?.lowReach ?? 0, x?.highReach ?? 0, y?.lowReach ?? 0, y?.highReach ?? 0]
+                footer(next: "Next", enabled: reach.allSatisfy { $0 >= kCalEnough },
+                       hint: reach.allSatisfy { $0 >= kCalDone } ? "All four edges reached." : "Keep going until every dot is green.") { m.calStep = 2 }
+            case 2:
+                Text("Step 2: the twist").font(.title3)
+                Text("Hold the stick in the middle and turn it all the way left, then all the way right, until both dots turn green. If you do not use the twist, skip this m.calStep: it keeps its full range.")
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack { Spacer(); TwistRing(z: z); Spacer() }
+                CalValues(title: "Twist", a: z)
+                let reach = [z?.lowReach ?? 0, z?.highReach ?? 0]
+                HStack {
+                    Button("Skip the twist") { m.calTwistSkipped = true; m.calStep = 3 }
+                    Spacer()
+                }
+                footer(next: "Next", enabled: reach.allSatisfy { $0 >= kCalEnough },
+                       hint: reach.allSatisfy { $0 >= kCalDone } ? "Both ends reached." : "Keep turning until both dots are green.") { m.calTwistSkipped = false; m.calStep = 3 }
+            case 3:
+                Text("Step 3: let go").font(.title3)
+                Text("Let go of the stick and the twist so they spring back to where they rest. That resting point becomes the exact centre. The circle turns green when the stick is resting in the middle.")
+                    .fixedSize(horizontal: false, vertical: true)
+                let resting = abs(x?.pos ?? 1) <= 0.3 && abs(y?.pos ?? 1) <= 0.3 && (m.calTwistSkipped || abs(z?.pos ?? 0) <= 0.3)
+                HStack { Spacer(); StickTarget(x: x, y: y, centreZone: true); Spacer() }
+                CalValues(title: "Left/right", a: x)
+                CalValues(title: "Fwd/back", a: y)
+                if !m.calTwistSkipped { CalValues(title: "Twist", a: z) }
+                footer(next: "Next", enabled: resting, hint: resting ? "Resting in the middle." : "Let go of the stick.") { m.calStep = 4 }
+            case 4:
+                Text("Step 4: save").font(.title3)
+                Text("This is what was measured (raw values from the stick). Save it and the plugin uses it from now on, within a second, also while X-Plane is running.")
+                    .fixedSize(horizontal: false, vertical: true)
+                Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
+                    GridRow { Text("Axis").bold(); Text("Min").bold(); Text("Centre").bold(); Text("Max").bold() }
+                    summaryRow("Left/right", x)
+                    summaryRow("Fwd/back", y)
+                    if m.calTwistSkipped { GridRow { Text("Twist"); Text("full range").foregroundStyle(.secondary) } } else { summaryRow("Twist", z) }
+                }
+                .font(.body.monospacedDigit())
+                if !m.calProblem.isEmpty { Text(m.calProblem).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
+                Spacer()
+                HStack {
+                    Button("Back") { m.calProblem = ""; m.calStep = 3 }
+                    Spacer()
+                    Button("Cancel") { cancel() }
+                    Button("Save calibration") { save() }.keyboardShortcut(.defaultAction)
+                }
+            default:
+                Text("Calibration saved").font(.title3)
+                Text("The plugin uses it from now on. Your profiles (curves, smoothing, damping) are unchanged.")
+                    .fixedSize(horizontal: false, vertical: true)
+                ForEach(m.calibration.dropFirst(), id: \.self) { Text($0).font(.body.monospacedDigit()) }
+                Spacer()
+                HStack { Spacer(); Button("Close") { close() }.keyboardShortcut(.defaultAction) }
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 560, minHeight: 640, alignment: .topLeading)
+    }
+
+    private var start: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Calibrate the stick").font(.title3)
+            Text("Every X52 rests a little differently and reaches its edges at slightly different values. Calibrating measures your stick, so its resting point is exactly the centre and its edges give full travel. It takes about half a minute.")
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Do it with the aircraft on the ground or paused: the stick still flies the aircraft meanwhile. Nothing changes until you press Save at the end.")
+                .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text("Now: \(m.calibration.first ?? "")").foregroundStyle(.secondary)
+            ForEach(m.calibration.dropFirst(), id: \.self) { Text($0).font(.body.monospacedDigit()).foregroundStyle(.secondary) }
+            if !m.connected { Text("The stick is not connected.").foregroundStyle(.orange) }
+            Spacer()
+            HStack {
+                Spacer()
+                Button("Cancel") { cancel() }
+                Button("Start") { x52_calibrate(1); m.tick(); m.calProblem = ""; m.calStep = 1 }
+                    .keyboardShortcut(.defaultAction).disabled(!m.connected)
+            }
+        }
+    }
+
+    @ViewBuilder private func footer(next: String, enabled: Bool, hint: String, action: @escaping () -> Void) -> some View {
+        Spacer()
+        HStack {
+            Text(hint).foregroundStyle(enabled ? Color.secondary : Color.orange)
+            Spacer()
+            Button("Cancel") { cancel() }
+            Button(next, action: action).keyboardShortcut(.defaultAction).disabled(!enabled)
+        }
+    }
+
+    @ViewBuilder private func summaryRow(_ title: String, _ a: CalAxis?) -> some View {
+        GridRow {
+            Text(title)
+            Text(a.map { String(Swift.min($0.lo, $0.value)) } ?? "-")
+            Text(a.map { String($0.value) } ?? "-")
+            Text(a.map { String(Swift.max($0.hi, $0.value)) } ?? "-")
+        }
+    }
+
+    private func save() {
+        x52_calibrate(2)
+        m.tick()
+        if x52_calibrating() == 0 {
+            m.calProblem = ""
+            m.calStep = 5
+        } else {
+            m.calProblem = m.calibration.first ?? "The calibration could not be saved."
+        }
+    }
+
+    private func cancel() {
+        if x52_calibrating() != 0 { x52_calibrate(0) }
+        m.tick()
+        close()
+    }
+}
+
 struct DialSteadyRow: View {
     @ObservedObject var m: Model
     let title: String
@@ -1728,8 +2027,9 @@ struct AxesTab: View {
                 Stepper("Damping \(dm.wrappedValue) %", value: dm, in: 0...100, step: 10).frame(width: 170, alignment: .leading)
                     .help("A light pitch and roll damper in place of X-Plane's stability augmentation, which is skipped while the plugin drives the stick. Only near the centre of the stick, never more than a few percent of the travel, off on the ground and with the autopilot on. 0 = off.")
             }
-            Text("With the plugin driving the stick, X-Plane's own curve and stability augmentation are skipped: the curves, smoothing and damping here take their place. Calibrate the stick in X-Plane's plugin window (Axes tab).")
+            Text("With the plugin driving the stick, X-Plane's own curve and stability augmentation are skipped: the curves, smoothing and damping here take their place.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            CalibrationRow(m: m)
             Text("Dials and slider: a change smaller than Steady is ignored, so the value does not flicker. Saved in the aircraft's profile.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             DialSteadyRow(m: m, title: "Lower rotary (i)", key: "lower", usage: 0x33)
@@ -2375,6 +2675,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     func applicationDidFinishLaunching(_ note: Notification) {
         model.start()
         model.openPagesEditor = { [weak self] in self?.openPagesEditor() }
+        model.openCalibration = { [weak self] in self?.openCalibration() }
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         let image = NSImage(systemSymbolName: "gamecontroller.fill", accessibilityDescription: "X52 Pro")
         image?.isTemplate = true
@@ -2393,6 +2694,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         menu.addItem(.separator())
         menu.addItem(withTitle: "Open settings...", action: #selector(openSettings), keyEquivalent: ",").target = self
         menu.addItem(withTitle: "Open pages editor...", action: #selector(openPagesEditor), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Calibrate stick...", action: #selector(openCalibration), keyEquivalent: "").target = self
         loginLine.target = self
         menu.addItem(loginLine)
         menu.addItem(.separator())
@@ -2612,6 +2914,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         showInDock()
         NSApp.activate(ignoringOtherApps: true)
         pagesWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    // The stick calibration gets a window of its own, a fresh one each time (it starts at step 1).
+    var calibrationWindow: NSWindow?
+    @objc func openCalibration() {
+        if calibrationWindow == nil {
+            let w = NSWindow(contentRect: .zero, styleMask: [.titled, .closable, .miniaturizable],
+                             backing: .buffered, defer: false)
+            w.title = "X52 Pro \(appVersion): Calibrate stick"
+            w.isReleasedWhenClosed = false
+            w.contentView = NSHostingView(rootView: CalibrationWizard(m: model, close: { [weak self] in self?.calibrationWindow?.close() }))
+            w.setContentSize(NSSize(width: 600, height: 700))
+            w.center()
+            NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: w, queue: .main) { [weak self] _ in
+                if x52_calibrating() != 0 { x52_calibrate(0) }   // closed half way: nothing changes
+                self?.model.calibrationOpen = false
+                self?.calibrationWindow = nil
+            }
+            calibrationWindow = w
+        }
+        model.calibrationOpen = true
+        model.calStep = 0
+        model.calTwistSkipped = false
+        model.calProblem = ""
+        model.tick()
+        showInDock()
+        NSApp.activate(ignoringOtherApps: true)
+        calibrationWindow?.makeKeyAndOrderFront(nil)
     }
 
     var reallyQuit = false

@@ -369,7 +369,7 @@ Other things to know:
   plugin stands in for them: soft default curves (expo 50 pitch, 40 roll, 30 twist), **Smoothing** (60 ms for
   small jitter; big moves such as letting go of the stick reach X-Plane at once) and a light pitch/roll
   **Damping** (30 %, capped at a few percent of the travel, near the centre only, off on the ground and with the
-  autopilot on). **Calibrate stick** in the X-Plane window's Axes tab measures the stick's own centre and ends
+  autopilot on). **Calibrate stick** on the Axes tab (in the app or the X-Plane window) measures the stick's own centre and ends
   (`stick-calibration.txt` next to the profiles).
 - **Undo and redo:** the arrows next to the profile picker (and Edit > Undo / Redo, Command+Z and Shift+Command+Z)
   take back and bring back your changes to the profile in use, up to 50 steps; quick edits such as a slider drag

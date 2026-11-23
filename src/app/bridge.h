@@ -201,6 +201,17 @@ void x52_set(const char* name, int value);
 // sets the flap lever) and slider_invert (invert the flaps: slider towards you = deployed).
 const char* x52_axes(void);
 
+// The stick calibration (shared with the plugin). action: 1 start, 2 Done (on a problem it keeps calibrating and the
+// note says why), 0 cancel, 3 reset to the stick's full range.
+void x52_calibrate(int action);
+int x52_calibrating(void);
+// First line: the last note, else whether the stick is calibrated. Then one line per calibrated axis:
+// "Stick fwd/back: 10 .. 505 .. 1010" (measured min, centre, max).
+const char* x52_calibration(void);
+// The calibration window's live view, one line per stick axis (48 left/right, 49 fwd/back, 53 twist):
+// "usage<TAB>value<TAB>lowest reached<TAB>highest reached<TAB>HID min<TAB>HID max".
+const char* x52_calibration_live(void);
+
 const char* x52_profiles(void);                // keys, one per line
 // Ready-made profiles (standard) are never changed. Any change to one waits (x52_copy_needed) for a name:
 // x52_copy_save puts it, and the changes after it, into a new profile and switches to it ("" on success, else why);

@@ -1,4 +1,5 @@
 #include "store.h"
+#include "../core/mfd.h"
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -80,6 +81,41 @@ long long Store::stamp(const std::string& key) const {
     struct stat st;
     if (stat(pathFor(key).c_str(), &st) != 0) return 0;
     return (long long)st.st_mtimespec.tv_sec * 1000000000LL + st.st_mtimespec.tv_nsec + st.st_size + st.st_ino;
+}
+
+std::string calibrationPath(const std::string& dir) { return dir + "/stick-calibration.txt"; }
+
+std::map<int, AxisCalibration> loadCalibration(const std::string& dir) {
+    std::ifstream f(calibrationPath(dir));
+    std::stringstream ss;
+    ss << f.rdbuf();
+    return parseCalibration(ss.str());
+}
+
+bool saveCalibration(const std::string& dir, const std::map<int, AxisCalibration>& cal) {
+    std::string path = calibrationPath(dir);
+    if (cal.empty()) {
+        ::remove(path.c_str());
+        return true;
+    }
+    mkdir(dir.c_str(), 0755);
+    std::ofstream f(path);
+    f << serializeCalibration(cal);
+    return (bool)f;
+}
+
+long long calibrationStamp(const std::string& dir) {
+    struct stat st;
+    if (stat(calibrationPath(dir).c_str(), &st) != 0) return 0;
+    return (long long)st.st_mtimespec.tv_sec * 1000000000LL + st.st_mtimespec.tv_nsec + st.st_size + st.st_ino;
+}
+
+std::string describeCalibration(const std::map<int, AxisCalibration>& cal) {
+    std::string out;
+    for (const auto& kv : cal)
+        out += std::string(controlName(0x01, kv.first)) + ": " + std::to_string(kv.second.min) + " .. " +
+               std::to_string(kv.second.centre) + " .. " + std::to_string(kv.second.max) + "\n";
+    return out;
 }
 
 namespace {

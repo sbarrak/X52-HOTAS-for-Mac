@@ -30,6 +30,68 @@ void Agent::open(const std::string& dir, const std::string& key) {
     key_ = key.empty() ? "default" : key;
     if (key_ != "default" && !store_.exists(key_)) key_ = "default";
     reload();
+    calibrator_.cancel();
+    calibrationNote_.clear();
+    loadCalibration();
+}
+
+void Agent::loadCalibration() {
+    calibration_ = x52::loadCalibration(store_.dir);
+    calibrationStamp_ = calibrationStamp(store_.dir);
+}
+
+void Agent::startCalibration() {
+    calibrator_.start();
+    calibrationNote_ = "Move the stick and the twist to every limit, let go, then press Done.";
+}
+
+bool Agent::finishCalibration() {
+    std::map<int, long> rest;
+    for (const AxisEvent& e : input_.latestAxes())
+        if (e.usagePage == 0x01) rest[e.usage] = e.value;
+    std::string err;
+    std::map<int, AxisCalibration> result;
+    if (!calibrator_.finish(rest, result, &err)) {
+        calibrationNote_ = err;
+        return false;
+    }
+    calibration_ = result;
+    if (!saveCalibration(store_.dir, calibration_)) {
+        calibrationNote_ = "Could not save the calibration in " + store_.dir + ".";
+        return false;
+    }
+    calibrationStamp_ = calibrationStamp(store_.dir);
+    calibrationNote_ = calibration_.count(0x35) ? "Stick and twist calibrated." : "Stick calibrated (the twist keeps its full range).";
+    return true;
+}
+
+std::vector<Agent::CalibrationLive> Agent::calibrationLive() const {
+    std::vector<CalibrationLive> out;
+    for (int usage : {0x30, 0x31, 0x35})
+        for (const AxisEvent& e : input_.latestAxes()) {
+            if (e.usagePage != 0x01 || e.usage != usage) continue;
+            CalibrationLive l{usage, e.value, e.value, e.value, e.min, e.max};
+            long lo, hi, mn, mx;
+            if (calibrator_.reached(usage, lo, hi, mn, mx)) {
+                l.lo = std::min(lo, e.value);
+                l.hi = std::max(hi, e.value);
+            }
+            out.push_back(l);
+        }
+    return out;
+}
+
+void Agent::cancelCalibration() {
+    calibrator_.cancel();
+    calibrationNote_.clear();
+}
+
+void Agent::resetCalibration() {
+    calibrator_.cancel();
+    calibration_.clear();
+    saveCalibration(store_.dir, calibration_);
+    calibrationStamp_ = calibrationStamp(store_.dir);
+    calibrationNote_ = "Calibration cleared: the stick's full range is used.";
 }
 
 void Agent::reload() {
@@ -401,6 +463,7 @@ void Agent::tick() {
 
     for (const AxisEvent& e : input_.latestAxes()) {
         auto key = std::make_pair(e.usagePage, e.usage);
+        if (e.usagePage == 0x01) calibrator_.feed(e.usage, e.value, e.min, e.max);
         if (AxisCurve* dial = e.usagePage == 0x01 ? dialCurve(profile_.axes, e.usage) : nullptr) {
             auto st = axisSteady_.find(key);
             axisSteady_[key] = st == axisSteady_.end() ? e.value : steadyValue(st->second, e.value, e.min, e.max, dial->deadzone);
@@ -424,6 +487,7 @@ void Agent::tick() {
         nextSlow_ = t + 1.0;
         long long s = store_.stamp(key_);
         if (s != stamp_) reload();   // changed by the plugin's window or by hand
+        if (calibrationStamp(store_.dir) != calibrationStamp_) loadCalibration();   // calibrated in X-Plane
         // X-Plane's plugin drives the stick while it runs; step aside without touching it.
         bool busy = StickLock::heldByOther(store_.dir);
         if (busy && deviceRunning_) {

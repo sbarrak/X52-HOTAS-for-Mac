@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.2.1
+
+### Added
+- **Stick calibration in the app, step by step.** **Calibrate stick...** (Axes tab, or the menu bar menu) opens a
+  window that guides you through it: (1) the stick to its four edges, drawn as a circle with a dot at each edge and a
+  bar growing towards it as you push, (2) the twist both ways, drawn as a ring (or skip it), (3) let go, so the
+  resting point becomes the centre, (4) a summary of min / centre / max per axis and **Save**. The raw values show
+  live at every step; nothing changes until Save. The Axes tab shows the saved values and has **Reset**. Before,
+  calibrating was only possible in the X-Plane window and the app said nothing about it. The app and the plugin
+  share one calibration file: a calibration saved in the app is picked up by a running X-Plane within a second,
+  and one made in X-Plane shows in the app. Profiles (curves, smoothing, damping) are not touched by it.
+- **Pitch check** on the X-Plane window's Axes tab while the plugin drives the stick: what the plugin sends for
+  pitch (and how much of it is the damper) next to what X-Plane then uses (its yoke, the elevator trim and the pitch
+  rate), to find out where a climb or a dive comes from.
+
 ## 1.2.0
 
 ### Added

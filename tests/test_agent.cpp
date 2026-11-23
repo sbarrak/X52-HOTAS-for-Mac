@@ -408,6 +408,64 @@ TEST(the_app_lists_every_control_and_names_the_one_that_moves) {
     ag.stop();
 }
 
+TEST(the_app_calibrates_the_stick_into_the_file_the_plugin_reads) {
+    std::string dir = freshDir("calibrate");
+    x52_start("", dir.c_str(), "default");
+    Agent ag;
+    ag.open(dir, "default");
+    ag.start();
+    ag.tick();
+    CHECK(ag.calibration().empty());
+    ag.startCalibration();
+    CHECK(ag.calibrating());
+    CHECK(ag.calibrationNote().find("every limit") != std::string::npos);
+    // Values at the middle, so a real stick on this Mac resting there cannot upset the test.
+    for (long v : {512L, 20L, 1000L, 512L}) {
+        ag.pushAxisForTest({0x01, 0x30, v, 0, 1023});
+        ag.pushAxisForTest({0x01, 0x31, v == 20 ? 40 : v == 1000 ? 980 : 512, 0, 1023});
+        ag.tick();
+    }
+    // The calibration window sees how far each axis went, and where it is now.
+    bool sawPitch = false;
+    for (const Agent::CalibrationLive& l : ag.calibrationLive())
+        if (l.usage == 0x31) {
+            sawPitch = true;
+            CHECK_EQ(l.lo, 40L);
+            CHECK_EQ(l.hi, 980L);
+            CHECK_EQ(l.max, 1023L);
+        }
+    CHECK(sawPitch);
+    CHECK(ag.finishCalibration());
+    CHECK(!ag.calibrating());
+    CHECK_EQ(ag.calibration().size(), (size_t)2);   // the twist was not moved: it keeps its full range
+    CHECK(ag.calibrationNote().find("twist keeps") != std::string::npos);
+    // The plugin's file, in the plugin's format.
+    std::map<int, AxisCalibration> saved = loadCalibration(dir);
+    CHECK_EQ(saved[0x31].min, 40L);
+    CHECK_EQ(saved[0x31].centre, 512L);
+    CHECK_EQ(saved[0x31].max, 980L);
+    CHECK(has(describeCalibration(saved), "Stick fwd/back: 40 .. 512 .. 980"));
+    // A calibration made elsewhere (the plugin) shows up here too.
+    Agent other;
+    other.open(dir, "default");
+    CHECK_EQ(other.calibration().size(), (size_t)2);
+    // Done without moving the stick is refused, and calibration goes on.
+    ag.startCalibration();
+    CHECK(!ag.finishCalibration());
+    CHECK(ag.calibrating());
+    CHECK(ag.calibrationNote().find("all the way") != std::string::npos);
+    ag.cancelCalibration();
+    CHECK(!ag.calibrating());
+    CHECK_EQ(ag.calibration().size(), (size_t)2);   // the old one is kept
+    ag.resetCalibration();
+    CHECK(ag.calibration().empty());
+    CHECK(!std::ifstream(calibrationPath(dir)).good());
+    ag.stop();
+    // The app's bridge: status line first, then the measured axes.
+    CHECK(has(x52_calibration(), "Not calibrated"));
+    x52_stop();
+}
+
 TEST(the_pov_1_hat_switch_is_listed_as_held_while_it_is_pushed) {
     std::string dir = freshDir("hat_held");
     Agent ag;

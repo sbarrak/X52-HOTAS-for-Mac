@@ -334,6 +334,7 @@ float flightLoop(float elapsed, float, int, void*) {
         a.lock.tryHold(a.store.dir);   // the menu bar app leaves the stick alone while we hold this
         long long stamp = a.store.stamp(a.profileKey());
         if (stamp && stamp != a.loadedStamp) a.reload();   // changed outside X-Plane (menu bar app, text editor)
+        if (x52::calibrationStamp(a.store.dir) != a.calibrationStamp) a.loadCalibration();   // calibrated in the app
     }
 
     bool axisNews = false;
@@ -580,6 +581,7 @@ void App::applyAxes(double dt) {
             const char* rate = t->usage == 0x31 ? "sim/flightmodel/position/Q" : t->usage == 0x30 ? "sim/flightmodel/position/P" : nullptr;
             if (damp && rate)
                 if (XPLMDataRef r = cachedRef(rate)) v = dampStick(v, XPLMGetDataf(r), profile.axes.damping);
+            stickOut[t->usage] = v;
         }
         if (XPLMDataRef r = cachedRef(t->dataref)) {
             if (t->count > 1) {
@@ -622,23 +624,28 @@ void App::releaseAxes() {
     axesOverridden = false;
     joyOverridden = false;
     stickSent.clear();
+    stickOut.clear();
+}
+
+std::vector<std::string> App::pitchCheck() {
+    auto get = [](const char* n) { XPLMDataRef r = cachedRef(n); return r ? XPLMGetDataf(r) : 0.0f; };
+    char a[200], b[200];
+    double in = stickSent.count(0x31) ? stickSent[0x31] : 0.0, out = stickOut.count(0x31) ? stickOut[0x31] : 0.0;
+    snprintf(a, sizeof a, "Pitch sent: %+.3f  (stick %+.3f, damper %+.3f)", out, in, out - in);
+    snprintf(b, sizeof b, "X-Plane: yoke %+.3f, elevator trim %+.3f, pitch rate %+.1f deg/s",
+             get("sim/cockpit2/controls/yoke_pitch_ratio"), get("sim/cockpit2/controls/elevator_trim"),
+             get("sim/flightmodel/position/Q"));
+    return {a, b};
 }
 
 void App::loadCalibration() {
-    std::ifstream f(store.dir + "/stick-calibration.txt");
-    std::stringstream ss;
-    ss << f.rdbuf();
-    calibration = parseCalibration(ss.str());
+    calibration = x52::loadCalibration(store.dir);
+    calibrationStamp = x52::calibrationStamp(store.dir);
 }
 
 void App::saveCalibration() {
-    std::string path = store.dir + "/stick-calibration.txt";
-    if (calibration.empty()) {
-        remove(path.c_str());
-        return;
-    }
-    std::ofstream f(path);
-    f << serializeCalibration(calibration);
+    x52::saveCalibration(store.dir, calibration);
+    calibrationStamp = x52::calibrationStamp(store.dir);
 }
 
 void App::startCalibration() {
