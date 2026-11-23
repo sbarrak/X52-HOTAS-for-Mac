@@ -4,11 +4,20 @@
 
 ### Added
 - **The throttle's mouse nub pans the view.** The small stick on the throttle did nothing. Pushed part of the way it
-  presses the arrow keys (X-Plane's pan), pushed all the way it presses Shift + the arrow (a faster pan). Like POV 1,
+  does what the arrow keys do in X-Plane (pan), pushed all the way it does what Shift + the arrow does (a faster pan).
+  Like POV 1,
   the plugin turns it into buttons (44 to 47 for the arrows, 48 to 51 for Shift + arrows) that every profile can
   bind. The ready-made profiles have them, and any other profile (including your own) gets them when it is read,
   unless you had already programmed those buttons. Set the nub to None in X-Plane's Joystick settings so only the
   plugin acts on it. The printed button maps mention it in their footer. (issue #67)
+
+### Changed
+- **POV 1 and the nub use X-Plane's own commands, not keystrokes.** 1.2.6 sent the keys Q, E, R and F for POV 1.
+  Keystrokes go through macOS and need its permission; with the sim busy they queued up, so the view reacted late and
+  then spun. POV 1 now runs `sim/general/rot_up`, `rot_right`, `rot_down` and `rot_left` (what those keys do) and the
+  nub `sim/general/up`, `right`, `down`, `left` and their `_fast` versions (what the arrow keys and Shift + arrow keys
+  do), inside X-Plane, with no permission needed. A POV 1 binding still exactly as 1.2.6 made it is switched over when
+  the profile is read; a binding you changed stays as it is.
 
 ## 1.2.6
 

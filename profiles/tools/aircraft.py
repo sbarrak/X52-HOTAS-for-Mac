@@ -166,13 +166,13 @@ def layout(f):
                 any_[SHAT_L] = ("Rudder trim L", S("flight_controls/rudder_trim_left"))
                 any_[SHAT_R] = ("Rudder trim R", S("flight_controls/rudder_trim_right"))
     any_[MOUSE] = ("Cockpit view", S("view/3d_cockpit_cmnd_look"))
-    any_[POV1_U] = ("Look up", "key:r")   # X-Plane's own keys for looking around: Q left, E right, R up, F down
-    any_[POV1_R] = ("Look right", "key:e")
-    any_[POV1_D] = ("Look down", "key:f")
-    any_[POV1_L] = ("Look left", "key:q")
-    for i, d in enumerate(("up", "right", "down", "left")):
-        any_[NUB_U + i] = ("Pan " + d, "key:" + d)
-        any_[NUB_U + 4 + i] = ("Pan %s fast" % d, "key:shift+" + d)
+    any_[POV1_U] = ("Look up", S("general/rot_up"))   # what X-Plane's Q E R F keys do: rotate the view
+    any_[POV1_R] = ("Look right", S("general/rot_right"))
+    any_[POV1_D] = ("Look down", S("general/rot_down"))
+    any_[POV1_L] = ("Look left", S("general/rot_left"))
+    for i, d in enumerate(("up", "right", "down", "left")):   # what the arrow keys do: pan; Shift + arrow: faster
+        any_[NUB_U + i] = ("Pan " + d, S("general/" + d))
+        any_[NUB_U + 4 + i] = ("Pan %s fast" % d, S("general/%s_fast" % d))
     any_[MFD_PREV] = ("Screen page -", cmd("x52pro/mfd_page_prev"))
     any_[MFD_NEXT] = ("Screen page +", cmd("x52pro/mfd_page_next"))
     any_[MFD_UP] = ("Screen cursor up", cmd("x52pro/mfd_up"))

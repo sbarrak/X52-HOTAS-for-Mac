@@ -947,9 +947,9 @@ TEST(profile_from_before_pov_1_gains_the_look_around_bindings_once) {
     std::string err;
     CHECK(parse("x52pro-profile 4\nname = mine\nbind 41 any press \"Mine\" cmd:my/command\n", q, &err));
     CHECK_EQ(q.version, 4);
-    CHECK_EQ(actionToText(q.exact(40, kLayerAny)->press), std::string("key:r"));
-    CHECK_EQ(actionToText(q.exact(42, kLayerAny)->press), std::string("key:f"));
-    CHECK_EQ(actionToText(q.exact(43, kLayerAny)->press), std::string("key:q"));
+    CHECK_EQ(actionToText(q.exact(40, kLayerAny)->press), std::string("cmd:sim/general/rot_up"));
+    CHECK_EQ(actionToText(q.exact(42, kLayerAny)->press), std::string("cmd:sim/general/rot_down"));
+    CHECK_EQ(actionToText(q.exact(43, kLayerAny)->press), std::string("cmd:sim/general/rot_left"));
     CHECK_EQ(actionToText(q.exact(41, kLayerAny)->press), std::string("cmd:my/command"));   // theirs is kept
     CHECK(!addLookBindings(q));
     Profile again;
@@ -968,16 +968,26 @@ TEST(profile_from_before_the_nub_gains_the_pan_bindings_once) {
     std::string err;
     CHECK(parse("x52pro-profile 5\nname = mine\nbind 45 any press \"Mine\" cmd:my/command\n", q, &err));
     CHECK_EQ(q.version, 5);
-    CHECK_EQ(actionToText(q.exact(kNubUp, kLayerAny)->press), std::string("key:up"));
-    CHECK_EQ(actionToText(q.exact(kNubUp + 2, kLayerAny)->press), std::string("key:down"));
-    CHECK_EQ(actionToText(q.exact(kNubUp + 4, kLayerAny)->press), std::string("key:shift+up"));
-    CHECK_EQ(actionToText(q.exact(kNubUp + 7, kLayerAny)->press), std::string("key:shift+left"));
+    CHECK_EQ(actionToText(q.exact(kNubUp, kLayerAny)->press), std::string("cmd:sim/general/up"));
+    CHECK_EQ(actionToText(q.exact(kNubUp + 2, kLayerAny)->press), std::string("cmd:sim/general/down"));
+    CHECK_EQ(actionToText(q.exact(kNubUp + 4, kLayerAny)->press), std::string("cmd:sim/general/up_fast"));
+    CHECK_EQ(actionToText(q.exact(kNubUp + 7, kLayerAny)->press), std::string("cmd:sim/general/left_fast"));
     CHECK_EQ(actionToText(q.exact(kNubUp + 1, kLayerAny)->press), std::string("cmd:my/command"));   // theirs is kept
     CHECK(!addNubBindings(q));
     Profile again;
     CHECK(parse(serialize(q), again, &err));
     CHECK_EQ(again.version, 6);
     CHECK(defaultProfile().exact(kNubUp, kLayerAny) != nullptr);
+}
+
+TEST(profile_from_1_2_6_with_the_look_keys_is_switched_to_commands_unless_changed) {
+    Profile q;
+    std::string err;
+    CHECK(parse("x52pro-profile 5\nname = m\nbind 40 any press \"Look up\" key:r\nbind 41 any press \"Look right\" key:e\n"
+                "bind 42 any press \"Mine\" key:f\n", q, &err));
+    CHECK_EQ(actionToText(q.exact(40, kLayerAny)->press), std::string("cmd:sim/general/rot_up"));
+    CHECK_EQ(actionToText(q.exact(41, kLayerAny)->press), std::string("cmd:sim/general/rot_right"));
+    CHECK_EQ(actionToText(q.exact(42, kLayerAny)->press), std::string("key:f"));   // the user's own label: left alone
 }
 
 TEST(the_nub_presses_the_arrows_part_way_and_shift_arrows_all_the_way) {
