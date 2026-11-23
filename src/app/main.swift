@@ -1160,6 +1160,29 @@ struct ClockRow: View {
     }
 }
 
+struct ModeNamesRow: View {
+    @ObservedObject var m: Model
+    var body: some View {
+        let ms = Binding<Int>(get: { m.get("mode_banner_ms") }, set: { m.set("mode_banner_ms", $0) })
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(1...3, id: \.self) { mode in
+                let name = Binding<String>(get: { str(x52_mode_name(Int32(mode))) }, set: { x52_set_mode_name(Int32(mode), $0) })
+                HStack {
+                    Text("Mode \(mode) name").frame(width: 130, alignment: .leading)
+                    TextField("e.g. Takeoff", text: name).textFieldStyle(.roundedBorder).frame(width: 200)
+                }
+            }
+            HStack {
+                Text("Show the name for").frame(width: 130, alignment: .leading)
+                Stepper(ms.wrappedValue == 0 ? "never" : String(format: "%.1f s", Double(ms.wrappedValue) / 1000), value: ms, in: 0...10000, step: 500)
+                    .frame(width: 200, alignment: .leading)
+            }
+            Text("When the mode dial moves, the stick's screen says the mode's name for this long, then goes back to the page you were on. Saved in the aircraft's profile; 0 turns it off.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
 struct ScreenTab: View {
     @ObservedObject var m: Model
     var body: some View {
@@ -1181,6 +1204,8 @@ struct ScreenTab: View {
             }
             Text("On the stick, the Start/Stop and Reset buttons under the screen switch between the three clocks. Function switches to the stopwatch. Clock 2 and 3 are always set from GMT, whatever Clock 1 shows. Simulator local time follows X-Plane's clock; while X-Plane is not running, Clock 1 shows the Mac's local time instead, and GMT the Mac's GMT.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Divider()
+            ModeNamesRow(m: m)
             Divider()
             Toggle("Latched clutch: one press of the clutch (i) turns safe mode on, the next turns it off", isOn: latched)
             Text("Safe mode applies in X-Plane: buttons only show their name on the screen. The clutch and POV lights flash while it is on.")

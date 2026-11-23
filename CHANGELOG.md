@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.3.3
+
+### Changed
+- **The modes are phases of flight: 1 takeoff, 2 cruise, 3 landing.** Mode 2 and mode 3 of the ready-made profiles
+  traded places (mode 2 was approach and landing, mode 3 cruise). Landing has the flaps and approach jobs, the
+  speed brake, autobrake and the reverse thrust on D (held), takeoff has the gear and the lights, cruise has the
+  autopilot, or all the weapons in the fighters (Combat). The gear is on A in takeoff and landing only; in cruise A is the
+  landing light. Same job, same button where a feature is in two modes (lights, strobes). Older profiles, yours
+  included, are changed when read: whatever they had on mode 2 and mode 3 trades places (with and without the
+  pinkie, and the left wheel's page order), unless the file says `mode_layout = 2`. (issue #81)
+- **Autopilot on/off is one button, B, in every mode** of the ready-made profiles that have an autopilot (it was
+  an AP on button and an AP off button in takeoff and landing). The trigger is still the disconnect. C is the
+  flight director in takeoff, AP altitude hold in cruise and AP approach in landing. (issue #81)
+- **The Fire button no longer sets the parking brake; holding A does.** In the fighters Fire now shoots. A tap on A
+  still does the gear or the landing light. A Fire button that still has the parking brake in an older profile is
+  moved to a hold on A when it is read (A with a hold of its own, or a Fire button you changed, stay). The Fire light
+  still shows the parking brake. (issue #81)
+- **The profile format is 9.** New keys `mode_layout`, `mode_name_1..3` and `mode_banner_ms`.
+
+### Added
+- **The stick's screen says the mode's name when the mode dial moves.** "MODE 3 / Landing" for 1.5 s, then the page
+  you were on comes back. The names (16 characters) and the seconds (0 to 10, 0 turns it off) are per profile, set
+  on the app's Screen tab; the ready-made profiles say Takeoff, Cruise, Landing (Combat for the fighters, Launch,
+  Soaring, Landing for the glider). (issue #81)
+
 ## 1.3.2
 
 ### Fixed

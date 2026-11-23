@@ -224,6 +224,11 @@ void updateDevice(App& a, double now) {
     }
     if (a.testMode)
         lines = a.testLines;
+    else if (now < a.bannerUntil && !a.engine.clutch()) {
+        lines.l[0] = "MODE " + std::to_string(a.engine.mode());
+        lines.l[1] = a.banner;
+        lines.l[2] = "";
+    }
     else if (a.engine.clutch() && a.pickIndex >= 0 && a.pickIndex < (int)a.pickKeys.size()) {
         lines.l[0] = "PICK PROFILE";
         lines.l[1] = App::profileTitle(a.pickKeys[a.pickIndex]);
@@ -1239,6 +1244,10 @@ void App::showLabel(const std::string& text) {
 // visit the same pages in the same order (every profile without per-mode orders), the page stays.
 void App::layerChanged(int mode, bool) {
     if (mode == pageMode) return;
+    if (profile.modeBannerMs > 0 && mode >= 1 && mode <= 3 && !profile.modeNames[mode - 1].empty()) {
+        banner = profile.modeNames[mode - 1];
+        bannerUntil = now() + profile.modeBannerMs / 1000.0;
+    }
     bool differs = wheelOrder(profile, mode) != wheelOrder(profile, pageMode);
     pageMode = mode;
     if (differs) showFirstPage();

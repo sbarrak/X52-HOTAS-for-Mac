@@ -42,6 +42,7 @@ int* field(Profile& p, const std::string& n, int& lo, int& hi) {
     lo = 0;
     hi = 2;
     if (n == "date_format") return &p.dateFormat;
+    if (n == "mode_banner_ms") { lo = 0; hi = 10000; return &p.modeBannerMs; }
     hi = 3;
     if (n == "clock1_source") return &p.clock1Source;   // ClockSource
     lo = 2;
@@ -768,6 +769,21 @@ const char* x52_catalog_search(int kind, const char* query, int max) {
     for (const CatalogEntry* e : searchCatalog(kind == 0 ? commandList : datarefList, query ? query : "", max))
         out += e->name + "\t" + e->info + "\t" + (e->writable ? "1" : "0") + "\n";
     return out.c_str();
+}
+
+const char* x52_mode_name(int mode) {
+    static std::string s;
+    s = agent && mode >= 1 && mode <= 3 ? agent->profile().modeNames[mode - 1] : "";
+    return s.c_str();
+}
+
+void x52_set_mode_name(int mode, const char* name) {
+    if (!agent || mode < 1 || mode > 3) return;
+    std::string n = name ? name : "";
+    for (char& c : n)
+        if (c < 32 || c > 126) c = ' ';
+    if (n.size() > 16) n.resize(16);
+    agent->change([=](Profile& p) { p.modeNames[mode - 1] = n; });
 }
 
 int x52_get(const char* name) {

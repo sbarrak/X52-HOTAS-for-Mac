@@ -7,13 +7,16 @@ One X52 Pro profile per aircraft that comes with X-Plane 12, plus a printable bu
 
 | Dial | Mode | What the buttons are for |
 |---|---|---|
-| 1 | Ground & take-off | battery, avionics, lights, APU or beacon, mixture / prop |
-| 2 | Approach & landing | landing lights, speedbrake, reversers, autobrake, trim on the scroll wheel |
-| 3 | Cruise & autopilot | autopilot modes, altitude / heading / VS values (fighters: combat; no autopilot: fuel, lights, views) |
+| 1 | Takeoff | battery, avionics, lights, APU or beacon, mixture / prop, gear |
+| 2 | Cruise | autopilot modes, altitude / heading / VS values (fighters: combat, all the weapons; no autopilot: fuel, lights, views) |
+| 3 | Landing | landing lights, speedbrake, reverse on D, autobrake, approach, gear, trim on the scroll wheel |
 
-The same in every mode: trigger (autopilot disconnect, or guns), Fire (parking brake), A (gear or
-landing light), Hat 2 (trim), Pinkie (wheel brakes while held), screen wheels. The pinkie is a normal
-button in these profiles, not a shift.
+The same in every mode: trigger (autopilot disconnect, or guns), B (autopilot on/off, one button in every
+mode, on aircraft with an autopilot), Hat 2 (trim), Pinkie (wheel brakes while held), screen wheels. The pinkie
+is a normal button in these profiles, not a shift. **A:** a tap is the gear (takeoff and landing; cruise has no gear
+button, so A is the landing light there) and **holding A** sets the parking brake, in every mode. **Fire** is
+free, except in the fighters, where it shoots. When the mode dial moves, the stick's screen says the mode's name
+for 1.5 s (`mode_name_1..3`, `mode_banner_ms`; editable on the app's Screen tab).
 
 **Flaps are on the slider** on the throttle (`slider_flaps = 1`, `slider_invert = 0`): pushed away from you is
 flaps deployed, towards you flaps up, and the flap lever goes to the aircraft's own stops. **Invert flaps** on
@@ -21,14 +24,14 @@ the app's Axes tab reverses the direction for a profile. **B and C:**
 
 | Aircraft | Mode 1 | Mode 2 | Mode 3 |
 |---|---|---|---|
-| With an autopilot | B AP on, C AP off | B AP approach, C TOGA (no autothrottle: AP off) | B AP ALT hold, C AP VS |
+| With an autopilot | B AP on/off (every mode), C flight director | B AP on/off, C AP ALT hold | B AP on/off, C AP approach |
 | Fighters | B speedbrake in, C speedbrake out | same | same |
 | Light pistons without autopilot (PA-18, L-5, Aerolite) | B magnetos both, C starter (hold) | same | same |
 | Glider | B airbrakes in, C airbrakes out | same | same |
 | R22 | B governor, C carb heat | same | same |
 
 Lights: mode 1 green, mode 2 amber, mode 3 red; the throttle light is green in every mode. Live lights show
-parking brake (Fire), gear (A) and flaps (B). Alarms: engine fire, stall / low rotor RPM, gear unsafe,
+parking brake (Fire), gear (A) and flaps (B); fighters: master arm (Fire). Alarms: engine fire, stall / low rotor RPM, gear unsafe,
 master warning / caution, low fuel, autopilot disconnect, overspeed, low oil pressure.
 The screen gets Flight, Engine and Fuel pages after the built-in radio pages.
 

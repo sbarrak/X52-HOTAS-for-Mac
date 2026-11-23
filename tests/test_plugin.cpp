@@ -56,6 +56,7 @@ TEST(starting_writes_a_default_profile) {
     CHECK_EQ(XPluginStart(name, sig, desc), 1);
     CHECK_EQ(XPluginEnable(), 1);
     gApp->askedKeyAccess = true;   // never raise the macOS permission prompt from a test run
+    gApp->profile.modeBannerMs = 0;   // the mode name on the screen is tested on its own
     CHECK_EQ(std::string(name), std::string("X52 Pro ") + X52_VERSION);
     CHECK(has(std::string(desc), "Version " X52_VERSION));
     CHECK(has(slurp(defaultFile()), "cmd:x52pro/mfd_page_next"));
@@ -1128,7 +1129,7 @@ TEST(a_profile_from_the_older_plugin_gets_the_wheel_bindings) {
     }
     gApp->reload();
     CHECK(has(slurp(defaultFile()), "cmd:x52pro/mfd_select"));
-    CHECK(has(slurp(defaultFile()), "x52pro-profile 8"));
+    CHECK(has(slurp(defaultFile()), "x52pro-profile 9"));
     CHECK(has(slurp(defaultFile()), std::string("cmd:") + kGear));
 }
 
@@ -1456,6 +1457,25 @@ TEST(the_undo_and_redo_buttons_show_a_tip_when_the_mouse_rests_on_them) {
     sim().frame();
     CHECK(!sim().sees("Nothing to redo"));                   // a longer wait: not yet
     uiTipDelay = saved;
+}
+
+TEST(the_screen_says_the_mode_name_when_the_mode_dial_moves) {
+    gApp->profile.modeBannerMs = 400;
+    gApp->profile.modeNames[0] = "Takeoff";
+    gApp->profile.modeNames[1] = "Cruise";
+    gApp->profile.modeNames[2] = "Final";
+    turnDial(28, 30);
+    CHECK_EQ(gApp->engine.mode(), 3);
+    CHECK_EQ(gApp->screen.l[0], std::string("MODE 3"));
+    CHECK_EQ(gApp->screen.l[1], std::string("Final"));
+    std::this_thread::sleep_for(std::chrono::milliseconds(450));
+    sim().frame();
+    CHECK(gApp->screen.l[0] != "MODE 3");
+    gApp->profile.modeBannerMs = 0;   // off: the dial moves and the screen stays on its page
+    turnDial(30, 29);
+    CHECK_EQ(gApp->engine.mode(), 2);
+    CHECK(gApp->screen.l[0] != "MODE 2");
+    turnDial(29, 28);
 }
 
 TEST(the_brightness_page_changes_and_saves_the_screen_and_light_brightness) {

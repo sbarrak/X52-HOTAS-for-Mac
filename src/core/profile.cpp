@@ -512,7 +512,7 @@ std::string secondText(const Trigger& t) {
 
 std::string serialize(const Profile& p) {
     std::ostringstream o;
-    o << "x52pro-profile 8\n";
+    o << "x52pro-profile 9\n";
     o << "# X52 Pro button profile. Written by the X52 Pro plugin; safe to edit by hand.\n";
     o << "name = " << cleanLabel(p.name) << "\n";
     if (p.standard) o << "# standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)\nstandard = 1\n";
@@ -524,6 +524,11 @@ std::string serialize(const Profile& p) {
     o << "clutch_button = " << p.clutchButton << "\n";
     o << "hold_ms = " << p.holdMs << "\n";
     o << "mode_settle_ms = " << p.modeSettleMs << "\n";
+    o << "# modes: mode_layout 2 = mode 1 takeoff, 2 cruise, 3 landing (older files had 2 and 3 the other way round).\n";
+    o << "# mode_name_1..3 = what the stick's screen says after the mode dial moves; mode_banner_ms = how long (0: never)\n";
+    o << "mode_layout = 2\n";
+    for (int m = 0; m < 3; ++m) o << "mode_name_" << m + 1 << " = " << cleanLabel(p.modeNames[m]) << "\n";
+    o << "mode_banner_ms = " << p.modeBannerMs << "\n";
     o << "mfd_brightness = " << p.mfdBrightness << "\n";
     o << "led_brightness = " << p.ledBrightness << "\n";
     o << "clutch_latched = " << (p.clutchLatched ? 1 : 0) << "\n";
@@ -865,6 +870,43 @@ bool parseBind(const std::string& rest, Profile& p, std::string& err) {
 
 }  // namespace
 
+// The modes became takeoff, cruise, landing: what a file had on mode 2 (approach and landing) and mode 3 (cruise)
+// trades places, with and without the pinkie held and in the left wheel's order. The parking brake on the Fire
+// button (so the Fire button can shoot) becomes a hold on A, in every mode where A has a binding; a Fire button the
+// user changed, or an A that already has a hold, stays as it was.
+static void upgradeModeLayout(Profile& p) {
+    for (Binding& b : p.bindings) {
+        if (b.layer == 2 || b.layer == 5) ++b.layer;
+        else if (b.layer == 3 || b.layer == 6) --b.layer;
+    }
+    std::swap(p.modeWheel[1], p.modeWheel[2]);
+    const Binding* fire = p.exact(2, kLayerAny);
+    bool parking = fire && fire->hold.empty() && fire->press.size() == 1 &&
+                   fire->press[0].kind == StepKind::Command && fire->press[0].text == "sim/flight_controls/brakes_toggle_max";
+    bool aHold = false;
+    for (const Binding& b : p.bindings)
+        if (b.button == 3 && !b.hold.empty()) aHold = true;
+    if (!parking || aHold) return;
+    Step brake;
+    brake.kind = StepKind::Command;
+    brake.text = "sim/flight_controls/brakes_toggle_max";
+    bool any = false;
+    for (Binding& b : p.bindings)
+        if (b.button == 3) {
+            b.holdLabel = "Parking brake";
+            b.hold = Action{brake};
+            any = true;
+        }
+    if (!any) {
+        Binding& a = p.edit(3, kLayerAny);
+        a.holdLabel = "Parking brake";
+        a.hold = Action{brake};
+    }
+    p.bindings.erase(std::remove_if(p.bindings.begin(), p.bindings.end(),
+                                    [](const Binding& b) { return b.button == 2 && b.layer == kLayerAny; }),
+                     p.bindings.end());
+}
+
 bool parse(const std::string& text, Profile& out, std::string* error) {
     Profile p;
     p.version = 1;   // files without a readable header are treated as the first format
@@ -873,6 +915,7 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
     int lineNo = 0;
     bool pinkieSeen[3] = {false, false, false};
     bool throttleSeen = false;
+    bool layoutSeen = false;   // mode_layout 2: mode 2 is cruise, mode 3 landing
     auto fail = [&](const std::string& msg) {
         if (error) *error = "line " + std::to_string(lineNo) + ": " + msg;
         return false;
@@ -923,6 +966,10 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
             p.name = value;
         } else if (key == "based_on") {
             p.basedOn = value;
+        } else if (key.size() == 11 && key.compare(0, 10, "mode_name_") == 0) {
+            int m = key.back() - '1';
+            if (m < 0 || m > 2) continue;   // not a mode: ignored so newer files still load
+            p.modeNames[m] = value;
         } else if (key.compare(0, 5, "ledsp") == 0) {
             if (!parseLeds(key, 5, true, value, p, err)) return fail(err);
             for (int m = 0; m < 3; ++m)
@@ -984,6 +1031,10 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
             p.clutchButton = n;
         } else if (key == "hold_ms") {
             p.holdMs = clampInt(n, 100, 5000);
+        } else if (key == "mode_layout") {
+            layoutSeen = n >= 2;
+        } else if (key == "mode_banner_ms") {
+            p.modeBannerMs = clampInt(n, 0, 10000);
         } else if (key == "mode_settle_ms") {
             p.modeSettleMs = clampInt(n, 0, 1000);
         } else if (key == "mfd_brightness") {
@@ -1073,6 +1124,9 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
             }
         }
     }
+    // Before mode_layout 2 mode 2 was approach and landing and mode 3 cruise; they have traded places (takeoff,
+    // cruise, landing), and the parking brake left the Fire button for a hold on A.
+    if (!layoutSeen) upgradeModeLayout(p);
     // A file from before the pinkie lights: with the pinkie held the lights stay as the mode has them.
     for (int m = 0; m < 3; ++m)
         if (!pinkieSeen[m])

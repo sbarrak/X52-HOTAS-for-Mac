@@ -10,6 +10,12 @@ clutch_safe = 0
 clutch_button = 31
 hold_ms = 400
 mode_settle_ms = 100
+# modes: 1 takeoff, 2 cruise, 3 landing; the screen says the mode's name for mode_banner_ms (0: never)
+mode_layout = 2
+mode_name_1 = Takeoff
+mode_name_2 = Cruise
+mode_name_3 = Landing
+mode_banner_ms = 1500
 mfd_brightness = 127
 led_brightness = 127
 clutch_latched = 0
