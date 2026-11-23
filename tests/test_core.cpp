@@ -172,7 +172,9 @@ TEST(button_names_follow_the_x52_pro_layout) {
     CHECK_EQ(std::string(buttonName(28)), std::string("Mode 1"));
     CHECK_EQ(std::string(buttonName(31)), std::string("Clutch (i)"));
     CHECK_EQ(std::string(buttonName(39)), std::string("MFD Select"));
-    CHECK_EQ(std::string(buttonName(40)), std::string(""));
+    CHECK_EQ(std::string(buttonName(40)), std::string("POV 1 up"));
+    CHECK_EQ(std::string(buttonName(43)), std::string("POV 1 left"));
+    CHECK_EQ(std::string(buttonName(44)), std::string(""));
 }
 
 // ---------------------------------------------------------------- screen + lights
@@ -911,7 +913,7 @@ TEST(clock_and_clutch_settings_survive_save_and_load) {
     CHECK(q.clock12h[1]);
     CHECK_EQ(q.dateFormat, 2);
     CHECK(q.com833);
-    CHECK_EQ(q.version, 4);
+    CHECK_EQ(q.version, 5);
 }
 
 TEST(out_of_range_clock_settings_are_pulled_into_range) {
@@ -935,7 +937,41 @@ TEST(profile_from_the_older_plugin_gains_the_wheel_bindings_once) {
     CHECK(!addWheelBindings(q));
     Profile again;
     CHECK(parse(serialize(q), again, &err));
-    CHECK_EQ(again.version, 4);
+    CHECK_EQ(again.version, 5);
+}
+
+TEST(profile_from_before_pov_1_gains_the_look_around_bindings_once) {
+    Profile q;
+    std::string err;
+    CHECK(parse("x52pro-profile 4\nname = mine\nbind 41 any press \"Mine\" cmd:my/command\n", q, &err));
+    CHECK_EQ(q.version, 4);
+    CHECK_EQ(actionToText(q.exact(40, kLayerAny)->press), std::string("key:r"));
+    CHECK_EQ(actionToText(q.exact(42, kLayerAny)->press), std::string("key:f"));
+    CHECK_EQ(actionToText(q.exact(43, kLayerAny)->press), std::string("key:q"));
+    CHECK_EQ(actionToText(q.exact(41, kLayerAny)->press), std::string("cmd:my/command"));   // theirs is kept
+    CHECK(!addLookBindings(q));
+    Profile again;
+    CHECK(parse(serialize(q), again, &err));
+    CHECK_EQ(again.version, 5);
+    CHECK(defaultProfile().exact(40, kLayerAny) != nullptr);
+    // a current profile whose owner removed the look-around binding keeps it removed
+    q.edit(40, kLayerAny).press.clear();
+    q.prune();
+    CHECK(parse(serialize(q), again, &err));
+    CHECK(again.find(40, 1) == nullptr);
+}
+
+TEST(pov_1_hat_value_gives_the_direction_buttons_it_holds) {
+    CHECK_EQ(hatButtonMask(1, 1, 8), 1);    // up
+    CHECK_EQ(hatButtonMask(2, 1, 8), 3);    // up-right = up + right
+    CHECK_EQ(hatButtonMask(3, 1, 8), 2);    // right
+    CHECK_EQ(hatButtonMask(5, 1, 8), 4);    // down
+    CHECK_EQ(hatButtonMask(6, 1, 8), 12);   // down-left
+    CHECK_EQ(hatButtonMask(7, 1, 8), 8);    // left
+    CHECK_EQ(hatButtonMask(8, 1, 8), 9);    // up-left
+    CHECK_EQ(hatButtonMask(0, 1, 8), 0);    // centred
+    CHECK_EQ(hatButtonMask(15, 1, 8), 0);
+    CHECK_EQ(hatButtonMask(0, 0, 7), 1);    // a hat that counts from 0
 }
 
 TEST(removing_a_wheel_binding_from_a_current_profile_is_respected) {

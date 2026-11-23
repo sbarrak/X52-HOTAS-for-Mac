@@ -341,8 +341,9 @@ lights go dark. With no dataref chosen, or one X-Plane does not know, it stays o
 
 **Important:** a button you program here must be set to *Do nothing* in X-Plane's own
 *Settings > Joystick*, otherwise X-Plane and the plugin both act on it. Buttons you
-leave unprogrammed here keep working through X-Plane as before. Axes and the main POV
-hat stay with X-Plane unless you tick the override on the **Axes** tab (below).
+leave unprogrammed here keep working through X-Plane as before. Axes stay with
+X-Plane unless you tick the override on the **Axes** tab (below). The main POV hat (POV 1) is four buttons (40 to 43; a
+diagonal holds two) that look around by default; if X-Plane also uses that hat, set it to None there.
 
 Other things to know:
 

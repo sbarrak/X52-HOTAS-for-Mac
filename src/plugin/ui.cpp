@@ -1254,7 +1254,7 @@ void drawSettingsTab(const Rect& area) {
 
     const char* notes[] = {
         "Buttons you program here should be set to 'Do nothing' in X-Plane's own Joystick settings,",
-        "otherwise both X-Plane and this plugin will act on them. Axes and the main POV hat stay with X-Plane unless you override them on the Axes tab.",
+        "otherwise both X-Plane and this plugin will act on them. Axes stay with X-Plane unless you override them on the Axes tab. The main POV hat is buttons 40-43 and looks around; set it to None in X-Plane.",
     };
     for (const char* n : notes) {
         r = {area.l, rc.t, area.r, rc.t - kRow};

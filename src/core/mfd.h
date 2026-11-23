@@ -78,6 +78,8 @@ std::string controlValueText(int usagePage, int usage, long value, long min, lon
 // True when the control moved far enough since `shown` to be worth displaying.
 // POV hat value as a direction: 0 up, 1 right, 2 down, 3 left; -1 centred or diagonal.
 int hatDirection(long value, long min, long max);
+// The buttons a POV 1 value holds, as bits: 1 up, 2 right, 4 down, 8 left (a diagonal holds two); 0 when centred.
+int hatButtonMask(long value, long min, long max);
 // Four direction buttons (a hat made of buttons) as one word: "up", "up-right", ...; "" when none is held.
 std::string povButtonsText(bool up, bool right, bool down, bool left);
 bool controlMoved(int usagePage, int usage, long shown, long value, long min, long max);

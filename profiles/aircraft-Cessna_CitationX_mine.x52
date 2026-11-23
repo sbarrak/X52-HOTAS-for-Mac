@@ -60,3 +60,7 @@ bind 36 any press "Screen page +" cmd:x52pro/mfd_page_next
 bind 37 any press "Screen cursor up" cmd:x52pro/mfd_up
 bind 38 any press "Screen cursor down" cmd:x52pro/mfd_down
 bind 39 any press "Screen select" cmd:x52pro/mfd_select
+bind 40 any press "Look up" key:r
+bind 41 any press "Look right" key:e
+bind 42 any press "Look down" key:f
+bind 43 any press "Look left" key:q

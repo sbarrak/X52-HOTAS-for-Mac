@@ -275,7 +275,7 @@ class Sheet:
         self.box(lx, 440, bw, "HAT 2 (lit)", [("u", SHAT_U), ("r", SHAT_R), ("d", SHAT_D), ("l", SHAT_L)], mode, (cx - 12, 360, 9))
         self.box(lx, 372, bw, "TRIGGER", [("1", TRIGGER), ("2", TRIGGER2)], mode, (cx - 44, 335))
         self.box(lx, 330, bw, "BUTTON C", [("p", C)], mode, (cx - 14, 300, 6))
-        self.box(lx, 290, bw, "MAIN HAT (H1)", [("", "Look around: X-Plane")], mode, (cx - 12, 390, 9))
+        self.box(lx, 290, bw, "MAIN HAT (H1)", [("", "Look around")], mode, (cx - 12, 390, 9))
         y = 440
         y = self.box(rx, y, bw, "FIRE", [("p", FIRE)], mode, (cx + 12, 392, 8), side="r") - 6
         y = self.box(rx, y, bw, "BUTTON A", [("p", A)], mode, (cx + 16, 368, 6), side="r") - 6
@@ -286,7 +286,7 @@ class Sheet:
         self.box(rx, y, bw, "T3", [("u", T3U), ("d", T3D)], mode, (cx + 36, 124), side="r")
         self.footer([
             "Bold = this mode only.  Regular = the same in every mode.  -  = not used.  Mode dial: 1 / 2 / 3.  Pinkie is a normal button (not a shift).",
-            "Set every button used here to 'Do nothing' in X-Plane > Settings > Joystick.  Stick and throttle axes, rotaries, slider and the main hat stay in X-Plane.",
+            "Set every button used here to 'Do nothing' in X-Plane > Settings > Joystick.  Stick and throttle axes, rotaries, slider stay in X-Plane. The main hat looks around (POV 1: Q, E, R, F).",
         ])
         c.showPage()
 
