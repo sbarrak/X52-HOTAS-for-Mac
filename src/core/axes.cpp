@@ -41,6 +41,10 @@ AxisCurve* dialCurve(AxisSettings& s, int usage) {
     }
 }
 
+DialUse* dialUse(AxisSettings& s, int usage) {
+    return usage == 0x33 ? &s.lowerUse : usage == 0x34 ? &s.upperUse : nullptr;
+}
+
 long steadyValue(long shown, long value, long min, long max, int pct) {
     if (value <= min || value >= max) return value;
     return labs(value - shown) * 100 > (long)pct * (max - min) ? value : shown;

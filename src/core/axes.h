@@ -12,6 +12,9 @@ struct AxisCurve {
     bool invert = false;
 };
 
+// What a throttle dial does (lower "i" dial 0x33, upper "E" dial 0x34). The plugin drives it from the dial's steady value.
+enum class DialUse { None = 0, SpeedBrake = 1, Zoom = 2 };
+
 struct AxisSettings {
     // true: the plugin writes the stick and twist (roll, pitch, yaw) into X-Plane, replacing its own joystick reading.
     bool overrideXPlane = false;
@@ -36,6 +39,9 @@ struct AxisSettings {
     // A high slider reading is flaps fully deployed, a low one flaps up; slider.invert ("Invert flaps") swaps that.
     // On the X52, with it off (as in the ready-made profiles), the slider pushed away from you deploys the flaps.
     bool sliderFlaps = false;
+    // The dials: SpeedBrake sets the speed brake in four steps (armed, retracted, half, full), Zoom zooms the view a
+    // step at a time. lowerRotary.invert / upperRotary.invert turn them the other way.
+    DialUse lowerUse = DialUse::SpeedBrake, upperUse = DialUse::Zoom;
 };
 
 // The X-Plane value a stick axis replaces.
@@ -53,6 +59,8 @@ const AxisCurve& axisCurve(const AxisSettings& s, int usage);
 
 // The curve of a dial (0x33 lower rotary, 0x34 upper rotary, 0x36 slider); nullptr for anything else.
 AxisCurve* dialCurve(AxisSettings& s, int usage);
+// What a dial does (0x33 lower, 0x34 upper); nullptr for anything else.
+DialUse* dialUse(AxisSettings& s, int usage);
 // The value to show: `shown` stays until `value` is more than pct % of the travel away; the ends are always reached.
 long steadyValue(long shown, long value, long min, long max, int pct);
 
