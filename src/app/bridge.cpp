@@ -59,6 +59,10 @@ int* field(Profile& p, const std::string& n, int& lo, int& hi) {
     if (n == "steady_upper") { lo = 0; hi = 20; return &p.axes.upperRotary.deadzone; }
     if (n == "steady_slider") { lo = 0; hi = 20; return &p.axes.slider.deadzone; }
     if (n == "rotary_zoom_steps") { lo = 12; hi = 480; return &p.axes.zoomSteps; }
+    if (n == "rotary_lower_from") { lo = 0; hi = 100; return &p.axes.lowerFrom; }
+    if (n == "rotary_lower_to") { lo = 0; hi = 100; return &p.axes.lowerTo; }
+    if (n == "rotary_upper_from") { lo = 0; hi = 100; return &p.axes.upperFrom; }
+    if (n == "rotary_upper_to") { lo = 0; hi = 100; return &p.axes.upperTo; }
     return nullptr;
 }
 
@@ -80,7 +84,7 @@ bool* flag(Profile& p, const std::string& n) {
     return nullptr;
 }
 
-// rotary_lower / rotary_upper: what the dial does (DialUse: 0 nothing, 1 speed brake, 2 zoom).
+// rotary_lower / rotary_upper: what the dial does (DialUse: 0 nothing, 1 speed brake, 2 zoom, 3..8 lever jobs).
 DialUse* dialUseByName(Profile& p, const std::string& n) {
     return n == "rotary_lower" ? &p.axes.lowerUse : n == "rotary_upper" ? &p.axes.upperUse : nullptr;
 }
@@ -134,6 +138,11 @@ void x52_tick(void) {
 int x52_connected(void) { return agent && agent->connected(); }
 int x52_is_pro(void) { return agent && agent->isPro(); }
 int x52_plugin_active(void) { return agent && agent->pluginActive(); }
+const char* x52_dial_use_name(int use) {
+    return dialUseName(use >= 0 && use < kDialUseCount ? (DialUse)use : DialUse::None);
+}
+int x52_dial_use_count(void) { return kDialUseCount; }
+
 int x52_plugin_enabled(void) { return !(agent && pluginOff(agent->dir())); }
 void x52_set_plugin_enabled(int on) {
     if (agent) setPluginOff(agent->dir(), on == 0);
@@ -776,7 +785,7 @@ void x52_set(const char* name, int value) {
     std::string n = name;
     agent->change([=](Profile& p) {
         int lo, hi;
-        if (DialUse* u = dialUseByName(p, n)) *u = (DialUse)std::max(0, std::min(2, value));
+        if (DialUse* u = dialUseByName(p, n)) *u = (DialUse)std::max(0, std::min(kDialUseCount - 1, value));
         else if (int* f = field(p, n, lo, hi)) *f = std::max(lo, std::min(hi, value));
         else if (bool* b = flag(p, n)) *b = value != 0;
     });

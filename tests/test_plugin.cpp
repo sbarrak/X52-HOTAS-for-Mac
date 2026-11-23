@@ -645,12 +645,48 @@ TEST(the_window_cycles_a_dials_job_and_saves_it) {
     sim().frame();
     CHECK(gApp->profile.axes.lowerUse == DialUse::Zoom);
     CHECK(has(slurp(gApp->store.pathFor(gApp->profileKey())), "rotary_lower = 2"));
-    CHECK(sim().clickText("Zoom", 0, true));                 // -> nothing
-    sim().frame();
-    CHECK(gApp->profile.axes.lowerUse == DialUse::None);
+    const char* next[] = {"Zoom", "Prop", "Mixture", "Rudder trim", "Aileron trim", "Cowl flaps", "Carb heat"};
+    for (int i = 0; i < 7; ++i) {                           // every job in turn...
+        CHECK(sim().clickText(next[i], 0, true));
+        sim().frame();
+        CHECK_EQ((int)gApp->profile.axes.lowerUse, (i + 3) % kDialUseCount);
+    }
+    CHECK(gApp->profile.axes.lowerUse == DialUse::None);    // ...then nothing
+    CHECK(has(slurp(gApp->store.pathFor(gApp->profileKey())), "rotary_lower = 0"));
     CHECK(sim().clickText("Nothing", 0, true));              // -> speed brake again
     sim().frame();
     CHECK(gApp->profile.axes.lowerUse == DialUse::SpeedBrake);
+    gApp->profile.axes = AxisSettings();
+    gApp->profileChanged();
+}
+
+// Clicks the "+" (plus) or "-" of the stepper labelled `label`.
+static bool clickStepper(const std::string& label, bool plus) {
+    int signs = 0;
+    for (const DrawnText& d : sim().drawn) {
+        if (d.text == label) return sim().clickText(plus ? "+" : "-", signs, true);
+        if (d.text == (plus ? "+" : "-")) ++signs;
+    }
+    return false;
+}
+
+TEST(a_lever_dial_has_a_from_to_range_in_the_window_and_says_when_it_waits) {
+    leverDial(DialUse::Mixture);
+    sim().datarefs[kMixture] = 0.2;                        // the dial rests at half way: away from it
+    gApp->resetDials();
+    gApp->profileChanged();
+    if (!sim().windowVisible) XPLMCommandOnce(XPLMFindCommand("x52pro/toggle_window"));
+    sim().frame();
+    CHECK(sim().clickText("Axes", 0, true));
+    sim().frame();
+    CHECK(sim().sees("Turn the dial to"));                  // resting away from X-Plane's mixture: waiting
+    CHECK(clickStepper("From", true));
+    sim().frame();
+    CHECK(clickStepper("To", false));
+    sim().frame();
+    CHECK_EQ(gApp->profile.axes.lowerFrom, 5);
+    CHECK_EQ(gApp->profile.axes.lowerTo, 95);
+    CHECK(has(slurp(gApp->store.pathFor(gApp->profileKey())), "rotary_lower_range = 5 95"));
     gApp->profile.axes = AxisSettings();
     gApp->profileChanged();
 }

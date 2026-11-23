@@ -1356,10 +1356,8 @@ void drawAxesTab(const Rect& area) {
         text(vr.l, vr, val);
         stepper("Steady", c->deadzone, " %", 0, 20, 1, &c->deadzone);
         if (const DialUse* use = dialUse(a.profile.axes, usage)) {   // the dial's job, and which way it turns
-            const char* name = *use == DialUse::SpeedBrake ? "Speed brake" : *use == DialUse::Zoom ? "Zoom" : "Nothing";
-            button(rc.take(100), name, [usage, use] {
-                DialUse next = *use == DialUse::SpeedBrake ? DialUse::Zoom : *use == DialUse::Zoom ? DialUse::None : DialUse::SpeedBrake;
-                gApp->setDialUse(usage, next);
+            button(rc.take(110), dialUseName(*use), [usage, use] {   // every job in turn, then nothing
+                gApp->setDialUse(usage, (DialUse)(((int)*use + 1) % kDialUseCount));
             }, *use != DialUse::None);
             button(rc.take(90), c->invert ? "[x] Invert" : "[  ] Invert", [usage, c] {
                 c->invert = !c->invert;
@@ -1381,13 +1379,46 @@ void drawAxesTab(const Rect& area) {
         }
         rc.t -= kRow + kGap;
         if (const DialUse* use = dialUse(a.profile.axes, usage)) {   // X-Plane doing the same job wins: say so
-            bool brake = *use == DialUse::SpeedBrake;
-            if (*use != DialUse::None && a.xplaneDrives(brake ? kXpAxisSpeedbrakes : kXpAxisViewZoom)) {
+            const LeverJob* lever = leverJob(*use);
+            int xpAxis = *use == DialUse::SpeedBrake ? kXpAxisSpeedbrakes
+                         : *use == DialUse::Zoom     ? kXpAxisViewZoom
+                         : lever                     ? lever->xpAxis
+                                                     : 0;
+            if (xpAxis && a.xplaneDrives(xpAxis)) {
                 r = {area.l + 110, rc.t, area.r, rc.t - kRow};
-                std::string note = std::string("X-Plane also uses a dial for ") + (brake ? "speed brakes" : "zoom") +
-                                   ": set it to None in X-Plane's Joystick settings.";
+                std::string job = *use == DialUse::SpeedBrake ? "speed brakes" : *use == DialUse::Zoom ? "zoom" : dialUseName(*use);
+                std::string note = "X-Plane also uses a dial for " + job + ": set it to None in X-Plane's Joystick settings.";
                 text(r.l, r, fit(note, r.w()), kAmber);
                 rc.t -= kRow;
+            } else if (lever) {   // a lever: the part of its range a full turn covers, and whether it waits
+                bool lower = usage == 0x33;
+                int* from = lower ? &a.profile.axes.lowerFrom : &a.profile.axes.upperFrom;
+                int* to = lower ? &a.profile.axes.lowerTo : &a.profile.axes.upperTo;
+                auto rangeStepper = [&](const char* label, int* field) {
+                    Rect l = rc.take(70);
+                    text(l.l, l, label, kDim);
+                    for (int sign : {-1, 1}) {
+                        button(rc.take(26), sign < 0 ? "-" : "+", [usage, field, sign] {
+                            *field = std::max(0, std::min(100, *field + 5 * sign));
+                            gApp->setDialUse(usage, *dialUse(gApp->profile.axes, usage));   // waits afresh, and saves
+                        });
+                        if (sign < 0) {
+                            Rect v = rc.take(46);
+                            std::string t = std::to_string(*field) + " %";
+                            text(v.l + (v.w() - textW(t)) / 2, v, t);
+                        }
+                    }
+                };
+                rc.x = area.l + 110;
+                rangeStepper("From", from);
+                rangeStepper("To", to);
+                rc.t -= kRow + kGap;
+                std::string note = a.leverNote(usage);
+                if (!note.empty()) {
+                    r = {area.l + 110, rc.t, area.r, rc.t - kRow};
+                    text(r.l, r, fit(note, r.w()), kDim);
+                    rc.t -= kRow;
+                }
             }
         }
         if (usage == 0x34 && (a.profile.axes.lowerUse == DialUse::Zoom || a.profile.axes.upperUse == DialUse::Zoom)) {

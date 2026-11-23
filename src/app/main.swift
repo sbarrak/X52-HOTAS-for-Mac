@@ -2006,14 +2006,24 @@ struct DialSteadyRow: View {
             Stepper("Steady \(st.wrappedValue) %", value: st, in: 0...20).frame(width: 170, alignment: .leading)
             if key != "slider" {   // the dials: their job in X-Plane, and which way they turn
                 Picker("", selection: Binding<Int>(get: { m.get("rotary_\(key)") }, set: { m.set("rotary_\(key)", $0) })) {
-                    Text("Nothing").tag(0)
-                    Text("Speed brake").tag(1)
-                    Text("Zoom").tag(2)
+                    ForEach(0..<Int(x52_dial_use_count()), id: \.self) { j in
+                        Text(String(cString: x52_dial_use_name(Int32(j)))).tag(j)
+                    }
                 }
                 .labelsHidden().frame(width: 130)
                 Toggle("Invert", isOn: Binding(get: { m.get("rotary_\(key)_invert") != 0 }, set: { m.set("rotary_\(key)_invert", $0 ? 1 : 0) }))
                     .disabled(m.get("rotary_\(key)") == 0)
             }
+        }
+        if key != "slider" && m.get("rotary_\(key)") >= 3 {   // a lever job: the part of its range a full turn covers
+            let from = Binding<Int>(get: { m.get("rotary_\(key)_from") }, set: { m.set("rotary_\(key)_from", $0) })
+            let to = Binding<Int>(get: { m.get("rotary_\(key)_to") }, set: { m.set("rotary_\(key)_to", $0) })
+            HStack(spacing: 12) {
+                Text("").frame(width: 120)
+                Stepper("From \(from.wrappedValue) %", value: from, in: 0...100, step: 5).frame(width: 150, alignment: .leading)
+                Stepper("To \(to.wrappedValue) %", value: to, in: 0...100, step: 5).frame(width: 150, alignment: .leading)
+            }
+            .help("A full turn of the dial covers From..To percent of the job's range for this aircraft. From above To turns it the other way.")
         }
     }
 }
@@ -2062,6 +2072,8 @@ struct AxesTab: View {
                         .help("How far one full turn of a dial set to Zoom zooms the view, in steps of X-Plane's own zoom. More is a stronger zoom. You can change it while flying.")
                 }
             }
+            Text("Smooth jobs (prop, mixture, trims, cowl flaps, carb heat) cover the game's range for this aircraft (From/To narrow it). The plugin waits until you turn the dial to X-Plane's own value, so nothing jumps.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Text("The lower dial (i) and the E dial can set the speed brake in four steps (Armed, Retracted, Half, Full) or zoom the view. The plugin only acts while you turn the dial, so buttons, the mouse and the auto-spoilers still work. Set the dial to None in X-Plane's Joystick settings if X-Plane uses it too.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             DialSteadyRow(m: m, title: "Slider", key: "slider", usage: 0x36)
