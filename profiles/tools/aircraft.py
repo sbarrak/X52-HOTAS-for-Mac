@@ -3,12 +3,14 @@
 One table of features per aircraft; the button layout of every mode is worked out from those
 features, so all aircraft follow the same idea:
 
-  Mode 1  Ground & take-off   (power, lights, engine levers)
-  Mode 2  Approach & landing  (flaps, speedbrake, reversers, autobrake, trim on the wheel)
-  Mode 3  Cruise & autopilot  (autopilot modes and values)  - "Combat" for the fighters
+  Mode 1  Takeoff   (power, lights, engine levers, gear)
+  Mode 2  Cruise    (autopilot modes and values; all the weapons for the fighters: "Combat")
+  Mode 3  Landing   (flaps, speedbrake, reversers on D, autobrake, gear, approach, trim on the wheel)
 
 The pinkie switch is NOT a shift here: it is a normal button (wheel brakes while held).
-Buttons marked ANY do the same thing in all three modes.
+Buttons marked ANY do the same thing in all three modes. The parking brake is a hold on A (tap: gear or
+landing light). The autopilot is one on/off button (B) in every mode. The Fire button shoots in the fighters.
+The gear is on A in takeoff and landing only: in cruise there is no gear button.
 """
 
 # Stick button numbers as the plugin numbers them (src/core/profile.cpp, kButtonNames).
@@ -98,10 +100,19 @@ def S(c):
 
 def mode_titles(f):
     if f["kind"] == "fighter":
-        return {1: "Ground & take-off", 2: "Approach & landing", 3: "Combat"}
+        return {1: "Takeoff", 2: "Combat", 3: "Landing"}
     if f["kind"] == "glider":
-        return {1: "Launch & tow", 2: "Approach & landing", 3: "Soaring"}
-    return {1: "Ground & take-off", 2: "Approach & landing", 3: "Cruise & autopilot" if f["ap"] else "Cruise & systems"}
+        return {1: "Launch & tow", 2: "Soaring", 3: "Approach & landing"}
+    return {1: "Takeoff", 2: "Cruise & autopilot" if f["ap"] else "Cruise & systems", 3: "Landing"}
+
+
+def mode_names(f):
+    """What the stick's screen says after the mode dial moves (editable in the app)."""
+    if f["kind"] == "fighter":
+        return {1: "Takeoff", 2: "Combat", 3: "Landing"}
+    if f["kind"] == "glider":
+        return {1: "Launch", 2: "Soaring", 3: "Landing"}
+    return {1: "Takeoff", 2: "Cruise", 3: "Landing"}
 
 
 def layout(f):
@@ -109,25 +120,28 @@ def layout(f):
     k = f["kind"]
     jetlike = k in ("jet", "airliner", "fighter")
     L = {ANY: {}, 1: {}, 2: {}, 3: {}}
-    any_, m1, m2, m3 = L[ANY], L[1], L[2], L[3]
+    any_, m1, m2, m3 = L[ANY], L[1], L[2], L[3]   # m2 is cruise, m3 is landing
 
     # ---- every mode
     if k == "fighter":
         any_[TRIGGER] = ("Guns", S("weapons/fire_guns"))
         any_[TRIGGER2] = ("Fire weapon", S("weapons/fire_any_armed"))
+        any_[FIRE] = ("Fire weapon", S("weapons/fire_any_armed"))
     elif f["ap"]:
         any_[TRIGGER] = ("AP disconnect", S("autopilot/servos_off_any"))
         any_[TRIGGER2] = ("TOGA", S("autopilot/take_off_go_around")) if f["at"] else ("Contact ATC", S("operation/contact_atc"))
     else:
         any_[TRIGGER] = ("Contact ATC", S("operation/contact_atc"))
-    any_[FIRE] = ("Parking brake", S("flight_controls/brakes_toggle_max"))
     any_[PINKIE] = ("Brakes (hold)", S("flight_controls/brakes_regular"))
-    if f["gear"]:
-        any_[A] = ("Gear up/down", S("flight_controls/landing_gear_toggle"))
-    elif k == "glider":
-        any_[A] = ("Tow release", S("flight_controls/glider_tow_release"))
-    else:
-        any_[A] = ("Landing light", S("lights/landing_lights_toggle"))
+    # A: tap = gear (takeoff and landing; cruise has the landing light), hold = parking brake, in every mode.
+    # The hold is added to each mode's A below (a binding made for one mode hides the ANY one, hold included).
+    for mode in (1, 2, 3):
+        if f["gear"] and mode != 2:
+            L[mode][A] = ("Gear up/down", S("flight_controls/landing_gear_toggle"))
+        elif k == "glider":
+            L[mode][A] = ("Tow release", S("flight_controls/glider_tow_release"))
+        else:
+            L[mode][A] = ("Landing light", S("lights/landing_lights_toggle"))
     # The flaps are on the slider (slider_flaps). B and C: autopilot aircraft get them per mode (below).
     if f["ap"]:
         pass
@@ -147,12 +161,10 @@ def layout(f):
         any_[B] = ("Magnetos both", S("magnetos/magnetos_both_1"))
         any_[C] = ("Starter (hold)", S("starters/engage_starter_1"))
     if f["ap"]:
-        L[1][B] = ("AP on", S("autopilot/servos_on"))
-        L[1][C] = ("AP off", S("autopilot/servos_off_any"))
-        L[2][B] = ("AP approach", S("autopilot/approach"))
-        L[2][C] = ("TOGA", S("autopilot/take_off_go_around")) if f["at"] else ("AP off", S("autopilot/servos_off_any"))
-        L[3][B] = ("AP ALT hold", S("autopilot/altitude_hold"))
-        L[3][C] = ("AP VS", S("autopilot/vertical_speed"))
+        any_[B] = ("AP on/off", S("autopilot/servos_toggle"))   # one button in every mode
+        m1[C] = ("Flight director", S("autopilot/fdir_toggle"))
+        m2[C] = ("AP ALT hold", S("autopilot/altitude_hold"))
+        m3[C] = ("AP approach", S("autopilot/approach"))
     if k != "ultralight":
         if k == "heli":
             any_[SHAT_U] = ("Cyclic trim fwd", S("flight_controls/pitch_trim_down"))
@@ -251,109 +263,115 @@ def layout(f):
     m1[SCROLL_B] = ("Zoom out", S("general/zoom_out"))
     m1[SCROLL_C] = ("Chase view", S("view/chase"))
 
-    # ---- Mode 2: approach & landing
-    if f["speedbrake"]:
-        m2[D] = ("Speedbrake", S("flight_controls/speed_brakes_toggle"))
+    # ---- Mode 3: landing (approach, flaps, speedbrake, reverse, autobrake)
+    if f["rev"]:
+        m3[D] = ("Reverse (hold)", S("engines/thrust_reverse_hold"))   # the lights are the same lights as in mode 1: on the hat, left
+    elif f["speedbrake"]:
+        m3[D] = ("Speedbrake", S("flight_controls/speed_brakes_toggle"))
     elif k != "glider":
-        m2[D] = ("Taxi light", S("lights/taxi_lights_toggle")) if not f["gear"] else ("Landing lights", S("lights/landing_lights_toggle"))
+        m3[D] = ("Taxi light", S("lights/taxi_lights_toggle")) if not f["gear"] else ("Landing lights", S("lights/landing_lights_toggle"))
     if f["hook"]:
-        m2[E] = ("Tail hook", S("flight_controls/tailhook_toggle"))
-    elif f["ap"]:
-        m2[E] = ("AP approach", S("autopilot/approach"))
+        m3[E] = ("Tail hook", S("flight_controls/tailhook_toggle"))
     elif f["tailwheel"]:
-        m2[E] = ("Tailwheel lock", S("flight_controls/tail_wheel_lock_toggle"))
+        m3[E] = ("Tailwheel lock", S("flight_controls/tail_wheel_lock_toggle"))
     elif k not in ("glider",):
-        m2[E] = ("Strobes", S("lights/strobe_lights_toggle"))
+        m3[E] = ("Strobes", S("lights/strobe_lights_toggle"))
     if f["autobrake"]:
-        m2[T1U] = ("Autobrake up", S("flight_controls/brakes_up_auto"))
-        m2[T1D] = ("Autobrake down", S("flight_controls/brakes_dn_auto"))
+        m3[T1U] = ("Autobrake up", S("flight_controls/brakes_up_auto"))
+        m3[T1D] = ("Autobrake down", S("flight_controls/brakes_dn_auto"))
     elif f["ap"]:
-        m2[T1U] = ("AP NAV", S("autopilot/NAV"))
-        m2[T1D] = ("AP HDG", S("autopilot/heading"))
+        m3[T1U] = ("AP NAV", S("autopilot/NAV"))
+        m3[T1D] = ("AP HDG", S("autopilot/heading"))
     elif k != "glider":
-        m2[T1U] = ("Landing lt on", S("lights/landing_lights_on"))
-        m2[T1D] = ("Landing lt off", S("lights/landing_lights_off"))
+        m3[T1U] = ("Landing lt on", S("lights/landing_lights_on"))
+        m3[T1D] = ("Landing lt off", S("lights/landing_lights_off"))
     if f["speedbrake"] and k != "fighter":
-        m2[T2U] = ("Spoilers arm", S("flight_controls/speed_brakes_arm_toggle"))
-        m2[T2D] = ("Spoilers retract", S("flight_controls/speed_brakes_up_all"))
+        m3[T2U] = ("Spoilers arm", S("flight_controls/speed_brakes_arm_toggle"))
+        m3[T2D] = ("Spoilers retract", S("flight_controls/speed_brakes_up_all"))
     elif k in ("piston", "turboprop", "heli", "jet"):
-        m2[T2U] = ("Fuel pumps on", S("fuel/fuel_pumps_on"))
-        m2[T2D] = ("Fuel pumps off", S("fuel/fuel_pumps_off"))
+        m3[T2U] = ("Fuel pumps on", S("fuel/fuel_pumps_on"))
+        m3[T2D] = ("Fuel pumps off", S("fuel/fuel_pumps_off"))
     if f["carb"] and k != "ultralight":
-        m2[T3U] = ("Carb heat on", S("engines/carb_heat_on"))
-        m2[T3D] = ("Carb heat off", S("engines/carb_heat_off"))
+        m3[T3U] = ("Carb heat on", S("engines/carb_heat_on"))
+        m3[T3D] = ("Carb heat off", S("engines/carb_heat_off"))
     elif k not in ("glider", "ultralight"):
-        m2[T3U] = ("Pitot heat on", S("ice/pitot_heat0_on"))
-        m2[T3D] = ("Pitot heat off", S("ice/pitot_heat0_off"))
+        m3[T3U] = ("Pitot heat on", S("ice/pitot_heat0_on"))
+        m3[T3D] = ("Pitot heat off", S("ice/pitot_heat0_off"))
     if f["speedbrake"]:
-        m2[THAT_U] = ("Speedbrake in", S("flight_controls/speed_brakes_up_one"))
-        m2[THAT_D] = ("Speedbrake out", S("flight_controls/speed_brakes_down_one"))
+        m3[THAT_U] = ("Speedbrake in", S("flight_controls/speed_brakes_up_one"))
+        m3[THAT_D] = ("Speedbrake out", S("flight_controls/speed_brakes_down_one"))
         if f["rev"]:
-            m2[THAT_L] = ("Reverse (hold)", S("engines/thrust_reverse_hold"))
+            m3[THAT_L] = ("Landing lights", S("lights/landing_lights_toggle"))
         if f["at"]:
-            m2[THAT_R] = ("Autothrottle", S("autopilot/autothrottle_toggle"))
+            m3[THAT_R] = ("Autothrottle", S("autopilot/autothrottle_toggle"))
     else:
-        engine_hat(m2)
+        engine_hat(m3)
         if f["rev"]:
-            m2[THAT_L] = ("Reverse (hold)", S("engines/thrust_reverse_hold"))
-    trim_wheel(m2)
+            m3[THAT_L] = ("Landing lights", S("lights/landing_lights_toggle"))
+    trim_wheel(m3)
 
-    # ---- Mode 3: cruise & autopilot / systems / combat
+    # ---- Mode 2: cruise (autopilot / systems) and combat (all the weapons)
     if k == "fighter":
-        m3[D] = ("Master arm on", S("weapons/master_arm_on"))
-        m3[E] = ("Master arm off", S("weapons/master_arm_off"))
-        m3[T1U] = ("Weapon next", S("weapons/weapon_select_up"))
-        m3[T1D] = ("Weapon prev", S("weapons/weapon_select_down"))
-        m3[T2U] = ("Flares", S("weapons/deploy_flares"))
-        m3[T2D] = ("Chaff", S("weapons/deploy_chaff"))
+        m2[D] = ("Master arm on", S("weapons/master_arm_on"))
+        m2[E] = ("Master arm off", S("weapons/master_arm_off"))
+        m2[T1U] = ("Weapon next", S("weapons/weapon_select_up"))
+        m2[T1D] = ("Weapon prev", S("weapons/weapon_select_down"))
+        m2[T2U] = ("Flares", S("weapons/deploy_flares"))
+        m2[T2D] = ("Chaff", S("weapons/deploy_chaff"))
         if f["sweep"]:
-            m3[T3U] = ("Wings forward", S("flight_controls/vector_sweep_forward"))
-            m3[T3D] = ("Wings aft", S("flight_controls/vector_sweep_aft"))
+            m2[T3U] = ("Wings forward", S("flight_controls/vector_sweep_forward"))
+            m2[T3D] = ("Wings aft", S("flight_controls/vector_sweep_aft"))
         else:
-            m3[T3U] = ("Fire mode +", S("weapons/fire_mode_up"))
-            m3[T3D] = ("Fire mode -", S("weapons/fire_mode_down"))
-        m3[THAT_U] = ("Target next", S("weapons/weapon_target_up"))
-        m3[THAT_D] = ("Target prev", S("weapons/weapon_target_down"))
-        m3[THAT_R] = ("Circle view", S("view/circle"))
-        m3[THAT_L] = ("Chase view", S("view/chase"))
-        trim_wheel(m3)
+            m2[T3U] = ("Fire mode +", S("weapons/fire_mode_up"))
+            m2[T3D] = ("Fire mode -", S("weapons/fire_mode_down"))
+        m2[THAT_U] = ("Target next", S("weapons/weapon_target_up"))
+        m2[THAT_D] = ("Target prev", S("weapons/weapon_target_down"))
+        m2[THAT_R] = ("Circle view", S("view/circle"))
+        m2[THAT_L] = ("Chase view", S("view/chase"))
+        trim_wheel(m2)
     elif f["ap"]:
-        m3[D] = ("AP on/off", S("autopilot/servos_toggle"))
-        m3[E] = ("Flight director", S("autopilot/fdir_toggle"))
-        m3[T1U] = ("AP HDG", S("autopilot/heading"))
-        m3[T1D] = ("AP NAV", S("autopilot/NAV"))
-        m3[T2U] = ("AP ALT hold", S("autopilot/altitude_hold"))
-        m3[T2D] = ("AP VS", S("autopilot/vertical_speed"))
+        m2[D] = ("AP wing leveler", S("autopilot/wing_leveler"))
+        m2[E] = ("Flight director", S("autopilot/fdir_toggle"))
+        m2[T1U] = ("AP HDG", S("autopilot/heading"))
+        m2[T1D] = ("AP NAV", S("autopilot/NAV"))
+        m2[T2U] = ("AP ALT hold", S("autopilot/altitude_hold"))
+        m2[T2D] = ("AP VS", S("autopilot/vertical_speed"))
         if f["at"]:
-            m3[T3U] = ("Autothrottle", S("autopilot/autothrottle_toggle"))
-            m3[T3D] = ("AP level change", S("autopilot/level_change"))
+            m2[T3U] = ("Autothrottle", S("autopilot/autothrottle_toggle"))
+            m2[T3D] = ("AP level change", S("autopilot/level_change"))
         else:
-            m3[T3U] = ("AP FLC", S("autopilot/level_change"))
-            m3[T3D] = ("AP approach", S("autopilot/approach"))
-        m3[THAT_U] = ("ALT select +", S("autopilot/altitude_up"))
-        m3[THAT_D] = ("ALT select -", S("autopilot/altitude_down"))
+            m2[T3U] = ("AP FLC", S("autopilot/level_change"))
+            m2[T3D] = ("AP approach", S("autopilot/approach"))
+        m2[THAT_U] = ("ALT select +", S("autopilot/altitude_up"))
+        m2[THAT_D] = ("ALT select -", S("autopilot/altitude_down"))
         if f["at"]:
-            m3[THAT_R] = ("Speed +", S("autopilot/airspeed_up"))
-            m3[THAT_L] = ("Speed -", S("autopilot/airspeed_down"))
+            m2[THAT_R] = ("Speed +", S("autopilot/airspeed_up"))
+            m2[THAT_L] = ("Speed -", S("autopilot/airspeed_down"))
         else:
-            m3[THAT_R] = ("VS +", S("autopilot/vertical_speed_up"))
-            m3[THAT_L] = ("VS -", S("autopilot/vertical_speed_down"))
-        m3[SCROLL_F] = ("HDG bug +", S("autopilot/heading_up"))
-        m3[SCROLL_B] = ("HDG bug -", S("autopilot/heading_down"))
-        m3[SCROLL_C] = ("HDG sync", S("autopilot/heading_sync"))
+            m2[THAT_R] = ("VS +", S("autopilot/vertical_speed_up"))
+            m2[THAT_L] = ("VS -", S("autopilot/vertical_speed_down"))
+        m2[SCROLL_F] = ("HDG bug +", S("autopilot/heading_up"))
+        m2[SCROLL_B] = ("HDG bug -", S("autopilot/heading_down"))
+        m2[SCROLL_C] = ("HDG sync", S("autopilot/heading_sync"))
     else:
         if k not in ("glider",):
-            m3[D] = ("Nav lights", S("lights/nav_lights_toggle"))
-            m3[E] = ("Carb heat", S("engines/carb_heat_toggle")) if f["carb"] else ("Pitot heat", S("ice/pitot_heat0_tog"))
-            m3[T1U] = ("Fuel tank left", S("fuel/fuel_tank_selector_lft_one"))
-            m3[T1D] = ("Fuel tank right", S("fuel/fuel_tank_selector_rgt_one"))
-            m3[T2U] = ("Fuel pumps on", S("fuel/fuel_pumps_on"))
-            m3[T2D] = ("Fuel pumps off", S("fuel/fuel_pumps_off"))
-            m3[T3U] = ("Strobes on", S("lights/strobe_lights_on"))
-            m3[T3D] = ("Strobes off", S("lights/strobe_lights_off"))
-        view_hat(m3)
-        trim_wheel(m3)
+            m2[D] = ("Nav lights", S("lights/nav_lights_toggle"))
+            m2[E] = ("Carb heat", S("engines/carb_heat_toggle")) if f["carb"] else ("Pitot heat", S("ice/pitot_heat0_tog"))
+            m2[T1U] = ("Fuel tank left", S("fuel/fuel_tank_selector_lft_one"))
+            m2[T1D] = ("Fuel tank right", S("fuel/fuel_tank_selector_rgt_one"))
+            m2[T2U] = ("Fuel pumps on", S("fuel/fuel_pumps_on"))
+            m2[T2D] = ("Fuel pumps off", S("fuel/fuel_pumps_off"))
+            m2[T3U] = ("Strobes on", S("lights/strobe_lights_on"))
+            m2[T3D] = ("Strobes off", S("lights/strobe_lights_off"))
+        view_hat(m2)
+        trim_wheel(m2)
     return L
+
+
+def holds(f):
+    """{layer: {button: (label, steps)}} - what a button does when held longer than the hold time (400 ms).
+    A: the parking brake, in every mode (its tap is the gear or the landing light)."""
+    return {m: {A: ("Parking brake", S("flight_controls/brakes_toggle_max"))} for m in (1, 2, 3)}
 
 
 # ---------------------------------------------------------------- lights, alarms, screen

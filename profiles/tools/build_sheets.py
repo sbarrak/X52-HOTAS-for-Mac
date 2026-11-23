@@ -100,8 +100,9 @@ class Sheet:
 
     # ---------------------------------------------------------------- callouts
     def entry(self, mode, button):
+        held = holds(self.f).get(mode, {}).get(button)
         if button in self.L[mode]:
-            return self.L[mode][button][0], True
+            return self.L[mode][button][0] + (" | hold: " + held[0] if held else ""), True
         if button in self.L[ANY]:
             return self.L[ANY][button][0], False
         return None, False

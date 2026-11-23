@@ -208,6 +208,9 @@ struct Profile {
     int clutchButton = 31;
     int holdMs = 400;
     int modeSettleMs = 100;   // the dial must rest this long on a position before the mode changes
+    // Each mode's name, shown on the stick's screen for modeBannerMs after the mode dial moves (0: not shown).
+    std::string modeNames[3] = {"Takeoff", "Cruise", "Landing"};
+    int modeBannerMs = 1500;
     int mfdBrightness = 127;
     int ledBrightness = 127;
     Color leds[3][kLedCount];          // per mode
@@ -233,7 +236,7 @@ struct Profile {
     Trigger masterLights;           // the same for every light
     BrightnessLink brightScreen;    // screen brightness follows a dataref (none chosen: mfdBrightness)
     BrightnessLink brightLights;    // the same for the lights (ledBrightness)
-    int version = 8;          // file format the profile was read from; 1 = older file (wheel bindings added on reading); below 3 the rules were reversed on reading (first rule wins now); below 4 untouched stick curves got the new defaults; below 5 the POV 1 look-around bindings were added on reading; below 6 the mouse nub pan bindings; below 7 the dials had no function lines (they get speed brake and zoom, the defaults); below 8 no dial ranges (0..100)
+    int version = 9;          // file format the profile was read from; 1 = older file (wheel bindings added on reading); below 3 the rules were reversed on reading (first rule wins now); below 4 untouched stick curves got the new defaults; below 5 the POV 1 look-around bindings were added on reading; below 6 the mouse nub pan bindings; below 7 the dials had no function lines (they get speed brake and zoom, the defaults); below 8 no dial ranges (0..100); below 9 modes 2 and 3 were approach/landing and cruise (swapped on reading unless the file has `mode_layout = 2`), the parking brake was on Fire (moved to a hold on A), and modes had no names
     bool clutchLatched = false;   // clutch toggles safe mode instead of holding it
     int clockOffset[2] = {0, 0};  // clock 2 and 3: minutes from GMT
     int clock1Source = 0;         // ClockSource: what clock 1 shows (GMT unless chosen)

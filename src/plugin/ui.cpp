@@ -1209,6 +1209,21 @@ void drawSettingsTab(const Rect& area) {
 
     rc.x = area.l;
     lab = rc.take(150);
+    text(lab.l, lab, "Show the mode name");
+    auto bumpBanner = [](int d) {
+        int& v = gApp->profile.modeBannerMs;
+        v = std::max(0, std::min(10000, v + d));
+        gApp->profileChanged();
+    };
+    button(rc.take(26), "-", [bumpBanner] { bumpBanner(-500); });
+    v = rc.take(70);
+    std::string bn = a.profile.modeBannerMs == 0 ? "never" : std::to_string(a.profile.modeBannerMs / 100 / 10) + "." + std::to_string(a.profile.modeBannerMs / 100 % 10) + " s";
+    text(v.l + (v.w() - textW(bn)) / 2, v, bn);
+    button(rc.take(26), "+", [bumpBanner] { bumpBanner(500); });
+    rc.t -= kRow + kGap;
+
+    rc.x = area.l;
+    lab = rc.take(150);
     text(lab.l, lab, "Page on the stick's screen");
     button(rc.take(26), "<", [] { gApp->stepPage(-1); });
     v = rc.take(130);

@@ -30,7 +30,9 @@ write macros, put radios and autopilot on the throttle's screen, and have the li
 **Buttons that do more**
 
 - **Three modes and a pinkie shift** – the mode dial (1/2/3) and the pinkie switch give every button up to six
-  different jobs.
+  different jobs. The ready-made profiles use them as phases of flight: takeoff, cruise, landing.
+- **The mode's name on the screen** – when the mode dial moves, the stick's screen says the mode's name (you can
+  rename the modes) for 1.5 seconds, or as long as you set.
 - **Macros** – one press runs several commands and keystrokes in a row, with waits between them.
 - **Tap versus hold** – a short press and a long press can do different things.
 - **Commands, datarefs and keystrokes** – a button can run any X-Plane command, set, toggle or add to a dataref, or
@@ -55,7 +57,7 @@ write macros, put radios and autopilot on the throttle's screen, and have the li
   the two wheels. Fast turns jump in bigger steps for heading, altitude and speed.
 - **Two radio layouts** – classic, one radio per screen (COM1 / NAV1, COM2 / NAV2, ADF), or side by side, with COM 1 and
   2, NAV 1 and 2 and ADF 1 and 2 together on one screen.
-- **A page order for each mode** – put the autopilot first in mode 3 and the radios first in mode 1; skip the pages
+- **A page order for each mode** – put the autopilot first in mode 2 and the radios first in mode 1; skip the pages
   you never use.
 - **Your own pages** – a tree of pages with text, live dataref values and links, built in a pages editor with a
   live preview of the three-line screen.

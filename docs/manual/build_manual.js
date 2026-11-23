@@ -201,7 +201,7 @@ add(table([2600, 6698], ["Layer", "When it applies"], [
   ["Mode 1, 2, 3 + Pinkie", "The same, while the pinkie switch is held. Up to six jobs per button in total."],
 ]));
 add(gap());
-add(p("The ready-made profiles use the modes like this: mode 1 for ground and take-off (battery, avionics, lights), mode 2 for approach and landing (landing lights, speedbrake, reversers, autobrake), mode 3 for cruise and autopilot. In them the pinkie is an ordinary button (wheel brakes while held); the **Pinkie switch works as Shift** setting in the plugin turns it into a real shift."));
+add(p("The ready-made profiles use the modes like this: mode 1 for takeoff (battery, avionics, lights, gear), mode 2 for cruise (the autopilot; all the weapons in the fighters), mode 3 for landing (flaps and approach jobs, speedbrake, autobrake, reverse thrust on D while held, gear). The autopilot is one on/off button (B) in every mode, holding A sets the parking brake (a tap is the gear, or the landing light in cruise), and the Fire button shoots in the fighters. In them the pinkie is an ordinary button (wheel brakes while held); the **Pinkie switch works as Shift** setting in the plugin turns it into a real shift."));
 add(h2("3.2  What a button can do"));
 add(p("Each button, in each layer, has two lists of steps: **When pressed**, and optionally **When held longer than 0.4 s**. A step is one of:"));
 add(bullet("**Command**: any X-Plane command, for example `sim/autopilot/servos_on`. Commands from add-on aircraft can be typed in full."));
@@ -288,6 +288,7 @@ add(...image("app-screen.png", "Figure 5. The Screen & clock tab."));
 add(bullet("**Screen brightness**: how bright the stick's screen is (never below 10 %)."));
 add(bullet("**Clock 1** shows GMT, the simulator's local time, the Mac's local time or a fixed time zone. **Clock 2** and **Clock 3** are set from GMT with a time zone offset. Each can be 12-hour or 24-hour. **Date order** is day-month-year, month-day-year or year-month-day."));
 add(bullet("On the stick, the **Start/Stop** and **Reset** buttons under the screen switch between the three clocks, and **Function** switches to the stopwatch. While X-Plane is not running, Clock 1 shows the Mac's own time instead of the simulator's."));
+add(bullet("**Mode names**: when the mode dial moves, the stick's screen says \"MODE 3\" and the mode's name (up to 16 characters; the ready-made profiles say Takeoff, Cruise, Landing) for the time under **Show the name for** (1.5 s by default, 0 turns it off), then goes back to the page you were on. Names and time belong to the profile."));
 add(bullet("**Latched clutch**: one press of the clutch (i) turns safe mode on, the next press turns it off. Safe mode applies in X-Plane: buttons only show their name on the screen, and the clutch and POV lights flash while it is on."));
 add(bullet("**Fast turns of the right wheel jump**: while changing heading, altitude, vertical speed, speed, OBS or a fine COM/NAV value, spinning the wheel quickly repeats each click (by default up to x10: heading moves 10 degrees, altitude 1000 ft). A slow turn still steps by one. **Fast jump** sets the factor."));
 add(h2("4.7  Pages"));
@@ -296,7 +297,7 @@ add(...image("app-pages.png", "Figure 6. The Pages tab."));
 add(p("**Radio screens** chooses the layout for the radio pages in this profile:"));
 add(bullet("**Classic**: one radio per screen (COM1 / NAV1, COM2 / NAV2, ADF)."));
 add(bullet("**Side by side**: COM 1+2, NAV 1+2 and ADF 1+2, each pair on one screen."));
-add(p("**Order for** chooses whether the order below applies to every mode or to one mode only, so that, for example, mode 3 can start with the autopilot page. Turning the mode dial to a mode whose order differs opens the first page of that mode's order. The eye shows or skips a page; a skipped page stays in the list (crossed out) and the left wheel passes it by."));
+add(p("**Order for** chooses whether the order below applies to every mode or to one mode only, so that, for example, mode 2 can start with the autopilot page. Turning the mode dial to a mode whose order differs opens the first page of that mode's order. The eye shows or skips a page; a skipped page stays in the list (crossed out) and the left wheel passes it by."));
 add(h2("4.8  Master & brightness"));
 add(p("The **master switch** keeps the screen, and separately every light, on only while a dataref has the value you choose, for example while the avionics are powered (**Use avionics power** fills that in; **Use battery** and **Always on** are there too). When the test is false the screen goes blank or the lights go dark. With no dataref chosen, or one X-Plane does not know, it stays on."));
 add(...image("app-master.png", "Figure 7. The Master & brightness tab: the screen and the lights follow avionics power."));

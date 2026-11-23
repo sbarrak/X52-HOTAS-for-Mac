@@ -915,7 +915,7 @@ TEST(clock_and_clutch_settings_survive_save_and_load) {
     CHECK(q.clock12h[1]);
     CHECK_EQ(q.dateFormat, 2);
     CHECK(q.com833);
-    CHECK_EQ(q.version, 8);
+    CHECK_EQ(q.version, 9);
 }
 
 TEST(out_of_range_clock_settings_are_pulled_into_range) {
@@ -939,7 +939,7 @@ TEST(profile_from_the_older_plugin_gains_the_wheel_bindings_once) {
     CHECK(!addWheelBindings(q));
     Profile again;
     CHECK(parse(serialize(q), again, &err));
-    CHECK_EQ(again.version, 8);
+    CHECK_EQ(again.version, 9);
 }
 
 TEST(profile_from_before_pov_1_gains_the_look_around_bindings_once) {
@@ -954,7 +954,7 @@ TEST(profile_from_before_pov_1_gains_the_look_around_bindings_once) {
     CHECK(!addLookBindings(q));
     Profile again;
     CHECK(parse(serialize(q), again, &err));
-    CHECK_EQ(again.version, 8);
+    CHECK_EQ(again.version, 9);
     CHECK(defaultProfile().exact(40, kLayerAny) != nullptr);
     // a current profile whose owner removed the look-around binding keeps it removed
     q.edit(40, kLayerAny).press.clear();
@@ -976,7 +976,7 @@ TEST(profile_from_before_the_nub_gains_the_pan_bindings_once) {
     CHECK(!addNubBindings(q));
     Profile again;
     CHECK(parse(serialize(q), again, &err));
-    CHECK_EQ(again.version, 8);
+    CHECK_EQ(again.version, 9);
     CHECK(defaultProfile().exact(kNubUp, kLayerAny) != nullptr);
 }
 
@@ -2107,13 +2107,79 @@ TEST(the_ready_made_profiles_light_the_throttle_and_let_the_plugin_drive_it) {
         if (n == "aircraft-Cessna_CitationX.x52") {
             CHECK(p.axes.sliderFlaps);
             CHECK(!p.axes.slider.invert);                     // Invert flaps off: slider away from you deploys them
-            CHECK_EQ(p.exact(4, 1)->press[0].text, std::string("sim/autopilot/servos_on"));   // B, mode 1
-            CHECK_EQ(p.exact(5, 2)->press[0].text, std::string("sim/autopilot/take_off_go_around"));   // C, mode 2
-            CHECK_EQ(p.exact(4, 3)->press[0].text, std::string("sim/autopilot/altitude_hold"));   // B, mode 3
+            // Modes: 1 takeoff, 2 cruise, 3 landing. One autopilot button (B) in every mode.
+            CHECK_EQ(p.exact(4, kLayerAny)->press[0].text, std::string("sim/autopilot/servos_toggle"));
+            CHECK(!p.exact(4, 1) && !p.exact(4, 2) && !p.exact(4, 3));
+            CHECK_EQ(p.exact(5, 2)->press[0].text, std::string("sim/autopilot/altitude_hold"));   // C, cruise
+            CHECK_EQ(p.exact(5, 3)->press[0].text, std::string("sim/autopilot/approach"));        // C, landing
+            CHECK_EQ(p.exact(7, 3)->press[0].text, std::string("sim/engines/thrust_reverse_hold"));   // D, landing: reverse
+            CHECK_EQ(p.modeNames[1], std::string("Cruise"));
+            CHECK_EQ(p.modeBannerMs, 1500);
+        }
+        // The parking brake is a hold on A in every mode (tap: gear, or the landing light in cruise); Fire is free.
+        CHECK(!p.exact(2, kLayerAny) || p.exact(2, kLayerAny)->press[0].text != "sim/flight_controls/brakes_toggle_max");
+        for (int mode = 1; mode <= 3 && n.compare(0, 9, "aircraft-") == 0; ++mode) {
+            const Binding* a = p.exact(3, mode);
+            CHECK(a != nullptr);
+            if (a) {
+                CHECK_EQ(a->hold.size(), (size_t)1);
+                if (!a->hold.empty()) CHECK_EQ(a->hold[0].text, std::string("sim/flight_controls/brakes_toggle_max"));
+            }
+        }
+        if (n == "aircraft-F-4.x52" || n == "aircraft-F-14D.x52") {
+            CHECK_EQ(p.exact(2, kLayerAny)->press[0].text, std::string("sim/weapons/fire_any_armed"));   // Fire shoots
+            CHECK_EQ(p.exact(7, 2)->press[0].text, std::string("sim/weapons/master_arm_on"));            // weapons: cruise mode
         }
     }
     if (d) closedir(d);
     CHECK_EQ(checked, 24);
+}
+
+TEST(an_older_profile_gets_takeoff_cruise_landing_and_the_parking_brake_on_a) {
+    // Before mode_layout 2: mode 2 was approach and landing, mode 3 cruise; the parking brake sat on Fire.
+    const std::string old =
+        "x52pro-profile 8\n"
+        "bind 2 any press \"Parking brake\" cmd:sim/flight_controls/brakes_toggle_max\n"
+        "bind 3 any press \"Gear\" cmd:sim/flight_controls/landing_gear_toggle\n"
+        "bind 4 2 press \"Flaps\" cmd:sim/flight_controls/flaps_down\n"
+        "bind 4 3 press \"AP ALT hold\" cmd:sim/autopilot/altitude_hold\n"
+        "bind 5 5 press \"Pinkie 2\" cmd:sim/a\n"
+        "bind 5 6 press \"Pinkie 3\" cmd:sim/b\n";
+    Profile p;
+    std::string err;
+    CHECK(parse(old, p, &err));
+    CHECK_EQ(p.exact(4, 2)->press[0].text, std::string("sim/autopilot/altitude_hold"));   // cruise is mode 2 now
+    CHECK_EQ(p.exact(4, 3)->press[0].text, std::string("sim/flight_controls/flaps_down"));
+    CHECK_EQ(p.exact(5, 5)->press[0].text, std::string("sim/b"));                       // and with the pinkie
+    CHECK_EQ(p.exact(5, 6)->press[0].text, std::string("sim/a"));
+    CHECK(p.exact(2, kLayerAny) == nullptr);                                            // Fire is free
+    const Binding* a = p.exact(3, kLayerAny);
+    CHECK(a != nullptr);
+    CHECK_EQ(a->press[0].text, std::string("sim/flight_controls/landing_gear_toggle"));
+    CHECK_EQ(a->hold[0].text, std::string("sim/flight_controls/brakes_toggle_max"));
+    CHECK_EQ(p.modeNames[0], std::string("Takeoff"));
+    CHECK_EQ(p.modeBannerMs, 1500);
+    // Written again it says so, and reading it back changes nothing (no second swap).
+    Profile q;
+    CHECK(parse(serialize(p), q, &err));
+    CHECK_EQ(q.exact(4, 2)->press[0].text, std::string("sim/autopilot/altitude_hold"));
+    CHECK_EQ(q.exact(4, 3)->press[0].text, std::string("sim/flight_controls/flaps_down"));
+    // A Fire button the user changed stays, and so does an A that has a hold of its own.
+    CHECK(parse("x52pro-profile 8\nbind 2 any press \"Zoom\" cmd:sim/general/zoom_in\n", q, &err));
+    CHECK(q.exact(2, kLayerAny) != nullptr);
+    CHECK(parse("x52pro-profile 8\nbind 2 any press \"Parking brake\" cmd:sim/flight_controls/brakes_toggle_max\n"
+                "bind 3 any press \"Gear\" cmd:sim/a\nbind 3 any hold \"Mine\" cmd:sim/b\n", q, &err));
+    CHECK(q.exact(2, kLayerAny) != nullptr);
+    CHECK_EQ(q.exact(3, kLayerAny)->hold[0].text, std::string("sim/b"));
+    // Mode names and the banner time are saved and read back; the time is kept between 0 and 10 s.
+    q.modeNames[2] = "Final";
+    q.modeBannerMs = 2500;
+    Profile r;
+    CHECK(parse(serialize(q), r, &err));
+    CHECK_EQ(r.modeNames[2], std::string("Final"));
+    CHECK_EQ(r.modeBannerMs, 2500);
+    CHECK(parse("x52pro-profile 9\nmode_layout = 2\nmode_banner_ms = 99999\n", r, &err));
+    CHECK_EQ(r.modeBannerMs, 10000);
 }
 
 TEST(the_slider_picks_the_nearest_flap_detent_and_is_saved) {
@@ -2331,7 +2397,7 @@ TEST(a_mode_can_have_its_own_wheel_order) {
 TEST(a_mode_with_only_hidden_pages_is_its_own_and_hiding_everything_keeps_buttons) {
     Profile q;
     std::string err;
-    CHECK(parse("x52pro-profile 3\nwheel_hidden = adf\nwheel_hidden.3 = com1 com2 adf dme xpdr ap vorhdg buttons brightness\n", q, &err));
+    CHECK(parse("x52pro-profile 3\nmode_layout = 2\nwheel_hidden = adf\nwheel_hidden.3 = com1 com2 adf dme xpdr ap vorhdg buttons brightness\n", q, &err));
     CHECK(q.modeWheel[2].own && q.modeWheel[2].order.empty());
     std::vector<int> three = wheelOrder(q, 3);
     CHECK_EQ((int)three.size(), 1);
@@ -2422,7 +2488,7 @@ TEST(dial_functions_round_trip_through_the_profile) {
     std::string text = serialize(p);
     CHECK(text.find("rotary_lower = 2\n") != std::string::npos);
     CHECK(text.find("rotary_lower_invert = 1\n") != std::string::npos);
-    CHECK(text.find("x52pro-profile 8\n") == 0);
+    CHECK(text.find("x52pro-profile 9\n") == 0);
     Profile q;
     std::string err;
     CHECK(parse(text, q, &err));

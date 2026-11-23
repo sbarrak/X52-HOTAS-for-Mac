@@ -7,7 +7,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from aircraft import (AIRCRAFT, ANY, LED_ORDER, alarms, axes, features, layout, mode_leds, pages, rules)
+from aircraft import (AIRCRAFT, ANY, LED_ORDER, alarms, axes, features, holds, layout, mode_leds, mode_names, pages, rules)
 
 OUT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
@@ -34,6 +34,11 @@ def profile_text(ac, acf):
     o.append("clutch_button = 31")
     o.append("hold_ms = 400")
     o.append("mode_settle_ms = 100")
+    o.append("# modes: 1 takeoff, 2 cruise, 3 landing; the screen says the mode's name for mode_banner_ms (0: never)")
+    o.append("mode_layout = 2")
+    for m, n in sorted(mode_names(f).items()):
+        o.append("mode_name_%d = %s" % (m, n))
+    o.append("mode_banner_ms = 1500")
     o.append("mfd_brightness = 127")
     o.append("led_brightness = 127")
     o.append("clutch_latched = 0")
@@ -62,10 +67,14 @@ def profile_text(ac, acf):
         o.append("master screen == 1 sim/cockpit2/switches/avionics_power_on")
         o.append("master lights == 1 sim/cockpit2/switches/avionics_power_on")
     L = layout(f)
+    H = holds(f)
     for layer in (ANY, 1, 2, 3):
         for button in sorted(L[layer]):
             label, steps = L[layer][button]
             o.append('bind %d %s press "%s" %s' % (button, "any" if layer == ANY else layer, label, steps))
+            if layer in H and button in H[layer]:
+                hl, hs = H[layer][button]
+                o.append('bind %d %s hold "%s" %s' % (button, layer, hl, hs))
     return "\n".join(o) + "\n"
 
 

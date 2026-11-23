@@ -62,7 +62,7 @@ TEST(saving_an_older_file_from_the_app_still_adds_the_wheel_bindings) {
     a.open(dir, "default");
     CHECK(a.change([](Profile& p) { p.ledBrightness = 90; }));
     std::string file = slurp(dir + "/default.x52");
-    CHECK(has(file, "x52pro-profile 8"));
+    CHECK(has(file, "x52pro-profile 9"));
     CHECK(has(file, "cmd:x52pro/mfd_select"));
     CHECK(has(file, "cmd:x52pro/mfd_page_prev"));
 }
@@ -366,6 +366,16 @@ TEST(each_throttle_dials_job_is_picked_in_the_app_and_saved) {
     x52_set("rotary_zoom_steps", 5000);                      // kept inside the allowed range
     CHECK_EQ(x52_get("rotary_zoom_steps"), 480);
     CHECK(has(slurp(dir + "/default.x52"), "rotary_zoom_steps = 480"));
+    // The mode names and how long the screen shows them (profile keys mode_name_N and mode_banner_ms).
+    CHECK_EQ(std::string(x52_mode_name(2)), std::string("Cruise"));
+    x52_set_mode_name(2, "Cruise \"x\" and a very long name");
+    CHECK_EQ(std::string(x52_mode_name(2)).size(), (size_t)16);
+    x52_set_mode_name(3, "Final");
+    CHECK(has(slurp(dir + "/default.x52"), "mode_name_3 = Final"));
+    CHECK_EQ(x52_get("mode_banner_ms"), 1500);
+    x52_set("mode_banner_ms", 99999);                        // kept inside 0..10000
+    CHECK_EQ(x52_get("mode_banner_ms"), 10000);
+    CHECK(has(slurp(dir + "/default.x52"), "mode_banner_ms = 10000"));
     CHECK_EQ(x52_get("rotary_lower_from"), 0);
     CHECK_EQ(x52_get("rotary_lower_to"), 100);
     x52_set("rotary_lower_from", 30);

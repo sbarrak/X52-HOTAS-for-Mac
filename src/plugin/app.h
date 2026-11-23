@@ -82,6 +82,8 @@ struct App : Host {
     double nextDeviceUpdate = 0; // set to 0 to refresh the stick's screen on the next frame
     std::string label;           // last button label, shown on the screen
     double labelUntil = 0;
+    std::string banner;          // the mode's name, shown on the screen after the mode dial moves
+    double bannerUntil = 0;
     int lastPressed = 0;         // most recent button pressed on the stick
     long pressSerial = 0;        // bumps on every press, so the window can follow
     std::string notice;          // one-line message for the window

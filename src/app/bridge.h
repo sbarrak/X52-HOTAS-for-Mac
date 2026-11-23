@@ -197,6 +197,10 @@ void x52_pages_watch(int on);                  // ask X-Plane for the pages' dat
 const char* x52_pages_source(void);            // the page and row lines of the profile file, as saved
 const char* x52_format_example(const char* format, double value);
 
+// The name the stick's screen shows after the mode dial moves to mode 1..3 (16 characters at most), and how long
+// (setting mode_banner_ms, 0..10000, 0 = never).
+const char* x52_mode_name(int mode);
+void x52_set_mode_name(int mode, const char* name);
 int x52_get(const char* name);
 void x52_set(const char* name, int value);
 
