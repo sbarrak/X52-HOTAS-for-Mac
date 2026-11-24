@@ -457,6 +457,9 @@ void loadCatalogs() {
 }  // namespace
 
 const char* x52_button_name(int b) { return buttonName(b); }
+int x52_button_led(int b) { return buttonLed(b); }
+int x52_press_seq(void) { return agent ? agent->pressSeq() : 0; }
+int x52_press_button(void) { return agent ? agent->pressButton() : 0; }
 const char* x52_layer_name(int l) { return layerName(l); }
 int x52_button_reserved(int b) { return agent && agent->profile().isReserved(b) ? 1 : 0; }
 int x52_bind_exists(int b, int l) { const Binding* x = bindAt(b, l); return x && !x->empty() ? 1 : 0; }

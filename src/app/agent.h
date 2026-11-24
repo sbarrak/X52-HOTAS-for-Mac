@@ -77,6 +77,8 @@ public:
     int mode() const { return engine_.mode(); }
     bool shift() const { return engine_.shift(); }
     const Lines& screen() const { return screen_; }
+    int pressSeq() const { return pressSeq_; }      // counts every press of a stick button
+    int pressButton() const { return pressButton_; }   // the button of the latest press
     std::string held() const;                       // names of the buttons held right now
     const std::string& moved() const { return moved_; }
 
@@ -163,6 +165,8 @@ private:
     Engine engine_;
     X52Device device_;
     X52Input input_;
+    int pressSeq_ = 0;
+    int pressButton_ = 0;
     bool started_ = false;
     bool pluginActive_ = false;
     bool deviceRunning_ = false;

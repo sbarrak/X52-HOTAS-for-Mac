@@ -126,8 +126,21 @@ final class Model: ObservableObject {
         if self[keyPath: path] != value { self[keyPath: path] = value }
     }
 
+    private var pressSeen = Int(x52_press_seq())
+    // A press on the stick picks that button on the Buttons tab (the mode dial and the pinkie cannot be programmed).
+    private func followPress() {
+        let seq = Int(x52_press_seq())
+        if seq == pressSeen { return }
+        let restarted = seq < pressSeen   // the counter starts again when the stick is reconnected
+        pressSeen = seq
+        if restarted { return }
+        let b = Int(x52_press_button())
+        if tab == 6 && b >= 1 && b <= 51 && x52_button_reserved(Int32(b)) == 0 && btn != b { btn = b }
+    }
+
     func tick() {
         x52_tick()
+        followPress()
         set(\.connected, x52_connected() != 0)
         set(\.isPro, x52_is_pro() != 0 || x52_connected() == 0)
         set(\.pluginActive, x52_plugin_active() != 0)
@@ -607,6 +620,7 @@ struct LightCell: View {
     @ObservedObject var m: Model
     let mode: Int
     let led: Int
+    var focus: FocusState<Int?>.Binding   // which cell has the keyboard: mode * 100 + light
     var body: some View {
         let single = x52_led_single(Int32(led)) != 0
         let current = m.led(mode, led)
@@ -628,7 +642,10 @@ struct LightCell: View {
         }
         .frame(width: 110, alignment: .leading)
         .arrowKeys(left: { m.setLed(mode, led, max(0, current - 1)) },
-                   right: { m.setLed(mode, led, min(single ? 1 : 3, current + 1)) })
+                   right: { m.setLed(mode, led, min(single ? 1 : 3, current + 1)) },
+                   up: { if led > 0 { focus.wrappedValue = mode * 100 + led - 1 } },
+                   down: { if led < Int(x52_led_count()) - 1 { focus.wrappedValue = mode * 100 + led + 1 } })
+        .focused(focus, equals: mode * 100 + led)
     }
 }
 
@@ -648,6 +665,7 @@ struct BrightnessRow: View {
 
 struct LightsTab: View {
     @ObservedObject var m: Model
+    @FocusState private var cell: Int?
     var body: some View {
         ScrollView {
         VStack(alignment: .leading, spacing: 10) {
@@ -676,7 +694,7 @@ struct LightsTab: View {
                 ForEach(0..<Int(x52_led_count()), id: \.self) { led in
                     GridRow {
                         Text(str(x52_led_title(Int32(led))))
-                        ForEach(1...3, id: \.self) { mode in LightCell(m: m, mode: mode, led: led) }
+                        ForEach(1...3, id: \.self) { mode in LightCell(m: m, mode: mode, led: led, focus: $cell) }
                     }
                 }
             }
@@ -1485,6 +1503,30 @@ struct ClearList: View {
     }
 }
 
+// The colour of the light that sits on a button, as set for the layer being edited (for Any mode: the stick's mode
+// now). Only a picture; the colours are set on the Lights tab. A button without a light leaves the space empty.
+struct ButtonLightDot: View {
+    @ObservedObject var m: Model
+    let button: Int
+    var body: some View {
+        let led = Int(x52_button_led(Int32(button)))
+        let layer = m.btnLayer
+        let mode = layer == 0 ? min(3, max(1, m.mode)) : (layer - 1) % 3 + 1
+        let pinkie = layer == 0 ? m.shift : layer >= 4
+        let color = led >= 0 ? Int(x52_get_led(Int32(mode), Int32(led), pinkie ? 1 : 0)) : 0
+        Group {
+            if led >= 0 {
+                Circle().fill(swatch[color])
+                    .overlay(Circle().stroke(Color.secondary.opacity(0.5), lineWidth: 0.5))
+                    .help("\(str(x52_led_title(Int32(led)))): \(led >= 0 && x52_led_single(Int32(led)) != 0 && color == 1 ? "on" : colorNames[color]), mode \(mode)\(pinkie ? " with the pinkie" : "")")
+            } else {
+                Color.clear
+            }
+        }
+        .frame(width: 11, height: 11)
+    }
+}
+
 struct ButtonsTab: View {
     @ObservedObject var m: Model
     var body: some View {
@@ -1541,6 +1583,7 @@ struct ButtonsTab: View {
                 Spacer()
             }
             HStack(alignment: .top, spacing: 14) {
+                ScrollViewReader { proxy in
                 ScrollView {
                     VStack(spacing: 0) {
                         ForEach(1...51, id: \.self) { b in
@@ -1548,6 +1591,7 @@ struct ButtonsTab: View {
                             let res = x52_button_reserved(Int32(b)) != 0
                             Button { m.btn = b } label: {
                                 HStack(spacing: 8) {
+                                    ButtonLightDot(m: m, button: b)
                                     Text("\(b)").frame(width: 24, alignment: .trailing).foregroundStyle(.secondary)
                                     Text(str(x52_button_name(Int32(b)))).lineLimit(1)
                                     Spacer(minLength: 4)
@@ -1559,10 +1603,13 @@ struct ButtonsTab: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .id(b)
                         }
                     }
                 }
-                .frame(width: 250)
+                .onChange(of: m.btn) { now in proxy.scrollTo(now) }   // a press on the stick may pick a row out of view
+                }
+                .frame(width: 275)
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.25)))
                 ScrollView {
                     editor.padding(.trailing, 8)

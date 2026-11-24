@@ -459,7 +459,13 @@ void Agent::tick() {
 
     std::vector<ButtonEvent> events;
     input_.drain(events);
-    for (const ButtonEvent& e : events) engine_.buttonEvent(e.button, e.down, t);
+    for (const ButtonEvent& e : events) {
+        if (e.down) {
+            pressButton_ = e.button;
+            ++pressSeq_;
+        }
+        engine_.buttonEvent(e.button, e.down, t);
+    }
     engine_.tick(t);
 
     for (const AxisEvent& e : input_.latestAxes()) {

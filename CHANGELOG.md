@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.3.7
+
+### Added
+- **Press a button on the stick to pick it in the Buttons tab.** With the Buttons tab open, pressing a stick
+  button selects it in the list and scrolls to it, so you do not have to find its number. The mode dial and the
+  pinkie are not programmable and select nothing; the layer in "Programming for" stays as it is. A press still does
+  what it does in X-Plane when the sim is running. (issue #90)
+- **Each button's light colour on the left of its row.** Fire, A, B, D, E, the three toggles, the stick's hat 2 and
+  the clutch show the colour of their light for the layer being edited (for Any mode: the mode the stick is in now,
+  with the pinkie if it is held). It is only a picture; the colours are still set on the Lights tab. The button
+  list is a little wider (250 to 275) to make room. (issue #90)
+- **Lights tab: the Up and Down arrows move between the lights.** Left and right still change the colour of the
+  light that has the keyboard (macOS 14 and newer); up and down now go to the light above or below in the same
+  mode column. (issue #90)
+
 ## 1.3.6
 
 ### Fixed
