@@ -452,6 +452,7 @@ void loadCatalogs() {
     if (xplaneDir.empty()) return;
     commandList = loadCommandCatalog(xplaneDir + "/Resources/plugins/Commands.txt");
     datarefList = loadDatarefCatalog(xplaneDir + "/Resources/plugins/DataRefs.txt");
+    loadAircraftCatalog(xplaneDir, commandList, datarefList);   // the add-on aircraft's own (F-14 weapon select, ...)
 }
 }  // namespace
 

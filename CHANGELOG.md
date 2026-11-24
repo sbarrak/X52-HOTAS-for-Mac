@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.3.5
+
+### Fixed
+- **The command and dataref search did not list the aircraft's own commands.** Symptom: the F-14's Weapon Select
+  Switch 1 to 4 (`laminar/f14/fltc/cs_wpn_select_switch1..4`) and the bomb release, which X-Plane's own button screen
+  shows, could not be found or picked in the app or the in-sim window; they had to be typed in full. Cause: the
+  search read only X-Plane's `Commands.txt` and `DataRefs.txt`, and add-on aircraft define their commands in their
+  own scripts, not in those files. Fix: the search also reads `create_command` and `create_dataref` from the
+  aircraft's xlua scripts (`Aircraft/**/plugins/xlua/scripts`, with the aircraft's name as the description), and the
+  names in DataRefTool's `drt_last_run_commandrefs.txt` and `drt_last_run_datarefs.txt` (X-Plane's last run, names
+  only), which also covers aircraft with compiled plugins. Aircraft that use neither, and have never been run with
+  DataRefTool, still need the full name typed. (issue #87)
+
 ## 1.3.4
 
 ### Changed

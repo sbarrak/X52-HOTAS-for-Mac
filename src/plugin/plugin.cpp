@@ -20,6 +20,7 @@
 #include "XPLMProcessing.h"
 #include "XPLMUtilities.h"
 
+#include "../core/catalog.h"
 #include "../core/keys.h"
 #include "../mac/keysend.h"
 #include "app.h"
@@ -1135,7 +1136,7 @@ void App::undoDropAircraftProfile() {
     reload();
 }
 
-void App::loadCommandList(const std::string& path) {
+void App::loadCommandList(const std::string& path, const std::string& xplaneDir) {
     commands.clear();
     std::ifstream f(path);
     std::string line;
@@ -1149,6 +1150,18 @@ void App::loadCommandList(const std::string& path) {
         while (!c.description.empty() && (c.description.back() == '\r' || c.description.back() == ' '))
             c.description.pop_back();
         c.haystack = lower(c.name + " " + c.description);
+        commands.push_back(c);
+    }
+    std::vector<CatalogEntry> aircraftCmds, aircraftRefs;   // the add-on aircraft's own commands (F-14 weapon select, ...)
+    loadAircraftCatalog(xplaneDir, aircraftCmds, aircraftRefs);
+    std::set<std::string> known;
+    for (const CommandInfo& c : commands) known.insert(c.name);
+    for (const CatalogEntry& e : aircraftCmds) {
+        if (!known.insert(e.name).second) continue;
+        CommandInfo c;
+        c.name = e.name;
+        c.description = e.info;
+        c.haystack = e.haystack;
         commands.push_back(c);
     }
     for (const char* own : {"x52pro/mfd_page_next", "x52pro/mfd_page_prev", "x52pro/mfd_up", "x52pro/mfd_down",
@@ -1276,7 +1289,7 @@ PLUGIN_API int XPluginStart(char* outName, char* outSig, char* outDesc) {
     gApp->store.dir = prefs + "/X52Pro";
 
     XPLMGetSystemPath(buf);
-    gApp->loadCommandList(std::string(buf) + "Resources/plugins/Commands.txt");
+    gApp->loadCommandList(std::string(buf) + "Resources/plugins/Commands.txt", buf);
 
     cmdPageNext = XPLMCreateCommand("x52pro/mfd_page_next", "X52 Pro: next screen page");
     cmdPagePrev = XPLMCreateCommand("x52pro/mfd_page_prev", "X52 Pro: previous screen page");

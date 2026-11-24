@@ -1260,6 +1260,53 @@ TEST(x_plane_command_and_dataref_lists_can_be_loaded_and_searched) {
     CHECK_EQ(loadCommandCatalog(dir + "/missing.txt").size(), (size_t)0);
 }
 
+TEST(aircraft_commands_and_datarefs_are_read_from_their_xlua_scripts) {
+    const char* tmp = getenv("TMPDIR");
+    std::string xp = std::string(tmp ? tmp : "/tmp") + "/x52aircraft";
+    std::string mk = "rm -rf '" + xp + "' && mkdir -p '" + xp + "/Aircraft/Laminar Research/Grumman F-14 Tomcat/plugins/xlua/scripts/sys' '" + xp +
+                     "/Aircraft/Other/Plain/plugins'";
+    CHECK(system(mk.c_str()) == 0);
+    {
+        std::ofstream f(xp + "/Aircraft/Laminar Research/Grumman F-14 Tomcat/plugins/xlua/scripts/sys/sys.lua");
+        f << "X = create_command(\"laminar/f14/fltc/cs_wpn_select_switch1\", \"Weapon Select Switch 1\", handler)\n"
+             "Y = create_command('laminar/f14/fltc/cs_bomb_release_button', 'Bomb Release', handler2)\n"
+             "Z = create_command(\"laminar/f14/fltc/cs_wpn_select_switch1\", \"duplicate\", handler)\n"
+             "W = create_dataref(\"laminar/f14/fltc/bomb_pos\", \"number\")\n"
+             "V = create_dataref(\"laminar/f14/fltc/sweep\", \"number\", sweep_handler)\n"
+             "local not_a_call = my_create_command(\"a/b\", \"c\", d)\n"
+             "create_command(variable, \"no literal name\", h)\n";
+    }
+    std::vector<CatalogEntry> cmds, refs;
+    cmds.push_back(CatalogEntry{"sim/lights/landing_lights_toggle", "Landing lights", true, "landing"});
+    loadAircraftCatalog(xp, cmds, refs);
+    CHECK_EQ(cmds.size(), (size_t)3);                         // ours + the two F-14 commands, the duplicate and the look-alikes left out
+    CHECK_EQ(cmds[1].name, std::string("laminar/f14/fltc/cs_wpn_select_switch1"));
+    CHECK_EQ(cmds[1].info, std::string("Grumman F-14 Tomcat: Weapon Select Switch 1"));
+    CHECK_EQ(refs.size(), (size_t)2);
+    CHECK(!refs[0].writable && refs[1].writable);             // a handler makes a dataref writable
+    auto found = searchCatalog(cmds, "weapon select", 10);
+    CHECK_EQ(found.size(), (size_t)1);
+    found = searchCatalog(cmds, "f-14", 10);                  // the aircraft's name is searchable
+    CHECK_EQ(found.size(), (size_t)2);
+    // DataRefTool's lists of the last run add what the scripts do not show, once per name.
+    CHECK(system(("mkdir -p '" + xp + "/Output/preferences'").c_str()) == 0);
+    {
+        std::ofstream c(xp + "/Output/preferences/drt_last_run_commandrefs.txt");
+        c << "laminar/f14/fltc/cs_wpn_select_switch1\nsome/plugin/compiled_command\n\nnot a name\n";
+        std::ofstream d(xp + "/Output/preferences/drt_last_run_datarefs.txt");
+        d << "some/plugin/compiled_dataref\n";
+    }
+    cmds.clear();
+    refs.clear();
+    loadAircraftCatalog(xp, cmds, refs);
+    CHECK_EQ(cmds.size(), (size_t)3);   // two F-14 commands from the scripts + one only DataRefTool knows
+    CHECK_EQ(cmds[2].name, std::string("some/plugin/compiled_command"));
+    CHECK_EQ(refs.size(), (size_t)3);
+    std::vector<CatalogEntry> none, none2;
+    loadAircraftCatalog(xp + "/missing", none, none2);
+    CHECK_EQ(none.size(), (size_t)0);
+}
+
 TEST(x_plane_joystick_slots_are_read_and_learned_from_presses) {
     auto a = parseButtonAssignments("I\n10 Version\n_joy_BUTN_use10 sim/flight_controls/brakes_toggle_regular\n"
                                     "_joy_BUTN_use11 sim/none/none\r\n_joy_BUTN_use9999 sim/x\n_joy_axis0 1\n");
