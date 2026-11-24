@@ -1313,7 +1313,9 @@ void drawAxesTab(const Rect& area) {
     const char* notes[] = {
         on ? "The plugin reads the stick and gives X-Plane the result. Dead zone, curve and inversion below apply."
            : "Stick off: X-Plane reads the stick itself (its Joystick settings, including its null zone).",
-        "Throttle is only taken over once it has been moved. Axis assignments in X-Plane can stay as they are.",
+        a.throttleNote.empty()
+            ? "Throttle is only taken over once it has been moved. Axis assignments in X-Plane can stay as they are."
+            : a.throttleNote.c_str(),
     };
     for (const char* n : notes) {
         r = {area.l, rc.t, area.r, rc.t - kRow};

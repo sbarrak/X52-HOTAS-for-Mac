@@ -182,6 +182,20 @@ bool leverMayWrite(LeverPickup& s, double target, double sim, double tol);
 std::vector<double> leverEngines(LeverPickup& s, const std::vector<double>& sim, double target, double lo, double hi,
                                  double eps);
 
+// The plugin's throttle beside X-Plane's autothrottle. While the autothrottle really works, the plugin lets go of the
+// throttle so the autothrottle can drive the power. Once it is off, the X52 lever takes over again only when it comes
+// within `tol` of the power the autothrottle left, or is moved past it, so the power never jumps to wherever the lever
+// happened to be.
+struct ThrottleHandover {
+    bool waiting = false;      // the autothrottle had the throttle: the lever must reach X-Plane's power first
+    bool seen = false;         // lastLever is set (since waiting began)
+    double lastLever = 0;
+};
+constexpr double kThrottlePickup = 0.02;   // 2 % of the throttle's travel
+// lever: the X52 lever's power (0..1, after its curve); sim: X-Plane's throttle handle. True: the plugin writes the
+// lever's power this frame.
+bool throttleMayWrite(ThrottleHandover& s, bool autothrottle, double lever, double sim, double tol = kThrottlePickup);
+
 // The flap handle (0 up .. 1 fully down) for a slider position 0..1: the nearest of the aircraft's `detents` stops
 // (0, 1/n, ..., 1), or the position itself when the aircraft reports no detents.
 double flapHandleFor(double slider, int detents);

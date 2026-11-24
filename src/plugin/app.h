@@ -167,6 +167,9 @@ public:
     void resetCalibration();
     bool axesOverridden = false;           // the plugin has set X-Plane's override flags
     bool joyOverridden = false;            // ... the stick's one (override_joystick) among them
+    bool thrOverridden = false;            // ... the throttle's one (override_throttles) among them
+    ThrottleHandover throttleHandover;     // X-Plane's autothrottle has the throttle, or had it and the lever must catch up
+    std::string throttleNote;              // what the window says about it ("" when the lever drives)
     double flapWritten = -1;               // the flap handle the slider last set (-1: not since the aircraft loaded)
     void applySliderFlaps();
     // The throttle's dials (speed brake in steps, zoom), driven from their steady values. The speed brake is written

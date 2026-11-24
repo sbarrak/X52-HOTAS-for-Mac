@@ -885,6 +885,70 @@ TEST(the_plugin_can_drive_the_throttle_alone_and_leave_the_stick_to_x_plane) {
     CHECK_EQ((int)d["sim/operation/override/override_throttles"], 0);   // handed back
 }
 
+TEST(the_autothrottle_drives_the_power_and_the_lever_takes_over_where_it_left_it) {
+    auto& d = sim().datarefs;
+    const char* thr = "sim/flightmodel/engine/ENGN_thro_use";
+    const char* handle = "sim/cockpit2/engine/actuators/throttle_ratio";
+    const char* ovr = "sim/operation/override/override_throttles";
+    const char* at = "sim/cockpit2/autopilot/autothrottle_on";
+    for (const char* n : {thr, handle, ovr, at}) d[n] = 0.0;
+    gApp->releaseAxes();
+    gApp->profile.axes = AxisSettings();
+    gApp->profile.axes.pluginThrottle = true;
+    gApp->profile.axes.throttle.invert = true;
+    gApp->profile.axes.throttle.deadzone = 0;
+    gApp->input.pushAxis({0x01, 0x32, 255, 0, 255});          // lever back: idle
+    sim().frame();
+    gApp->input.pushAxis({0x01, 0x32, 25, 0, 255});           // about 90 %
+    sim().frame();
+    CHECK(std::fabs(d[thr] - 0.9) < 0.01);
+    CHECK_EQ((int)d[ovr], 1);
+    d[at] = 1;                                                // the autothrottle engages
+    sim().frame();
+    CHECK_EQ((int)d[ovr], 0);                                 // handed to X-Plane
+    d[thr] = 0.6;                                             // the autothrottle sets the power
+    d[handle] = 0.6;
+    sim().frame();
+    CHECK(nearTo(d[thr], 0.6));
+    CHECK_EQ((int)d[ovr], 0);
+    d[at] = 0;                                                // disengaged: the lever (90 %) must not jump the power
+    sim().frame();
+    CHECK(nearTo(d[thr], 0.6));
+    CHECK_EQ((int)d[ovr], 0);
+    gApp->input.pushAxis({0x01, 0x32, 102, 0, 255});          // brought back to 60 %
+    sim().frame();
+    CHECK_EQ((int)d[ovr], 1);                                 // the lever has it again
+    CHECK(std::fabs(d[thr] - 0.6) < 0.01);
+    gApp->input.pushAxis({0x01, 0x32, 0, 0, 255});
+    sim().frame();
+    CHECK(nearTo(d[thr], 1.0));
+    gApp->profile.axes = AxisSettings();
+    sim().frame();
+}
+
+TEST(unticking_the_throttle_hands_it_back_even_while_the_plugin_keeps_the_stick) {
+    auto& d = sim().datarefs;
+    const char* ovr = "sim/operation/override/override_throttles";
+    for (const char* n : {"sim/flightmodel/engine/ENGN_thro_use", "sim/cockpit2/engine/actuators/throttle_ratio", ovr,
+                          "sim/operation/override/override_joystick", "sim/joystick/yoke_roll_ratio"})
+        d[n] = 0.0;
+    gApp->releaseAxes();
+    gApp->profile.axes = AxisSettings();
+    gApp->profile.axes.overrideXPlane = true;
+    gApp->profile.axes.pluginThrottle = true;
+    gApp->input.pushAxis({0x01, 0x32, 255, 0, 255});
+    sim().frame();
+    gApp->input.pushAxis({0x01, 0x32, 100, 0, 255});
+    sim().frame();
+    CHECK_EQ((int)d[ovr], 1);
+    gApp->profile.axes.pluginThrottle = false;
+    sim().frame();
+    CHECK_EQ((int)d[ovr], 0);
+    CHECK_EQ((int)d["sim/operation/override/override_joystick"], 1);   // the stick stays the plugin's
+    gApp->profile.axes = AxisSettings();
+    sim().frame();
+}
+
 TEST(letting_go_of_the_stick_reaches_the_sim_in_the_same_frame_and_the_damper_only_nudges_in_flight) {
     auto& d = sim().datarefs;
     const char* pitch = "sim/joystick/yoke_pitch_ratio";

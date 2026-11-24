@@ -179,6 +179,23 @@ double dampStick(double cmd, double rateDegS, int strength) {
     return std::max(-1.0, std::min(1.0, cmd + nudge * fade));
 }
 
+bool throttleMayWrite(ThrottleHandover& s, bool autothrottle, double lever, double sim, double tol) {
+    if (autothrottle) {
+        s.waiting = true;
+        s.seen = false;
+        return false;
+    }
+    if (!s.waiting) return true;
+    bool crossed = s.seen && (s.lastLever - sim) * (lever - sim) < 0;
+    if (std::fabs(lever - sim) <= tol || crossed) {
+        s = ThrottleHandover();
+        return true;
+    }
+    s.lastLever = lever;
+    s.seen = true;
+    return false;
+}
+
 double flapHandleFor(double slider, int detents) {
     double x = std::max(0.0, std::min(1.0, slider));
     if (detents <= 0) return x;

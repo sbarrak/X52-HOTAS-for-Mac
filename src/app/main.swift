@@ -2208,7 +2208,7 @@ struct AxesTab: View {
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Toggle("The plugin drives the throttle (engine power and the cockpit levers)", isOn: Binding(get: { m.get("throttle_plugin") != 0 }, set: { m.set("throttle_plugin", $0 ? 1 : 0) }))
                 .help("Engine power and the cockpit levers follow the X52 lever whatever X-Plane's own axis assignment is. The stick and twist stay X-Plane's.")
-            Text("The throttle is only taken over once it has moved. This works inside X-Plane only: the app itself never moves the controls.")
+            Text("The throttle is only taken over once it has moved. While X-Plane's autothrottle is on it drives the power; afterwards the lever takes over when it reaches that power. This works inside X-Plane only: the app itself never moves the controls.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             AxisCurveRow(m: m, title: "Stick left/right", key: "roll", usage: 0x30)
             AxisCurveRow(m: m, title: "Stick fwd/back", key: "pitch", usage: 0x31)

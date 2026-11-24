@@ -573,6 +573,10 @@ void App::applyAxes(double dt) {
         joyOverridden = false;
     }
     if (!wantJoy) stickSent.clear();
+    if (!wantThr) {
+        throttleHandover = ThrottleHandover();
+        throttleNote.clear();
+    }
     // The damper stays out of the way on the ground (taxi, take-off roll) and while the autopilot flies.
     auto readInt = [](const char* n) { XPLMDataRef r = cachedRef(n); return r ? XPLMGetDatai(r) : 0; };
     bool damp = wantJoy && profile.axes.damping > 0 && !readInt("sim/flightmodel/failures/onground_any") &&
@@ -601,6 +605,18 @@ void App::applyAxes(double dt) {
             if (damp && rate)
                 if (XPLMDataRef r = cachedRef(rate)) v = dampStick(v, XPLMGetDataf(r), profile.axes.damping);
             stickOut[t->usage] = v;
+        } else {
+            // X-Plane's autothrottle drives the power while it works; afterwards the lever takes over where it left it.
+            bool autothrottle = readInt("sim/cockpit2/autopilot/autothrottle_on") != 0;
+            float handle = 0;
+            if (XPLMDataRef h = cachedRef("sim/cockpit2/engine/actuators/throttle_ratio")) XPLMGetDatavf(h, &handle, 0, 1);
+            if (!throttleMayWrite(throttleHandover, autothrottle, v, handle)) {
+                throttleNote = autothrottle ? "Autothrottle on: it drives the throttle until it is switched off."
+                                            : "Move the throttle to " + std::to_string((int)std::lround(handle * 100)) +
+                                                  " % to take it back from the autothrottle.";
+                continue;
+            }
+            throttleNote.clear();
         }
         if (XPLMDataRef r = cachedRef(t->dataref)) {
             if (t->count > 1) {
@@ -617,6 +633,10 @@ void App::applyAxes(double dt) {
     }
     if (joy) if (XPLMDataRef r = cachedRef("sim/operation/override/override_joystick")) XPLMSetDatai(r, 1);
     if (thr) if (XPLMDataRef r = cachedRef("sim/operation/override/override_throttles")) XPLMSetDatai(r, 1);
+    // Not driven this frame (switched off, or the autothrottle has it): X-Plane gets the throttle back.
+    if (!thr && thrOverridden)
+        if (XPLMDataRef r = cachedRef("sim/operation/override/override_throttles")) XPLMSetDatai(r, 0);
+    thrOverridden = thr;
     joyOverridden = joyOverridden || joy;
     axesOverridden = axesOverridden || joy || thr;
 }
@@ -830,6 +850,9 @@ void App::releaseAxes() {
         if (XPLMDataRef r = cachedRef(n)) XPLMSetDatai(r, 0);
     axesOverridden = false;
     joyOverridden = false;
+    thrOverridden = false;
+    throttleHandover = ThrottleHandover();
+    throttleNote.clear();
     stickSent.clear();
     stickOut.clear();
 }
