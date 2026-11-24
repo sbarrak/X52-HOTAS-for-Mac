@@ -1129,7 +1129,7 @@ TEST(a_profile_from_the_older_plugin_gets_the_wheel_bindings) {
     }
     gApp->reload();
     CHECK(has(slurp(defaultFile()), "cmd:x52pro/mfd_select"));
-    CHECK(has(slurp(defaultFile()), "x52pro-profile 9"));
+    CHECK(has(slurp(defaultFile()), "x52pro-profile 10"));
     CHECK(has(slurp(defaultFile()), std::string("cmd:") + kGear));
 }
 

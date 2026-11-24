@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.4
+
+### Changed
+- **Fighters: the Fire button drops bombs, the trigger is the guns.** In the F-4 and F-14 profiles Fire was the
+  selected weapon (the same as the trigger's second stage); now it is `sim/weapons/fire_air_to_ground`
+  ("Drop bomb"). T1 still picks the weapon, and the trigger's second stage still fires it, so missiles are one
+  trigger pull away. A Fire button that still fires the selected weapon in an older profile gets the change when
+  it is read; one you changed stays. The profile format is 10. (issue #85)
+
 ## 1.3.3
 
 ### Changed

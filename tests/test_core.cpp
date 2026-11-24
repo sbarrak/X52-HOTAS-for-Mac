@@ -915,7 +915,7 @@ TEST(clock_and_clutch_settings_survive_save_and_load) {
     CHECK(q.clock12h[1]);
     CHECK_EQ(q.dateFormat, 2);
     CHECK(q.com833);
-    CHECK_EQ(q.version, 9);
+    CHECK_EQ(q.version, 10);
 }
 
 TEST(out_of_range_clock_settings_are_pulled_into_range) {
@@ -939,7 +939,7 @@ TEST(profile_from_the_older_plugin_gains_the_wheel_bindings_once) {
     CHECK(!addWheelBindings(q));
     Profile again;
     CHECK(parse(serialize(q), again, &err));
-    CHECK_EQ(again.version, 9);
+    CHECK_EQ(again.version, 10);
 }
 
 TEST(profile_from_before_pov_1_gains_the_look_around_bindings_once) {
@@ -954,7 +954,7 @@ TEST(profile_from_before_pov_1_gains_the_look_around_bindings_once) {
     CHECK(!addLookBindings(q));
     Profile again;
     CHECK(parse(serialize(q), again, &err));
-    CHECK_EQ(again.version, 9);
+    CHECK_EQ(again.version, 10);
     CHECK(defaultProfile().exact(40, kLayerAny) != nullptr);
     // a current profile whose owner removed the look-around binding keeps it removed
     q.edit(40, kLayerAny).press.clear();
@@ -976,7 +976,7 @@ TEST(profile_from_before_the_nub_gains_the_pan_bindings_once) {
     CHECK(!addNubBindings(q));
     Profile again;
     CHECK(parse(serialize(q), again, &err));
-    CHECK_EQ(again.version, 9);
+    CHECK_EQ(again.version, 10);
     CHECK(defaultProfile().exact(kNubUp, kLayerAny) != nullptr);
 }
 
@@ -2127,7 +2127,7 @@ TEST(the_ready_made_profiles_light_the_throttle_and_let_the_plugin_drive_it) {
             }
         }
         if (n == "aircraft-F-4.x52" || n == "aircraft-F-14D.x52") {
-            CHECK_EQ(p.exact(2, kLayerAny)->press[0].text, std::string("sim/weapons/fire_any_armed"));   // Fire shoots
+            CHECK_EQ(p.exact(2, kLayerAny)->press[0].text, std::string("sim/weapons/fire_air_to_ground"));   // Fire drops bombs
             CHECK_EQ(p.exact(7, 2)->press[0].text, std::string("sim/weapons/master_arm_on"));            // weapons: cruise mode
         }
     }
@@ -2488,7 +2488,7 @@ TEST(dial_functions_round_trip_through_the_profile) {
     std::string text = serialize(p);
     CHECK(text.find("rotary_lower = 2\n") != std::string::npos);
     CHECK(text.find("rotary_lower_invert = 1\n") != std::string::npos);
-    CHECK(text.find("x52pro-profile 9\n") == 0);
+    CHECK(text.find("x52pro-profile 10\n") == 0);
     Profile q;
     std::string err;
     CHECK(parse(text, q, &err));
@@ -2676,4 +2676,18 @@ TEST(zoom_clicks_carry_the_remainder) {
     CHECK(std::fabs(anchor - 0.5) < 1e-9);
     CHECK_EQ(zoomClicks(anchor, 0.5 + 0.4 / 24), 0);
     CHECK_EQ(zoomClicks(anchor, 0.0), -12);
+}
+
+TEST(an_older_fire_button_drops_bombs_unless_the_user_changed_it) {
+    Profile p;
+    std::string err;
+    CHECK(parse("x52pro-profile 9\nmode_layout = 2\nbind 2 any press \"Fire weapon\" cmd:sim/weapons/fire_any_armed\n", p, &err));
+    CHECK_EQ(p.exact(2, kLayerAny)->press[0].text, std::string("sim/weapons/fire_air_to_ground"));
+    CHECK_EQ(p.exact(2, kLayerAny)->label, std::string("Drop bomb"));
+    Profile q;
+    CHECK(parse("x52pro-profile 9\nmode_layout = 2\nbind 2 any press \"Mine\" cmd:my/command\n", q, &err));
+    CHECK_EQ(q.exact(2, kLayerAny)->press[0].text, std::string("my/command"));
+    Profile r;   // a profile already at version 10 is not touched
+    CHECK(parse("x52pro-profile 10\nmode_layout = 2\nbind 2 any press \"Fire weapon\" cmd:sim/weapons/fire_any_armed\n", r, &err));
+    CHECK_EQ(r.exact(2, kLayerAny)->press[0].text, std::string("sim/weapons/fire_any_armed"));
 }

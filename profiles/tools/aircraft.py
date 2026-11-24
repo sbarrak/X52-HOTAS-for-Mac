@@ -9,7 +9,7 @@ features, so all aircraft follow the same idea:
 
 The pinkie switch is NOT a shift here: it is a normal button (wheel brakes while held).
 Buttons marked ANY do the same thing in all three modes. The parking brake is a hold on A (tap: gear or
-landing light). The autopilot is one on/off button (B) in every mode. The Fire button shoots in the fighters.
+landing light). The autopilot is one on/off button (B) in every mode. The Fire button drops bombs in the fighters (the trigger is the guns).
 The gear is on A in takeoff and landing only: in cruise there is no gear button.
 """
 
@@ -126,7 +126,7 @@ def layout(f):
     if k == "fighter":
         any_[TRIGGER] = ("Guns", S("weapons/fire_guns"))
         any_[TRIGGER2] = ("Fire weapon", S("weapons/fire_any_armed"))
-        any_[FIRE] = ("Fire weapon", S("weapons/fire_any_armed"))
+        any_[FIRE] = ("Drop bomb", S("weapons/fire_air_to_ground"))
     elif f["ap"]:
         any_[TRIGGER] = ("AP disconnect", S("autopilot/servos_off_any"))
         any_[TRIGGER2] = ("TOGA", S("autopilot/take_off_go_around")) if f["at"] else ("Contact ATC", S("operation/contact_atc"))
