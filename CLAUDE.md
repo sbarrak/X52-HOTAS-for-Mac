@@ -57,3 +57,15 @@ For a change to buttons, controls or profiles, besides the code and its tests:
 - At the end of every chat, ask the user whether the chat can be archived.
 - Before asking, check the chat for unresolved topics (open questions, unfinished work, unverified results, promised follow-ups). If there are any, list them concisely and ask what to do with each.
 - If nothing is left, confirm that the chat can be archived.
+
+## Agent coordination
+
+Several agents (Claude, ChatGPT or others) may work on this repo at the same time. GitHub is the shared task log, so no agent needs a log file in the repo.
+
+- **Task log:** each piece of work has one issue. An open issue means in progress; a closed issue means done (its PR merged, or the work was dropped). The issue names its branch and the version it ships in.
+- **Status:** post a comment on the issue when work starts, when it is blocked, and when it is handed off.
+- **Before starting:** read the open issues and PRs. If another open branch touches the same files, comment on that issue and ask the user before starting.
+- **One writer per branch:** only the agent that owns a branch pushes to it. Other agents review by PR comment and never push to someone else's branch.
+- **Review:** a review is a PR comment that says what was checked and what was found. It does not approve or merge.
+- **Merging:** agents never merge. Merging stays with the user.
+- **Public repo:** issues, PRs and comments contain no personal data, local paths or secrets.
