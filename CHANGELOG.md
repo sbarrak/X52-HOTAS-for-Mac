@@ -8,6 +8,11 @@
   ("Drop bomb"). T1 still picks the weapon, and the trigger's second stage still fires it, so missiles are one
   trigger pull away. A Fire button that still fires the selected weapon in an older profile gets the change when
   it is read; one you changed stays. The profile format is 10. (issue #85)
+- **F-14: the throttle hat picks the weapon, like the aircraft's manual.** Up, right, down and left are the F-14's
+  own Weapon Select Switch 1 to 4 (`laminar/f14/fltc/cs_wpn_select_switch1..4`); Fire is its bomb release
+  button (`laminar/f14/fltc/cs_bomb_release_button`). Target next/prev moved to T1 (the weapon next/prev there
+  did not work well in the F-14); the circle and chase views left the hat. Ready-made F-14 profile only; copies
+  of it keep what they have. (issue #85)
 
 ## 1.3.3
 

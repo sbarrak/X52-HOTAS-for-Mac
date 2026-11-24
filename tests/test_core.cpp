@@ -2126,7 +2126,14 @@ TEST(the_ready_made_profiles_light_the_throttle_and_let_the_plugin_drive_it) {
                 if (!a->hold.empty()) CHECK_EQ(a->hold[0].text, std::string("sim/flight_controls/brakes_toggle_max"));
             }
         }
-        if (n == "aircraft-F-4.x52" || n == "aircraft-F-14D.x52") {
+        if (n == "aircraft-F-14D.x52") {   // the F-14's own weapon select switch on the throttle hat
+            CHECK_EQ(p.exact(2, kLayerAny)->press[0].text, std::string("laminar/f14/fltc/cs_bomb_release_button"));
+            CHECK_EQ(p.exact(24, 2)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch1"));
+            CHECK_EQ(p.exact(25, 2)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch2"));
+            CHECK_EQ(p.exact(26, 2)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch3"));
+            CHECK_EQ(p.exact(27, 2)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch4"));
+        }
+        if (n == "aircraft-F-4.x52") {
             CHECK_EQ(p.exact(2, kLayerAny)->press[0].text, std::string("sim/weapons/fire_air_to_ground"));   // Fire drops bombs
             CHECK_EQ(p.exact(7, 2)->press[0].text, std::string("sim/weapons/master_arm_on"));            // weapons: cruise mode
         }

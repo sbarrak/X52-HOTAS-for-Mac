@@ -15,7 +15,7 @@ The same in every mode: trigger (autopilot disconnect, or guns), B (autopilot on
 mode, on aircraft with an autopilot), Hat 2 (trim), Pinkie (wheel brakes while held), screen wheels. The pinkie
 is a normal button in these profiles, not a shift. **A:** a tap is the gear (takeoff and landing; cruise has no gear
 button, so A is the landing light there) and **holding A** sets the parking brake, in every mode. **Fire** is
-free, except in the fighters, where it drops bombs (the trigger is the guns, T1 picks the weapon). When the mode dial moves, the stick's screen says the mode's name
+free, except in the fighters, where it drops bombs (the trigger is the guns; in the F-14 the throttle hat picks the weapon: up, right, down, left = weapons 1 to 4). When the mode dial moves, the stick's screen says the mode's name
 for 1.5 s (`mode_name_1..3`, `mode_banner_ms`; editable on the app's Screen tab).
 
 **Flaps are on the slider** on the throttle (`slider_flaps = 1`, `slider_invert = 0`): pushed away from you is
