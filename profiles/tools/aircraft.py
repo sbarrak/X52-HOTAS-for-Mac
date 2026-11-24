@@ -265,6 +265,12 @@ def layout(f):
         m1[T3U] = ("Beacon on", S("lights/beacon_lights_on"))
         m1[T3D] = ("Beacon off", S("lights/beacon_lights_off"))
     engine_hat(m1)
+    if f.get("f14"):
+        # The F-14 ignores the generic nav light off and taxi light off (tested in the sim); its own switches work.
+        m1[THAT_U] = ("Nav lights on", "cmd:laminar/f14/ltng/wing_nav_light_switch_up")
+        m1[THAT_D] = ("Nav lights off", "cmd:laminar/f14/ltng/wing_nav_light_switch_dn")
+        m1[THAT_R] = ("Taxi light", "cmd:laminar/f14/ltng/taxi_light_switch")
+        del m1[THAT_L]
     m1[SCROLL_F] = ("Zoom in", S("general/zoom_in"))
     m1[SCROLL_B] = ("Zoom out", S("general/zoom_out"))
     m1[SCROLL_C] = ("Chase view", S("view/chase"))
@@ -318,8 +324,11 @@ def layout(f):
 
     # ---- Mode 2: cruise (autopilot / systems) and combat (all the weapons)
     if k == "fighter":
-        m2[D] = ("Master arm on", S("weapons/master_arm_on"))
-        m2[E] = ("Master arm off", S("weapons/master_arm_off"))
+        if f.get("f14"):   # the generic master arm commands do nothing in the F-14; its own switch toggles it
+            m2[D] = ("Master arm", "cmd:laminar/f14/weapons/switch/master_arm_switch")
+        else:
+            m2[D] = ("Master arm on", S("weapons/master_arm_on"))
+            m2[E] = ("Master arm off", S("weapons/master_arm_off"))
         if f.get("f14"):
             # The F-14's own weapon select switch, on the throttle hat like the manual says: 1 up, 2 right, 3 down, 4 left.
             # (its switches 1 to 4 are Sidewinder, Sparrow, Gun, Phoenix, as in its scripts and the SMS page)

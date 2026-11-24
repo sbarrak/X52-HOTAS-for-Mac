@@ -116,14 +116,12 @@ bind 14 1 press "Canopy close" cmd:sim/flight_controls/canopy_close
 bind 17 1 press "Zoom in" cmd:sim/general/zoom_in
 bind 18 1 press "Zoom out" cmd:sim/general/zoom_out
 bind 19 1 press "Chase view" cmd:sim/view/chase
-bind 24 1 press "Nav lights on" cmd:sim/lights/nav_lights_on
-bind 25 1 press "Taxi light on" cmd:sim/lights/taxi_lights_on
-bind 26 1 press "Nav lights off" cmd:sim/lights/nav_lights_off
-bind 27 1 press "Taxi light off" cmd:sim/lights/taxi_lights_off
+bind 24 1 press "Nav lights on" cmd:laminar/f14/ltng/wing_nav_light_switch_up
+bind 25 1 press "Taxi light" cmd:laminar/f14/ltng/taxi_light_switch
+bind 26 1 press "Nav lights off" cmd:laminar/f14/ltng/wing_nav_light_switch_dn
 bind 3 2 press "Landing light" cmd:sim/lights/landing_lights_toggle
 bind 3 2 hold "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
-bind 7 2 press "Master arm on" cmd:sim/weapons/master_arm_on
-bind 8 2 press "Master arm off" cmd:sim/weapons/master_arm_off
+bind 7 2 press "Master arm" cmd:laminar/f14/weapons/switch/master_arm_switch
 bind 9 2 press "Target next" cmd:sim/weapons/weapon_target_up
 bind 10 2 press "Target prev" cmd:sim/weapons/weapon_target_down
 bind 11 2 press "Flares" cmd:sim/weapons/deploy_flares

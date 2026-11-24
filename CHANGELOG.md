@@ -9,6 +9,14 @@
   aircraft's own scripts), the trigger fires the selected weapon (`sim/weapons/fire_any_armed`) and the second pull
   is the guns. The manual says bombs are not supported in the F-14, so Fire (it was the bomb release, which does
   nothing) drops flares, like the stick's flare button in the manual. (issue #99)
+- **F-14: master arm, nav lights and taxi light use the aircraft's own switches.** Tested in the sim through
+  X-Plane's web API: the F-14 ignores the generic `master_arm_on/off`, `nav_lights_off` and `taxi_lights_off`.
+  D in mode 2 is now its master arm switch (a toggle, `laminar/f14/weapons/switch/master_arm_switch`; E is free), and
+  in mode 1 the throttle hat uses its wing nav light switch (up, down) and taxi light switch (right, a toggle; left
+  is free). Gear, canopy, tail hook, speed brake, trim, parking brake, pitot heat, landing lights, strobes,
+  avionics, battery, flares, chaff and the four weapon selects were tested and work with the generic or listed
+  commands. The wing sweep commands barely move the wings (the F-14 sweeps them by itself); not changed yet.
+  (issue #99)
 - **F-4 and F-14: no rudder trim.** The left and right of the stick's hat 2 are free in the two fighters (pitch
   trim stays on up and down, and on the scroll wheel in cruise and landing). The F-4 has no per-weapon commands in
   X-Plane, so it keeps weapon next/previous on T1. Ready-made profiles only; copies of them keep what they have.
