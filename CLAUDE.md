@@ -51,3 +51,9 @@ For a change to buttons, controls or profiles, besides the code and its tests:
 - Every merged change that raised `VERSION` gets its release as soon as it is merged, without waiting to be asked: tag `vX.Y.Z` on the merge commit in `main`, run `make release`, and create the GitHub release from that tag with `X52-Pro-X.Y.Z.zip` attached, as was done for 1.2.5.
 - The release title is `X52 Pro X.Y.Z`. The notes say what was fixed or changed in that version, with the issue number, and link to `CHANGELOG.md`.
 - A change that does not raise `VERSION` (rules, docs, tooling) gets no tag and no release.
+
+## End of chat
+
+- At the end of every chat, ask the user whether the chat can be archived.
+- Before asking, check the chat for unresolved topics (open questions, unfinished work, unverified results, promised follow-ups). If there are any, list them concisely and ask what to do with each.
+- If nothing is left, confirm that the chat can be archived.
