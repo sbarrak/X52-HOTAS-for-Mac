@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.2
+
+### Fixed
+- **The window jumped when the stick's mode or the pinkie changed.** The status line beside the Plugin on/off button
+  ("X-Plane is running and its plugin is driving the stick (Mode 3)" or "(Pinkie + 3)") had no line limit, so it
+  sometimes wrapped to two lines, the top bar grew and every tab moved. The line is now one line with a shorter
+  wording ("X-Plane is driving the stick (Pinkie + 3)"), shortened in the middle in a very narrow window, with the
+  full text as the tooltip. Fixed in 1.4.2. (issue #103)
+
+### Changed
+- **The Buttons tab follows the stick's mode and pinkie.** A press on the stick already picked that button; it now
+  also picks the layer the press happened in (Mode 1 to 3, or Pinkie + 1 to 3), also when Any mode was shown. The
+  plugin records the mode and the pinkie with the press, so a quick pinkie tap is not missed. (issue #103)
+
 ## 1.4.1
 
 ### Fixed

@@ -135,7 +135,11 @@ final class Model: ObservableObject {
         pressSeen = seq
         if restarted { return }
         let b = Int(x52_press_button())
-        if tab == 6 && b >= 1 && b <= 51 && x52_button_reserved(Int32(b)) == 0 && btn != b { btn = b }
+        if tab == 6 && b >= 1 && b <= 51 && x52_button_reserved(Int32(b)) == 0 {
+            if btn != b { btn = b }
+            let layer = Int(x52_press_layer())   // the layer the press happened in, Any mode included
+            if btnLayer != layer { btnLayer = layer }
+        }
     }
 
     func tick() {
@@ -358,7 +362,7 @@ final class Model: ObservableObject {
     var layerText: String { shift ? "Pinkie + \(mode)" : "Mode \(mode)" }
     var statusText: String {
         if !pluginEnabled { return connected ? "Stick connected, plugin off" : "Stick not connected, plugin off" }
-        if pluginActive { return "X-Plane is running and its plugin is driving the stick (\(layerText))" }
+        if pluginActive { return "X-Plane is driving the stick (\(layerText))" }
         if !connected { return "Stick not connected" }
         return "Stick connected, \(layerText)"
     }
@@ -2791,7 +2795,7 @@ struct SettingsView: View {
                 .help("Switches the X-Plane plugin on or off. Off: the plugin does nothing in X-Plane, and X-Plane's own Joystick settings are in charge. Takes effect within a second and is kept until you switch it back on.")
                 Divider().frame(height: 14)
                 Circle().fill(m.pluginActive ? Color.blue : m.connected ? Color.green : Color.gray).frame(width: 9, height: 9)
-                Text(m.statusText)
+                Text(m.statusText).lineLimit(1).truncationMode(.middle).help(m.statusText)
                 Spacer()
                 if !m.lastDeleted.isEmpty {
                     Button("Undo delete") { m.undoDelete() }

@@ -111,6 +111,7 @@ const char* x52_button_name(int button);
 int x52_button_led(int button);                // the light on that control (0..x52_led_count()-1), -1 when it has none
 int x52_press_seq(void);                       // goes up with every press of a button on the stick
 int x52_press_button(void);                    // the button of the latest press
+int x52_press_layer(void);                     // its layer: 1..3 the mode, 4..6 the mode with the pinkie held
 const char* x52_layer_name(int layer);
 int x52_button_reserved(int button);           // mode dial, pinkie and clutch cannot be programmed
 const char* x52_bind_summary(int button, int layer);   // what the button does there, "" when nothing is assigned
