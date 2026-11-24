@@ -1229,39 +1229,124 @@ struct ScreenTab: View {
 
 // A text field for an X-Plane command (kind 0) or dataref (kind 1) that suggests matches from X-Plane's own
 // lists (Commands.txt / DataRefs.txt) while you type.
+final class DraftText: ObservableObject {
+    @Published var value = ""
+    @Published var selected: Int? = nil   // the suggestion the arrow keys are on
+    private var monitor: Any?
+    // While the field has the keyboard: the handler gets each key code first and says whether it used it.
+    func listen(_ handler: @escaping (UInt16) -> Bool) {
+        stop()
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in handler(e.keyCode) ? nil : e }
+    }
+    func stop() {
+        if let m = monitor { NSEvent.removeMonitor(m) }
+        monitor = nil
+    }
+    deinit { stop() }
+}
+
 struct CatalogField: View {
     let kind: Int
     let placeholder: String
     @Binding var text: String
+    // What is typed here is a search until it is picked or committed: the step keeps no blanks in a name, so the
+    // field must not write every keystroke into it ("f14 weapon" would become "f14weapon").
+    @StateObject private var draftText = DraftText()
     @FocusState private var focused: Bool
+    private let rowHeight: CGFloat = 24
+    private var draft: String {
+        get { draftText.value }
+        nonmutating set { draftText.value = newValue }
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            TextField(placeholder, text: $text).textFieldStyle(.roundedBorder).focused($focused)
-            if focused && !text.isEmpty {
+            TextField(placeholder, text: $draftText.value).textFieldStyle(.roundedBorder).focused($focused)
+                .onAppear { draft = text }
+                .onSubmit { commit() }
+                .onChange(of: focused) { now in
+                    if now {
+                        draft = text
+                        draftText.selected = nil
+                        draftText.listen { key in handleKey(key) }
+                    } else {
+                        draftText.stop()
+                        commit()
+                    }
+                }
+                .onChange(of: text) { now in if !focused { draft = now } }
+                .onChange(of: draftText.value) { _ in draftText.selected = nil }   // typing starts the list over
+                .onDisappear { draftText.stop() }
+            if focused && !draft.isEmpty {
                 let rows = matches()
-                if !rows.isEmpty && !(rows.count == 1 && rows[0][0] == text) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(0..<rows.count, id: \.self) { i in
-                            Button { text = rows[i][0]; focused = false } label: {
-                                HStack(spacing: 8) {
-                                    Text(rows[i][0]).lineLimit(1).truncationMode(.middle).layoutPriority(1)
-                                    Text(rows[i][1] + (rows[i][2] == "0" ? "  (read-only)" : ""))
-                                        .foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
-                                    Spacer(minLength: 0)
+                if !rows.isEmpty && !(rows.count == 1 && rows[0][0] == draft) {
+                    ScrollViewReader { proxy in
+                        ScrollView(.vertical) {
+                            VStack(alignment: .leading, spacing: 0) {
+                                ForEach(0..<rows.count, id: \.self) { i in
+                                    Button { pick(rows[i][0]) } label: {
+                                        HStack(spacing: 8) {
+                                            Text(rows[i][0]).lineLimit(1).truncationMode(.middle).layoutPriority(1)
+                                            Text(rows[i][1] + (rows[i][2] == "0" ? "  (read-only)" : ""))
+                                                .foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+                                            Spacer(minLength: 0)
+                                        }
+                                        .padding(.horizontal, 6)
+                                        .frame(height: rowHeight)
+                                        .background(draftText.selected == i ? Color.accentColor.opacity(0.3) : Color.clear)
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .id(i)
                                 }
-                                .padding(.vertical, 3).padding(.horizontal, 6)
-                                .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                        }
+                        .scrollIndicators(.visible)
+                        .frame(height: min(240, CGFloat(rows.count) * rowHeight))
+                        .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.12)))
+                        .onChange(of: draftText.selected) { sel in
+                            if let sel = sel { withAnimation(.easeOut(duration: 0.1)) { proxy.scrollTo(sel) } }
                         }
                     }
-                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.12)))
                 }
             }
         }
     }
+    private func pick(_ name: String) {
+        draft = name
+        text = name
+        focused = false
+    }
+    // Down from the field goes to the first suggestion and on down the list, up goes back and out to the field,
+    // Return takes the one the arrows are on. Anything else (typing, Tab) is left to the field.
+    private func handleKey(_ key: UInt16) -> Bool {
+        let rows = draft.isEmpty ? [] : matches()
+        switch key {
+        case 125:   // down
+            if rows.isEmpty { return false }
+            draftText.selected = min((draftText.selected ?? -1) + 1, rows.count - 1)
+            return true
+        case 126:   // up
+            guard let s = draftText.selected else { return false }
+            draftText.selected = s > 0 ? s - 1 : nil
+            return true
+        case 36, 76:   // return, enter
+            guard let s = draftText.selected, s < rows.count else { return false }
+            pick(rows[s][0])
+            return true
+        default:
+            return false
+        }
+    }
+    // A name with no blanks is kept as typed (add-on commands may be missing from the lists); a text with blanks
+    // was a search, so the field goes back to what the step has.
+    private func commit() {
+        let t = draft.trimmingCharacters(in: .whitespaces)
+        if t.contains(where: { $0.isWhitespace }) { draft = text; return }
+        draft = t
+        if t != text { text = t }
+    }
     private func matches() -> [[String]] {
-        str(x52_catalog_search(Int32(kind), text, 8)).split(separator: "\n").map {
+        str(x52_catalog_search(Int32(kind), draft, 50)).split(separator: "\n").map {
             $0.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
         }.filter { $0.count >= 3 }
     }
