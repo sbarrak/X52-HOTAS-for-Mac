@@ -186,10 +186,7 @@ def layout(f):
                 any_[SHAT_R] = ("Sparrow", "cmd:laminar/f14/fltc/cs_wpn_select_switch2")
                 any_[SHAT_D] = ("Gun", "cmd:laminar/f14/fltc/cs_wpn_select_switch3")
                 any_[SHAT_L] = ("Phoenix", "cmd:laminar/f14/fltc/cs_wpn_select_switch4")
-            elif k == "fighter":   # F-4: no rudder trim (rarely used): flaps one step at a time, like the speed brake
-                any_[SHAT_L] = ("Flaps up", S("flight_controls/flaps_up"))
-                any_[SHAT_R] = ("Flaps down", S("flight_controls/flaps_down"))
-            if k not in ("glider", "fighter"):
+            if k != "glider" and not f.get("f14"):
                 any_[SHAT_L] = ("Rudder trim L", S("flight_controls/rudder_trim_left"))
                 any_[SHAT_R] = ("Rudder trim R", S("flight_controls/rudder_trim_right"))
     any_[MOUSE] = ("Cockpit view", S("view/3d_cockpit_cmnd_look"))
