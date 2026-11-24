@@ -347,7 +347,7 @@ add(p("It is a floating window inside X-Plane, drawn by the plugin itself. At th
 add(p("Tab moves between text fields, and Escape cancels the command search."));
 add(h3("Buttons"));
 add(p("Press a button on the stick (or click it in the list), choose **Any mode**, a mode, or a mode and pinkie under **Programming for**, then add steps under **When pressed** and **When held**:"));
-add(bullet("**+ Command**: search X-Plane's commands by word (\"gear\", \"flaps\", ...). Commands of add-on aircraft are found too (with the aircraft's name shown) when the aircraft uses xlua scripts or you have run X-Plane with the DataRefTool plugin; any other can be typed in full (`author/aircraft/command`)."));
+add(bullet("**+ Command**: search X-Plane's commands by word (\"gear\", \"flaps\", ...). Commands of add-on aircraft are found too (with the aircraft's name shown) when the aircraft uses xlua scripts or you have run X-Plane with the DataRefTool plugin; any other can be typed in full (`author/aircraft/command`). Several words narrow the list; the Down and Up arrows move through the suggestions and Return picks one."));
 add(bullet("**+ Keystroke**: click **Record** and press the key, or type for example `shift+f1`."));
 add(bullet("**+ Dataref**: write a value to a dataref. **Set** puts a number there, **Toggle** flips between two values, **Add** adds an amount (negative to subtract); the last two can keep the result between a minimum and a maximum. The dataref name turns red if X-Plane does not know it. Some datarefs are read-only and X-Plane refuses to change them; the window then says so."));
 add(bullet("**+ Wait**: a pause between steps."));

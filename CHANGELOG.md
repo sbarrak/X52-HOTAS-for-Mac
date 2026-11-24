@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.3.6
+
+### Fixed
+- **The app's command and dataref field dropped the space, so a search like "f14 weapon" found nothing.** Symptom: in
+  the Buttons tab, typing `f14 weapon` showed `f14weapon` and no suggestions (the in-sim window was fine). Cause:
+  the field wrote every keystroke into the button's step, and a step keeps no blanks in a command or dataref name.
+  Fix: the field keeps what you type as a search of its own and only changes the step when you pick a suggestion,
+  press Return, or leave the field with a name that has no blanks (a text with blanks is dropped). The suggestions
+  are a scrollable list of up to 50 matches (it was 8). (issue #89)
+
+### Changed
+- **Arrow keys move through the suggestions.** With the suggestions showing, Down from the text field selects the
+  first one, Down and Up move through the list (it scrolls to follow), Up from the first goes back to the field,
+  and Return picks the selected one. (issue #89)
+
 ## 1.3.5
 
 ### Fixed
