@@ -79,7 +79,6 @@ row fuel value "Right" "%.0f kg" sim/cockpit2/fuel/fuel_quantity[1]
 master screen == 1 sim/cockpit2/switches/avionics_power_on
 master lights == 1 sim/cockpit2/switches/avionics_power_on
 bind 1 any press "Fire selected weapon" cmd:sim/weapons/fire_any_armed
-bind 2 any press "Flares" cmd:sim/weapons/deploy_flares
 bind 4 any press "Speedbrake in" cmd:sim/flight_controls/speed_brakes_up_one
 bind 5 any press "Speedbrake out" cmd:sim/flight_controls/speed_brakes_down_one
 bind 6 any press "Brakes (hold)" cmd:sim/flight_controls/brakes_regular

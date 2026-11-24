@@ -128,7 +128,7 @@ def layout(f):
             # The manual: the forward trigger fires the weapon that is selected (the hat picks it); bombs are not supported.
             any_[TRIGGER] = ("Fire selected weapon", S("weapons/fire_any_armed"))
             any_[TRIGGER2] = ("Guns", S("weapons/fire_guns"))
-            any_[FIRE] = ("Flares", S("weapons/deploy_flares"))
+            # Fire is free in the F-14 (no bombs; the flares and chaff are on T2 in combat)
         else:
             any_[TRIGGER] = ("Guns", S("weapons/fire_guns"))
             any_[TRIGGER2] = ("Fire weapon", S("weapons/fire_any_armed"))

@@ -8,7 +8,7 @@
   four buttons are now called by what they select (up Sidewinder, right Sparrow, down Gun, left Phoenix, from the
   aircraft's own scripts), the trigger fires the selected weapon (`sim/weapons/fire_any_armed`) and the second pull
   is the guns. The manual says bombs are not supported in the F-14, so Fire (it was the bomb release, which does
-  nothing) drops flares, like the stick's flare button in the manual. (issue #99)
+  nothing) is free; the flares and chaff stay on T2 in combat. (issue #99)
 - **F-14: master arm, nav lights and taxi light use the aircraft's own switches.** Tested in the sim through
   X-Plane's web API: the F-14 ignores the generic `master_arm_on/off`, `nav_lights_off` and `taxi_lights_off`.
   D in mode 2 is now its master arm switch (a toggle, `laminar/f14/weapons/switch/master_arm_switch`; E is free), and

@@ -2241,7 +2241,7 @@ TEST(the_ready_made_profiles_light_the_throttle_and_let_the_plugin_drive_it) {
         }
         if (n == "aircraft-F-14D.x52") {   // the F-14's own weapon select switch on the throttle hat
             CHECK_EQ(p.exact(1, kLayerAny)->press[0].text, std::string("sim/weapons/fire_any_armed"));      // the trigger fires the selected weapon
-            CHECK_EQ(p.exact(2, kLayerAny)->press[0].text, std::string("sim/weapons/deploy_flares"));      // no bombs in the F-14
+            CHECK(p.exact(2, kLayerAny) == nullptr);                                                         // no bombs in the F-14: Fire is free
             CHECK_EQ(p.exact(24, 2)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch1"));
             CHECK_EQ(p.exact(25, 2)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch2"));
             CHECK_EQ(p.exact(26, 2)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch3"));
