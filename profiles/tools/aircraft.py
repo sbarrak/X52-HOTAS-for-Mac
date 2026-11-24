@@ -9,7 +9,7 @@ features, so all aircraft follow the same idea:
 
 The pinkie switch is NOT a shift here: it is a normal button (wheel brakes while held).
 Buttons marked ANY do the same thing in all three modes. The parking brake is a hold on A (tap: gear or
-landing light). The autopilot is one on/off button (B) in every mode. The Fire button shoots in the fighters.
+landing light). The autopilot is one on/off button (B) in every mode. The Fire button drops bombs in the fighters (the trigger is the guns).
 The gear is on A in takeoff and landing only: in cruise there is no gear button.
 """
 
@@ -69,7 +69,7 @@ AIRCRAFT = [
          caution=True),
     dict(name="Grumman F-14 Tomcat", folder="Grumman F-14 Tomcat", icon="F-14D_icon11.png",
          acfs=["F-14D"], kind="fighter", engines=2, gear=True, flaps=True, ap=False, speedbrake=True, hook=True,
-         sweep=True, caution=True),
+         sweep=True, caution=True, f14=True),
     dict(name="Robinson R22 Beta II", folder="Robinson R22 Beta II", icon="Robinson R22 Beta II_icon11.png",
          acfs=["Robinson R22 Beta II", "Robinson R22 Beta II_mariner"], kind="heli", gear=False, flaps=False,
          ap=False, carb=True, governor=True),
@@ -126,7 +126,10 @@ def layout(f):
     if k == "fighter":
         any_[TRIGGER] = ("Guns", S("weapons/fire_guns"))
         any_[TRIGGER2] = ("Fire weapon", S("weapons/fire_any_armed"))
-        any_[FIRE] = ("Fire weapon", S("weapons/fire_any_armed"))
+        if f.get("f14"):
+            any_[FIRE] = ("Drop bomb", "cmd:laminar/f14/fltc/cs_bomb_release_button")
+        else:
+            any_[FIRE] = ("Drop bomb", S("weapons/fire_air_to_ground"))
     elif f["ap"]:
         any_[TRIGGER] = ("AP disconnect", S("autopilot/servos_off_any"))
         any_[TRIGGER2] = ("TOGA", S("autopilot/take_off_go_around")) if f["at"] else ("Contact ATC", S("operation/contact_atc"))
@@ -314,8 +317,17 @@ def layout(f):
     if k == "fighter":
         m2[D] = ("Master arm on", S("weapons/master_arm_on"))
         m2[E] = ("Master arm off", S("weapons/master_arm_off"))
-        m2[T1U] = ("Weapon next", S("weapons/weapon_select_up"))
-        m2[T1D] = ("Weapon prev", S("weapons/weapon_select_down"))
+        if f.get("f14"):
+            # The F-14's own weapon select switch, on the throttle hat like the manual says: 1 up, 2 right, 3 down, 4 left.
+            m2[THAT_U] = ("Weapon select 1", "cmd:laminar/f14/fltc/cs_wpn_select_switch1")
+            m2[THAT_R] = ("Weapon select 2", "cmd:laminar/f14/fltc/cs_wpn_select_switch2")
+            m2[THAT_D] = ("Weapon select 3", "cmd:laminar/f14/fltc/cs_wpn_select_switch3")
+            m2[THAT_L] = ("Weapon select 4", "cmd:laminar/f14/fltc/cs_wpn_select_switch4")
+            m2[T1U] = ("Target next", S("weapons/weapon_target_up"))
+            m2[T1D] = ("Target prev", S("weapons/weapon_target_down"))
+        else:
+            m2[T1U] = ("Weapon next", S("weapons/weapon_select_up"))
+            m2[T1D] = ("Weapon prev", S("weapons/weapon_select_down"))
         m2[T2U] = ("Flares", S("weapons/deploy_flares"))
         m2[T2D] = ("Chaff", S("weapons/deploy_chaff"))
         if f["sweep"]:
@@ -324,10 +336,11 @@ def layout(f):
         else:
             m2[T3U] = ("Fire mode +", S("weapons/fire_mode_up"))
             m2[T3D] = ("Fire mode -", S("weapons/fire_mode_down"))
-        m2[THAT_U] = ("Target next", S("weapons/weapon_target_up"))
-        m2[THAT_D] = ("Target prev", S("weapons/weapon_target_down"))
-        m2[THAT_R] = ("Circle view", S("view/circle"))
-        m2[THAT_L] = ("Chase view", S("view/chase"))
+        if not f.get("f14"):
+            m2[THAT_U] = ("Target next", S("weapons/weapon_target_up"))
+            m2[THAT_D] = ("Target prev", S("weapons/weapon_target_down"))
+            m2[THAT_R] = ("Circle view", S("view/circle"))
+            m2[THAT_L] = ("Chase view", S("view/chase"))
         trim_wheel(m2)
     elif f["ap"]:
         m2[D] = ("AP wing leveler", S("autopilot/wing_leveler"))

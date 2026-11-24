@@ -62,7 +62,7 @@ TEST(saving_an_older_file_from_the_app_still_adds_the_wheel_bindings) {
     a.open(dir, "default");
     CHECK(a.change([](Profile& p) { p.ledBrightness = 90; }));
     std::string file = slurp(dir + "/default.x52");
-    CHECK(has(file, "x52pro-profile 9"));
+    CHECK(has(file, "x52pro-profile 10"));
     CHECK(has(file, "cmd:x52pro/mfd_select"));
     CHECK(has(file, "cmd:x52pro/mfd_page_prev"));
 }

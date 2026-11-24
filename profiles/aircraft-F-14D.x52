@@ -78,7 +78,7 @@ row fuel value "Right" "%.0f kg" sim/cockpit2/fuel/fuel_quantity[1]
 master screen == 1 sim/cockpit2/switches/avionics_power_on
 master lights == 1 sim/cockpit2/switches/avionics_power_on
 bind 1 any press "Guns" cmd:sim/weapons/fire_guns
-bind 2 any press "Fire weapon" cmd:sim/weapons/fire_any_armed
+bind 2 any press "Drop bomb" cmd:laminar/f14/fltc/cs_bomb_release_button
 bind 4 any press "Speedbrake in" cmd:sim/flight_controls/speed_brakes_up_one
 bind 5 any press "Speedbrake out" cmd:sim/flight_controls/speed_brakes_down_one
 bind 6 any press "Brakes (hold)" cmd:sim/flight_controls/brakes_regular
@@ -126,8 +126,8 @@ bind 3 2 press "Landing light" cmd:sim/lights/landing_lights_toggle
 bind 3 2 hold "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
 bind 7 2 press "Master arm on" cmd:sim/weapons/master_arm_on
 bind 8 2 press "Master arm off" cmd:sim/weapons/master_arm_off
-bind 9 2 press "Weapon next" cmd:sim/weapons/weapon_select_up
-bind 10 2 press "Weapon prev" cmd:sim/weapons/weapon_select_down
+bind 9 2 press "Target next" cmd:sim/weapons/weapon_target_up
+bind 10 2 press "Target prev" cmd:sim/weapons/weapon_target_down
 bind 11 2 press "Flares" cmd:sim/weapons/deploy_flares
 bind 12 2 press "Chaff" cmd:sim/weapons/deploy_chaff
 bind 13 2 press "Wings forward" cmd:sim/flight_controls/vector_sweep_forward
@@ -135,10 +135,10 @@ bind 14 2 press "Wings aft" cmd:sim/flight_controls/vector_sweep_aft
 bind 17 2 press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
 bind 18 2 press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
 bind 19 2 press "Take-off trim" cmd:sim/flight_controls/pitch_trim_takeoff
-bind 24 2 press "Target next" cmd:sim/weapons/weapon_target_up
-bind 25 2 press "Circle view" cmd:sim/view/circle
-bind 26 2 press "Target prev" cmd:sim/weapons/weapon_target_down
-bind 27 2 press "Chase view" cmd:sim/view/chase
+bind 24 2 press "Weapon select 1" cmd:laminar/f14/fltc/cs_wpn_select_switch1
+bind 25 2 press "Weapon select 2" cmd:laminar/f14/fltc/cs_wpn_select_switch2
+bind 26 2 press "Weapon select 3" cmd:laminar/f14/fltc/cs_wpn_select_switch3
+bind 27 2 press "Weapon select 4" cmd:laminar/f14/fltc/cs_wpn_select_switch4
 bind 3 3 press "Gear up/down" cmd:sim/flight_controls/landing_gear_toggle
 bind 3 3 hold "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
 bind 7 3 press "Speedbrake" cmd:sim/flight_controls/speed_brakes_toggle

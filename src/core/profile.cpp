@@ -512,7 +512,7 @@ std::string secondText(const Trigger& t) {
 
 std::string serialize(const Profile& p) {
     std::ostringstream o;
-    o << "x52pro-profile 9\n";
+    o << "x52pro-profile 10\n";
     o << "# X52 Pro button profile. Written by the X52 Pro plugin; safe to edit by hand.\n";
     o << "name = " << cleanLabel(p.name) << "\n";
     if (p.standard) o << "# standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)\nstandard = 1\n";
@@ -1127,6 +1127,17 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
     // Before mode_layout 2 mode 2 was approach and landing and mode 3 cruise; they have traded places (takeoff,
     // cruise, landing), and the parking brake left the Fire button for a hold on A.
     if (!layoutSeen) upgradeModeLayout(p);
+    // Before version 10 the Fire button of the fighters fired the selected weapon; it drops bombs now (the trigger
+    // is the guns). A Fire button changed by the user stays.
+    if (p.version < 10) {
+        const Binding* fire = p.exact(2, kLayerAny);
+        if (fire && fire->hold.empty() && fire->press.size() == 1 && fire->press[0].kind == StepKind::Command &&
+            fire->press[0].text == "sim/weapons/fire_any_armed") {
+            Binding& b = p.edit(2, kLayerAny);
+            b.label = "Drop bomb";
+            b.press[0].text = "sim/weapons/fire_air_to_ground";
+        }
+    }
     // A file from before the pinkie lights: with the pinkie held the lights stay as the mode has them.
     for (int m = 0; m < 3; ++m)
         if (!pinkieSeen[m])
