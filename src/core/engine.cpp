@@ -106,6 +106,10 @@ void Engine::buttonEvent(int button, bool down, double now) {
         } else {
             endHeld(b);
         }
+        if (b.bound) {   // the binding found at the press, whatever the mode is now
+            b.bound = false;
+            runOnce(b.binding.release, now);
+        }
         return;
     }
 
@@ -120,6 +124,7 @@ void Engine::buttonEvent(int button, bool down, double now) {
         return;
     }
     b.binding = *found;
+    b.bound = true;
     b.downTime = now;
     host_.showLabel(!b.binding.label.empty() ? b.binding.label
                     : !b.binding.press.empty() || b.binding.holdLabel.empty() ? buttonName(button)

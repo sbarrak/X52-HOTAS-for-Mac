@@ -371,6 +371,10 @@ struct Rec : Host {
     void keyUp(const std::string& c) override { log.push_back("ku:" + c); }
     void showLabel(const std::string&) override {}
     void layerChanged(int, bool) override {}
+    void datarefStep(const Step& s) override {
+        static const char* ops[] = {"set", "toggle", "add", "save", "restore"};
+        log.push_back(std::string(ops[(int)s.op]) + ":" + s.text);
+    }
     std::string str() {
         std::string s;
         for (auto& l : log) s += l + " ";
@@ -618,6 +622,131 @@ TEST(long_hold_runs_the_hold_action_and_not_the_tap) {
     CHECK_EQ(h.str(), std::string(""));
     e.buttonEvent(3, false, 1.0);
     CHECK_EQ(h.str(), std::string("end:long "));
+}
+
+TEST(release_action_runs_when_the_button_is_let_go) {
+    Rec h;
+    Engine e(h);
+    Profile p;
+    Binding& b = p.edit(1, kLayerAny);
+    b.press = act("save:sim/w ; cmd:select");
+    b.release = act("restore:sim/w");
+    e.setProfile(p);
+    e.buttonEvent(1, true, 0.0);
+    CHECK_EQ(h.str(), std::string("save:sim/w once:select "));
+    e.tick(5.0);
+    CHECK_EQ(h.str(), std::string(""));            // nothing more while it is held
+    e.buttonEvent(1, false, 6.0);
+    CHECK_EQ(h.str(), std::string("restore:sim/w "));
+    e.buttonEvent(1, false, 7.0);                  // a second release does nothing
+    CHECK_EQ(h.str(), std::string(""));
+}
+
+TEST(release_follows_a_held_command_and_a_tap_and_a_hold) {
+    Rec h;
+    Engine e(h);
+    Profile p;
+    Binding& b = p.edit(1, kLayerAny);
+    b.press = act("cmd:tap");
+    b.hold = act("cmd:long");
+    b.release = act("cmd:after");
+    e.setProfile(p);
+    e.buttonEvent(1, true, 0.0);                   // tap: press runs on release, then the release action
+    e.buttonEvent(1, false, 0.1);
+    CHECK_EQ(h.str(), std::string("once:tap once:after "));
+    e.buttonEvent(1, true, 1.0);                   // long hold: the held command ends, then the release action
+    e.tick(1.5);
+    e.buttonEvent(1, false, 2.0);
+    CHECK_EQ(h.str(), std::string("begin:long end:long once:after "));
+    Profile q;
+    Binding& c = q.edit(2, kLayerAny);
+    c.press = act("cmd:fire");
+    c.release = act("cmd:after");
+    e.setProfile(q);
+    e.buttonEvent(2, true, 3.0);
+    e.buttonEvent(2, false, 4.0);
+    CHECK_EQ(h.str(), std::string("begin:fire end:fire once:after "));
+}
+
+TEST(release_uses_the_binding_found_at_the_press_when_the_mode_changes) {
+    Rec h;
+    Engine e(h);
+    Profile p;
+    Binding& b = p.edit(1, 1);                     // mode 1 only
+    b.press = act("cmd:in1");
+    b.release = act("cmd:out1");
+    Binding& c = p.edit(1, 2);
+    c.press = act("cmd:in2");
+    c.release = act("cmd:out2");
+    e.setProfile(p);
+    e.buttonEvent(1, true, 0.0);
+    h.str();
+    e.buttonEvent(p.modeButtons[1], true, 0.5);    // the dial moves to mode 2 while the button is held
+    e.tick(2.0);
+    CHECK_EQ(e.mode(), 2);
+    e.buttonEvent(1, false, 3.0);
+    CHECK_EQ(h.str(), std::string("end:in1 once:out1 "));
+}
+
+TEST(release_does_not_run_without_a_press_in_safe_mode_or_unprogrammed) {
+    Rec h;
+    Engine e(h);
+    Profile p;
+    p.clutchSafe = true;
+    Binding& b = p.edit(1, kLayerAny);
+    b.press = act("cmd:in");
+    b.release = act("cmd:out");
+    e.setProfile(p);
+    e.buttonEvent(p.clutchButton, true, 0.0);      // clutch held: presses are only announced
+    e.buttonEvent(1, true, 0.1);
+    e.buttonEvent(1, false, 0.2);
+    CHECK_EQ(h.str(), std::string(""));
+    e.buttonEvent(5, true, 0.3);                   // nothing programmed
+    e.buttonEvent(5, false, 0.4);
+    CHECK_EQ(h.str(), std::string(""));
+}
+
+TEST(release_and_save_restore_survive_save_and_load) {
+    Profile p;
+    Binding& b = p.edit(1, kLayerAny);
+    b.label = "Gun while held";
+    b.press = act("save:sim/w ; cmd:select");
+    b.release = act("restore:sim/w");
+    p.edit(9, kLayerAny).release = act("cmd:only_release");   // a release alone is a binding too
+    Profile q;
+    std::string err;
+    CHECK(parse(serialize(p), q, &err));
+    const Binding* r = q.exact(1, kLayerAny);
+    CHECK(r != nullptr);
+    if (r) {
+        CHECK_EQ(actionToText(r->press), std::string("save:sim/w ; cmd:select"));
+        CHECK_EQ(actionToText(r->release), std::string("restore:sim/w"));
+    }
+    const Binding* s = q.exact(9, kLayerAny);
+    CHECK(s && !s->empty() && actionToText(s->release) == "cmd:only_release");
+    CHECK_EQ(serialize(q), serialize(p));
+    Action a;
+    CHECK(!actionFromText("save:sim/w=1", a, &err));          // save and restore take no number
+    CHECK(!actionFromText("restore:sim/w=1", a, &err));
+    Step st;
+    st.kind = StepKind::Dataref;
+    st.op = DatarefOp::Save;
+    double out = 0;
+    CHECK(!datarefStepValue(st, true, 3, out));                // the host keeps the remembered value
+}
+
+TEST(old_profile_without_release_loads_as_before_and_f14_trigger_migrates) {
+    Profile p;
+    std::string err;
+    CHECK(parse("x52pro-profile 10\nbind 1 any press \"Fire selected weapon\" cmd:sim/weapons/fire_any_armed\n"
+                "bind 15 any press \"Guns\" cmd:sim/weapons/fire_guns\n", p, &err));
+    const Binding* t = p.exact(1, kLayerAny);
+    CHECK(t && t->label == "Gun while held" && t->release.size() == 1 && t->release[0].op == DatarefOp::Restore);
+    const Binding* f = p.exact(2, kLayerAny);
+    CHECK(f && actionToText(f->press) == "cmd:laminar/f14/wpns/fwd_weapon_trigger");
+    Profile q;                                      // a trigger the user changed stays
+    CHECK(parse("x52pro-profile 10\nbind 1 any press \"Mine\" cmd:sim/weapons/fire_any_armed\n", q, &err));
+    CHECK(q.exact(1, kLayerAny) && q.exact(1, kLayerAny)->label == "Mine" && q.exact(1, kLayerAny)->release.empty());
 }
 
 TEST(hold_only_binding_ignores_a_short_tap) {
@@ -2240,8 +2369,15 @@ TEST(the_ready_made_profiles_light_the_throttle_and_let_the_plugin_drive_it) {
             }
         }
         if (n == "aircraft-F-14D.x52") {   // the F-14's own weapon select switch on the throttle hat
-            CHECK_EQ(p.exact(1, kLayerAny)->press[0].text, std::string("sim/weapons/fire_any_armed"));      // the trigger fires the selected weapon
-            CHECK(p.exact(2, kLayerAny) == nullptr);                                                         // no bombs in the F-14: Fire is free
+            // Trigger stage 1 remembers the weapon and selects the Gun; letting go puts it back; stage 2 fires the guns; Fire fires the selected weapon
+            const Binding* trig = p.exact(1, kLayerAny);
+            CHECK(trig && trig->press.size() == 2 && trig->press[0].op == DatarefOp::Save &&
+                  trig->press[0].text == "sim/cockpit2/weapons/weapon_select_console_index");
+            CHECK_EQ(trig->press[1].text, std::string("laminar/f14/fltc/cs_wpn_select_switch3"));
+            CHECK(trig->release.size() == 1 && trig->release[0].op == DatarefOp::Restore &&
+                  trig->release[0].text == trig->press[0].text);
+            CHECK_EQ(p.exact(15, kLayerAny)->press[0].text, std::string("sim/weapons/fire_guns"));
+            CHECK_EQ(p.exact(2, kLayerAny)->press[0].text, std::string("laminar/f14/wpns/fwd_weapon_trigger"));
             CHECK_EQ(p.exact(24, 2)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch1"));
             CHECK_EQ(p.exact(25, 2)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch2"));
             CHECK_EQ(p.exact(26, 2)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch3"));

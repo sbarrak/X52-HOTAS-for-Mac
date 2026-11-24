@@ -1208,6 +1208,19 @@ void App::saveButtonMap() {
 
 void App::datarefStep(const Step& s) {
     if (s.text.empty()) return;   // still being filled in
+    if (s.op == DatarefOp::Save) {
+        double v = 0;
+        if (readDataref(s.text, now(), v)) saved[s.text] = v;
+        else notice = "Cannot read " + s.text + " to remember it";
+        return;
+    }
+    if (s.op == DatarefOp::Restore) {
+        auto it = saved.find(s.text);
+        if (it == saved.end()) return;   // nothing was remembered: leave it as it is
+        std::string why;
+        if (!writeDataref(s.text, it->second, why)) notice = why;
+        return;
+    }
     double cur = 0, out = 0;
     bool have = readDataref(s.text, now(), cur);
     if (!datarefStepValue(s, have, cur, out)) {

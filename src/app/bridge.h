@@ -105,7 +105,7 @@ void x52_bright_try(int which, int level);     // 0 dim end, 1 bright end, for a
 int x52_bright_tried(void);                    // -1 none
 
 // ---- Button assignments, edited from the app. button 1..39, layer 0 any mode, 1..3 mode, 4..6 mode + pinkie.
-// hold 0 is "when pressed", hold 1 "when held". Step kinds: 0 command, 1 keystroke, 2 wait, 3 dataref.
+// hold 0 is "when pressed", hold 1 "when held", hold 2 "when released". Step kinds: 0 command, 1 keystroke, 2 wait, 3 dataref.
 // Dataref ops: 0 set, 1 toggle, 2 add. Numbers (which): 0 value, 1 second value (toggle), 2 minimum, 3 maximum (add).
 const char* x52_button_name(int button);
 int x52_button_led(int button);                // the light on that control (0..x52_led_count()-1), -1 when it has none

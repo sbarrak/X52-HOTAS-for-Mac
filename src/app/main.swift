@@ -1371,7 +1371,7 @@ struct CatalogField: View {
 }
 
 let stepTags = ["CMD", "KEY", "WAIT", "DATA"]
-let datarefOps = ["Set", "Toggle", "Add"]
+let datarefOps = ["Set", "Toggle", "Add", "Save", "Restore"]
 
 struct StepRow: View {
     @ObservedObject var m: Model
@@ -1411,12 +1411,14 @@ struct StepRow: View {
                 let op = Binding<Int>(get: { Int(x52_step_op(b, l, h, i)) }, set: { write(op: $0) })
                 let n = { (which: Int) in Binding<Double>(get: { x52_step_num(b, l, h, i, Int32(which)) }, set: { write(num: which, $0) }) }
                 HStack(spacing: 8) {
-                    FixedSegments(selection: op, names: datarefOps, width: 70)
+                    FixedSegments(selection: op, names: datarefOps, width: 64)
                     if op.wrappedValue == 0 {
                         Text("to"); TextField("", value: n(0), format: .number).textFieldStyle(.roundedBorder).frame(width: 80)
                     } else if op.wrappedValue == 1 {
                         Text("between"); TextField("", value: n(0), format: .number).textFieldStyle(.roundedBorder).frame(width: 70)
                         Text("and"); TextField("", value: n(1), format: .number).textFieldStyle(.roundedBorder).frame(width: 70)
+                    } else if op.wrappedValue >= 3 {
+                        Text(op.wrappedValue == 3 ? "remember its value" : "write the remembered value back").foregroundStyle(.secondary)
                     } else {
                         Text("by"); TextField("", value: n(0), format: .number).textFieldStyle(.roundedBorder).frame(width: 70)
                         Text("keep between"); TextField("", value: n(2), format: .number).textFieldStyle(.roundedBorder).frame(width: 60)
@@ -1448,15 +1450,20 @@ struct StepList: View {
                                     set: { x52_bind_set_label(b, l, h, String($0.prefix(16))); m.tick() })
         VStack(alignment: .leading, spacing: 8) {
             Text(title).foregroundStyle(.orange)
-            HStack {
-                Text("Name on screen").frame(width: 110, alignment: .leading)
-                TextField("up to 16 characters", text: label).textFieldStyle(.roundedBorder).frame(width: 220)
+            if hold != 2 {   // a release has no name of its own
+                HStack {
+                    Text("Name on screen").frame(width: 110, alignment: .leading)
+                    TextField("up to 16 characters", text: label).textFieldStyle(.roundedBorder).frame(width: 220)
+                }
             }
             ForEach(0..<Int(x52_step_count(b, l, h)), id: \.self) { StepRow(m: m, hold: hold, index: $0) }
             HStack {
                 Button("+ Command") { _ = x52_step_add(b, l, h, 0); m.tick() }
                 Button("+ Keystroke") { _ = x52_step_add(b, l, h, 1); m.tick() }
                 Button("+ Dataref") { _ = x52_step_add(b, l, h, 3); m.tick() }
+                if hold == 2 {
+                    Text("remember a dataref when pressed, put it back here").font(.caption).foregroundStyle(.secondary)
+                }
                 Button("+ Wait") { _ = x52_step_add(b, l, h, 2); m.tick() }
             }
         }
@@ -1637,6 +1644,8 @@ struct ButtonsTab: View {
                 StepList(m: m, hold: 0, title: "When pressed")
                 Divider()
                 StepList(m: m, hold: 1, title: "When held longer than 0.4 s (optional)")
+                Divider()
+                StepList(m: m, hold: 2, title: "When released (optional)")
                 Divider()
                 Button("Clear this button in \(str(x52_layer_name(l)))") {
                     guard confirm("Clear button \(m.btn) in \(str(x52_layer_name(l)))?",
