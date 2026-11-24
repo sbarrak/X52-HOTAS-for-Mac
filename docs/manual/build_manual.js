@@ -344,6 +344,7 @@ add(gap());
 add(p("These actions also exist as X-Plane commands (under `x52pro/`), so you can give them a key or a button. There are commands for the screen's page wheel and cursor too (`mfd_page_next`, `mfd_page_prev`, up, down and select), which the ready-made profiles bind to the stick's wheels."));
 add(h2("5.2  The programming window"));
 add(p("It is a floating window inside X-Plane, drawn by the plugin itself. At the top are the tabs **Buttons**, **Lights**, **Live lights**, **Settings** and **Axes**, and **Change profile...**. The bottom line shows the profile in use and its file, with **Save as my copy** / **Delete my copy** for ready-made profiles. Changes are saved as you make them. The window uses the same profile files as the app, so what you set in one is seen in the other."));
+add(p("Pressing a button on the stick selects it in the list (the mode dial and the pinkie cannot be programmed, so they select nothing). Buttons that have a light show its colour on the left, for the layer you are programming; it is only a picture, the colours are set on the Lights tab."));
 add(p("Tab moves between text fields, and Escape cancels the command search."));
 add(h3("Buttons"));
 add(p("Press a button on the stick (or click it in the list), choose **Any mode**, a mode, or a mode and pinkie under **Programming for**, then add steps under **When pressed** and **When held**:"));

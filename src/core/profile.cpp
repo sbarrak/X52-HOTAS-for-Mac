@@ -68,6 +68,21 @@ const char* ledName(int led) { return led >= 0 && led < kLedCount ? kLedNames[le
 const char* ledTitle(int led) { return led >= 0 && led < kLedCount ? kLedTitles[led] : ""; }
 bool ledIsSingleColor(int led) { return led == LedFire || led == LedThrottle; }
 const char* colorName(Color c) { return kColorNames[(int)c & 3]; }
+int buttonLed(int button) {
+    switch (button) {
+        case 2: return 0;                      // Fire
+        case 3: return 1;                      // A
+        case 4: return 2;                      // B
+        case 7: return 3;                      // D
+        case 8: return 4;                      // E
+        case 9: case 10: return 5;             // toggle 1
+        case 11: case 12: return 6;            // toggle 2
+        case 13: case 14: return 7;            // toggle 3
+        case 20: case 21: case 22: case 23: return 8;   // the stick's hat 2 (POV 2)
+        case 31: return 9;                     // clutch
+        default: return -1;
+    }
+}
 const char* buttonName(int button) { return button >= 1 && button <= kMaxButton ? kButtonNames[button] : ""; }
 const char* layerName(int layer) { return layer >= 0 && layer < kLayerCount ? kLayerNames[layer] : ""; }
 

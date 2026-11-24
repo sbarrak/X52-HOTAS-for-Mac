@@ -1260,6 +1260,23 @@ TEST(x_plane_command_and_dataref_lists_can_be_loaded_and_searched) {
     CHECK_EQ(loadCommandCatalog(dir + "/missing.txt").size(), (size_t)0);
 }
 
+TEST(each_light_belongs_to_its_control) {
+    CHECK_EQ(buttonLed(2), 0);     // Fire
+    CHECK_EQ(buttonLed(3), 1);     // A
+    CHECK_EQ(buttonLed(9), 5);     // toggle 1, both positions
+    CHECK_EQ(buttonLed(10), 5);
+    CHECK_EQ(buttonLed(14), 7);    // toggle 3
+    CHECK_EQ(buttonLed(22), 8);    // the stick's hat 2
+    CHECK_EQ(buttonLed(31), 9);    // clutch
+    CHECK_EQ(buttonLed(1), -1);    // trigger, C, pinkie and the rest have no light
+    CHECK_EQ(buttonLed(5), -1);
+    CHECK_EQ(buttonLed(0), -1);
+    CHECK_EQ(buttonLed(99), -1);
+    for (int b = 1; b <= 51; ++b) CHECK(buttonLed(b) < kLedCount);
+    CHECK_EQ(std::string(ledName(buttonLed(2))), std::string("fire"));
+    CHECK_EQ(std::string(ledName(buttonLed(8))), std::string("e"));
+}
+
 TEST(aircraft_commands_and_datarefs_are_read_from_their_xlua_scripts) {
     const char* tmp = getenv("TMPDIR");
     std::string xp = std::string(tmp ? tmp : "/tmp") + "/x52aircraft";

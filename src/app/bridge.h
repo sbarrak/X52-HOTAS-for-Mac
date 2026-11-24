@@ -108,6 +108,9 @@ int x52_bright_tried(void);                    // -1 none
 // hold 0 is "when pressed", hold 1 "when held". Step kinds: 0 command, 1 keystroke, 2 wait, 3 dataref.
 // Dataref ops: 0 set, 1 toggle, 2 add. Numbers (which): 0 value, 1 second value (toggle), 2 minimum, 3 maximum (add).
 const char* x52_button_name(int button);
+int x52_button_led(int button);                // the light on that control (0..x52_led_count()-1), -1 when it has none
+int x52_press_seq(void);                       // goes up with every press of a button on the stick
+int x52_press_button(void);                    // the button of the latest press
 const char* x52_layer_name(int layer);
 int x52_button_reserved(int button);           // mode dial, pinkie and clutch cannot be programmed
 const char* x52_bind_summary(int button, int layer);   // what the button does there, "" when nothing is assigned

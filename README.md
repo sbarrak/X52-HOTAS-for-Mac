@@ -37,6 +37,7 @@ write macros, put radios and autopilot on the throttle's screen, and have the li
 - **Tap versus hold** – a short press and a long press can do different things.
 - **Commands, datarefs and keystrokes** – a button can run any X-Plane command, set, toggle or add to a dataref, or
   type a key or shortcut. Searches use X-Plane's own command and dataref lists, plus the add-on aircraft's own (the F-14's weapon select, ...), so the app works without the sim. Type several words to narrow the list; the Down and Up arrows move through the suggestions and Return picks one.
+- **Press to select** – with the Buttons tab open, pressing a button on the stick selects it in the list. Each button that has a light shows that light's colour next to its number.
 - **Import what X-Plane has** – start from the buttons X-Plane already has on the stick instead of from nothing.
 
 **Lights that tell you something**

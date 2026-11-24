@@ -59,6 +59,9 @@ enum class Color { Off, Green, Amber, Red };   // Fire and Throttle are single c
 
 const char* ledName(int led);          // "fire", "a", ...
 const char* ledTitle(int led);         // "Fire button", ...
+// The light that sits on a control: -1 for a button without one. (Fire, A, B, D, E, the three toggles, the stick's
+// hat 2 and the clutch.) Only for showing the light next to the button; the colours are set per light.
+int buttonLed(int button);
 bool ledIsSingleColor(int led);
 const char* colorName(Color c);        // "off", "green", "amber", "red"
 
