@@ -36,7 +36,7 @@ write macros, put radios and autopilot on the throttle's screen, and have the li
 - **Macros** – one press runs several commands and keystrokes in a row, with waits between them.
 - **Tap versus hold** – a short press and a long press can do different things.
 - **Commands, datarefs and keystrokes** – a button can run any X-Plane command, set, toggle or add to a dataref, or
-  type a key or shortcut. Searches use X-Plane's own command and dataref lists, so the app works without the sim.
+  type a key or shortcut. Searches use X-Plane's own command and dataref lists, plus the add-on aircraft's own (the F-14's weapon select, ...), so the app works without the sim.
 - **Import what X-Plane has** – start from the buttons X-Plane already has on the stick instead of from nothing.
 
 **Lights that tell you something**
@@ -298,7 +298,7 @@ The **Buttons** tab of the menu bar app does what the X-Plane window's button ed
 starting the simulator. Pick the mode (or mode + pinkie) at the top, click a button in the list,
 and add steps under **When pressed** and **When held**: **+ Command**, **+ Keystroke**,
 **+ Dataref** and **+ Wait**. While you type a command or dataref, the app suggests matches from
-X-Plane's own lists (`Resources/plugins/Commands.txt` and `DataRefs.txt`), so no sim is needed.
+X-Plane's own lists (`Resources/plugins/Commands.txt` and `DataRefs.txt`), so no sim is needed. The aircraft's own commands and datarefs are in the search too: they are read from the aircraft's xlua scripts (`Aircraft/**/plugins/xlua/scripts`, with the aircraft's name shown), and from the DataRefTool lists of X-Plane's last run (`Output/preferences/drt_last_run_commandrefs.txt` and `drt_last_run_datarefs.txt`, names only), when you have that plugin.
 Changes are saved at once; a running X-Plane applies them within a second.
 
 **Import what X-Plane has.** On the Buttons tab, **Import what X-Plane has...** asks which of X-Plane's joystick

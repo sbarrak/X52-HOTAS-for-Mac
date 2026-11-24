@@ -115,7 +115,7 @@ struct App : Host {
     void undoDropAircraftProfile();
     void reload();
     std::string profileKey() const;
-    void loadCommandList(const std::string& path);
+    void loadCommandList(const std::string& path, const std::string& xplaneDir = "");   // + the aircraft's own, if the folder is given
     double now() const;
     void lightColors(Color out[kLedCount], double now);   // mode colours, overridden by live rules
 

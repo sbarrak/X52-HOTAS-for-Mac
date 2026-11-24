@@ -253,7 +253,7 @@ add(bullet("**Undo delete**: appears after you delete a profile."));
 add(bullet("**The blue bar**: shown while a ready-made profile is selected, with **Save as new profile...**."));
 add(p("Tabs can be opened with Command-1 to Command-9, and the left and right arrow keys move along them. Tab reaches every control in the window, and the arrow keys choose in lists."));
 add(h2("4.2  Buttons"));
-add(p("Does what the X-Plane window's button editor does, without starting the simulator. Pick the layer at the top (**Programming for**: Any mode, a mode, or a mode and pinkie), click a button in the list, and add steps under **When pressed** and **When held**. While you type a command or a dataref the app suggests matches from X-Plane's own lists (`Resources/plugins/Commands.txt` and `DataRefs.txt`), so no simulator is needed. Changes are saved at once and a running X-Plane applies them within a second."));
+add(p("Does what the X-Plane window's button editor does, without starting the simulator. Pick the layer at the top (**Programming for**: Any mode, a mode, or a mode and pinkie), click a button in the list, and add steps under **When pressed** and **When held**. While you type a command or a dataref the app suggests matches from X-Plane's own lists (`Resources/plugins/Commands.txt` and `DataRefs.txt`) and from the add-on aircraft's own scripts, so no simulator is needed. Changes are saved at once and a running X-Plane applies them within a second."));
 add(...image("app-buttons.png", "Figure 1. The Buttons tab: button B in mode 1 runs the command that turns the autopilot servos on."));
 add(bullet("**+ Command**, **+ Keystroke**, **+ Dataref**, **+ Wait** add a step. The arrows move a step up or down; the cross removes it."));
 add(bullet("**Name on screen** is what the stick's screen shows when the button is pressed."));
@@ -347,7 +347,7 @@ add(p("It is a floating window inside X-Plane, drawn by the plugin itself. At th
 add(p("Tab moves between text fields, and Escape cancels the command search."));
 add(h3("Buttons"));
 add(p("Press a button on the stick (or click it in the list), choose **Any mode**, a mode, or a mode and pinkie under **Programming for**, then add steps under **When pressed** and **When held**:"));
-add(bullet("**+ Command**: search X-Plane's commands by word (\"gear\", \"flaps\", ...). Commands from add-on aircraft can be typed in full (`author/aircraft/command`)."));
+add(bullet("**+ Command**: search X-Plane's commands by word (\"gear\", \"flaps\", ...). Commands of add-on aircraft are found too (with the aircraft's name shown) when the aircraft uses xlua scripts or you have run X-Plane with the DataRefTool plugin; any other can be typed in full (`author/aircraft/command`)."));
 add(bullet("**+ Keystroke**: click **Record** and press the key, or type for example `shift+f1`."));
 add(bullet("**+ Dataref**: write a value to a dataref. **Set** puts a number there, **Toggle** flips between two values, **Add** adds an amount (negative to subtract); the last two can keep the result between a minimum and a maximum. The dataref name turns red if X-Plane does not know it. Some datarefs are read-only and X-Plane refuses to change them; the window then says so."));
 add(bullet("**+ Wait**: a pause between steps."));
