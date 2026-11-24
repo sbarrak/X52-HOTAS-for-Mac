@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.8
+
+### Changed
+- **F-14: the hat names its weapons and the trigger fires the one that is selected.** The aircraft's manual binds
+  the throttle hat to Weapon Select Switch 1 to 4 and the forward trigger to "fire the active weapon". The hat's
+  four buttons are now called by what they select (up Sidewinder, right Sparrow, down Gun, left Phoenix, from the
+  aircraft's own scripts), the trigger fires the selected weapon (`sim/weapons/fire_any_armed`) and the second pull
+  is the guns. The manual says bombs are not supported in the F-14, so Fire (it was the bomb release, which does
+  nothing) drops flares, like the stick's flare button in the manual. (issue #99)
+- **F-4 and F-14: no rudder trim.** The left and right of the stick's hat 2 are free in the two fighters (pitch
+  trim stays on up and down, and on the scroll wheel in cruise and landing). The F-4 has no per-weapon commands in
+  X-Plane, so it keeps weapon next/previous on T1. Ready-made profiles only; copies of them keep what they have.
+  (issue #99)
+
 ## 1.3.7
 
 ### Added

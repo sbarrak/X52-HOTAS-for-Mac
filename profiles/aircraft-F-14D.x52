@@ -77,17 +77,15 @@ row fuel value "Left" "%.0f kg" sim/cockpit2/fuel/fuel_quantity[0]
 row fuel value "Right" "%.0f kg" sim/cockpit2/fuel/fuel_quantity[1]
 master screen == 1 sim/cockpit2/switches/avionics_power_on
 master lights == 1 sim/cockpit2/switches/avionics_power_on
-bind 1 any press "Guns" cmd:sim/weapons/fire_guns
-bind 2 any press "Drop bomb" cmd:laminar/f14/fltc/cs_bomb_release_button
+bind 1 any press "Fire selected weapon" cmd:sim/weapons/fire_any_armed
+bind 2 any press "Flares" cmd:sim/weapons/deploy_flares
 bind 4 any press "Speedbrake in" cmd:sim/flight_controls/speed_brakes_up_one
 bind 5 any press "Speedbrake out" cmd:sim/flight_controls/speed_brakes_down_one
 bind 6 any press "Brakes (hold)" cmd:sim/flight_controls/brakes_regular
-bind 15 any press "Fire weapon" cmd:sim/weapons/fire_any_armed
+bind 15 any press "Guns" cmd:sim/weapons/fire_guns
 bind 16 any press "Cockpit view" cmd:sim/view/3d_cockpit_cmnd_look
 bind 20 any press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
-bind 21 any press "Rudder trim R" cmd:sim/flight_controls/rudder_trim_right
 bind 22 any press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
-bind 23 any press "Rudder trim L" cmd:sim/flight_controls/rudder_trim_left
 bind 35 any press "Screen page -" cmd:x52pro/mfd_page_prev
 bind 36 any press "Screen page +" cmd:x52pro/mfd_page_next
 bind 37 any press "Screen cursor up" cmd:x52pro/mfd_up
@@ -135,10 +133,10 @@ bind 14 2 press "Wings aft" cmd:sim/flight_controls/vector_sweep_aft
 bind 17 2 press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
 bind 18 2 press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
 bind 19 2 press "Take-off trim" cmd:sim/flight_controls/pitch_trim_takeoff
-bind 24 2 press "Weapon select 1" cmd:laminar/f14/fltc/cs_wpn_select_switch1
-bind 25 2 press "Weapon select 2" cmd:laminar/f14/fltc/cs_wpn_select_switch2
-bind 26 2 press "Weapon select 3" cmd:laminar/f14/fltc/cs_wpn_select_switch3
-bind 27 2 press "Weapon select 4" cmd:laminar/f14/fltc/cs_wpn_select_switch4
+bind 24 2 press "Sidewinder" cmd:laminar/f14/fltc/cs_wpn_select_switch1
+bind 25 2 press "Sparrow" cmd:laminar/f14/fltc/cs_wpn_select_switch2
+bind 26 2 press "Gun" cmd:laminar/f14/fltc/cs_wpn_select_switch3
+bind 27 2 press "Phoenix" cmd:laminar/f14/fltc/cs_wpn_select_switch4
 bind 3 3 press "Gear up/down" cmd:sim/flight_controls/landing_gear_toggle
 bind 3 3 hold "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
 bind 7 3 press "Speedbrake" cmd:sim/flight_controls/speed_brakes_toggle

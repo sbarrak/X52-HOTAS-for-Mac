@@ -9,7 +9,7 @@ features, so all aircraft follow the same idea:
 
 The pinkie switch is NOT a shift here: it is a normal button (wheel brakes while held).
 Buttons marked ANY do the same thing in all three modes. The parking brake is a hold on A (tap: gear or
-landing light). The autopilot is one on/off button (B) in every mode. The Fire button drops bombs in the fighters (the trigger is the guns).
+landing light). The autopilot is one on/off button (B) in every mode. The Fire button drops bombs in the F-4 (flares in the F-14, which has no bombs); the F-14 trigger fires the selected weapon, the F-4 trigger is the guns.
 The gear is on A in takeoff and landing only: in cruise there is no gear button.
 """
 
@@ -124,11 +124,14 @@ def layout(f):
 
     # ---- every mode
     if k == "fighter":
-        any_[TRIGGER] = ("Guns", S("weapons/fire_guns"))
-        any_[TRIGGER2] = ("Fire weapon", S("weapons/fire_any_armed"))
         if f.get("f14"):
-            any_[FIRE] = ("Drop bomb", "cmd:laminar/f14/fltc/cs_bomb_release_button")
+            # The manual: the forward trigger fires the weapon that is selected (the hat picks it); bombs are not supported.
+            any_[TRIGGER] = ("Fire selected weapon", S("weapons/fire_any_armed"))
+            any_[TRIGGER2] = ("Guns", S("weapons/fire_guns"))
+            any_[FIRE] = ("Flares", S("weapons/deploy_flares"))
         else:
+            any_[TRIGGER] = ("Guns", S("weapons/fire_guns"))
+            any_[TRIGGER2] = ("Fire weapon", S("weapons/fire_any_armed"))
             any_[FIRE] = ("Drop bomb", S("weapons/fire_air_to_ground"))
     elif f["ap"]:
         any_[TRIGGER] = ("AP disconnect", S("autopilot/servos_off_any"))
@@ -177,7 +180,7 @@ def layout(f):
         else:
             any_[SHAT_U] = ("Trim nose down", S("flight_controls/pitch_trim_down"))
             any_[SHAT_D] = ("Trim nose up", S("flight_controls/pitch_trim_up"))
-            if k != "glider":
+            if k not in ("glider", "fighter"):   # no rudder trim in the fighters: rarely used
                 any_[SHAT_L] = ("Rudder trim L", S("flight_controls/rudder_trim_left"))
                 any_[SHAT_R] = ("Rudder trim R", S("flight_controls/rudder_trim_right"))
     any_[MOUSE] = ("Cockpit view", S("view/3d_cockpit_cmnd_look"))
@@ -319,10 +322,11 @@ def layout(f):
         m2[E] = ("Master arm off", S("weapons/master_arm_off"))
         if f.get("f14"):
             # The F-14's own weapon select switch, on the throttle hat like the manual says: 1 up, 2 right, 3 down, 4 left.
-            m2[THAT_U] = ("Weapon select 1", "cmd:laminar/f14/fltc/cs_wpn_select_switch1")
-            m2[THAT_R] = ("Weapon select 2", "cmd:laminar/f14/fltc/cs_wpn_select_switch2")
-            m2[THAT_D] = ("Weapon select 3", "cmd:laminar/f14/fltc/cs_wpn_select_switch3")
-            m2[THAT_L] = ("Weapon select 4", "cmd:laminar/f14/fltc/cs_wpn_select_switch4")
+            # (its switches 1 to 4 are Sidewinder, Sparrow, Gun, Phoenix, as in its scripts and the SMS page)
+            m2[THAT_U] = ("Sidewinder", "cmd:laminar/f14/fltc/cs_wpn_select_switch1")
+            m2[THAT_R] = ("Sparrow", "cmd:laminar/f14/fltc/cs_wpn_select_switch2")
+            m2[THAT_D] = ("Gun", "cmd:laminar/f14/fltc/cs_wpn_select_switch3")
+            m2[THAT_L] = ("Phoenix", "cmd:laminar/f14/fltc/cs_wpn_select_switch4")
             m2[T1U] = ("Target next", S("weapons/weapon_target_up"))
             m2[T1D] = ("Target prev", S("weapons/weapon_target_down"))
         else:
