@@ -17,10 +17,13 @@
   avionics, battery, flares, chaff and the four weapon selects were tested and work with the generic or listed
   commands. The wing sweep commands barely move the wings (the F-14 sweeps them by itself); not changed yet.
   (issue #99)
-- **F-4 and F-14: no rudder trim.** The left and right of the stick's hat 2 are free in the two fighters (pitch
-  trim stays on up and down, and on the scroll wheel in cruise and landing). The F-4 has no per-weapon commands in
-  X-Plane, so it keeps weapon next/previous on T1. Ready-made profiles only; copies of them keep what they have.
-  (issue #99)
+- **F-14: stick hat 2 is the weapon select, in every mode.** Up weapon 1 (Sidewinder), right 2 (Sparrow), down 3
+  (Gun), left 4 (Phoenix), as the manual describes the stick's four-way switch. The throttle hat keeps the same four
+  in cruise. Hat 2 had the pitch and rudder trim: the F-14 has pitch trim on the scroll wheel in cruise and landing
+  only, and no rudder trim. (issue #99)
+- **F-4: flaps one step at a time, no rudder trim.** Hat 2 left and right were the rudder trim; they are now Flaps
+  up and Flaps down, one step per press (the F-4 has three steps: up, half, full), like the speed brake on B and C.
+  The slider still sets the flaps, and pitch trim stays on up and down. (issue #99)
 
 ## 1.3.7
 

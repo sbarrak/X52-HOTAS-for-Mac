@@ -2166,8 +2166,9 @@ TEST(the_ready_made_profiles_light_the_throttle_and_let_the_plugin_drive_it) {
         CHECK_EQ(p.axes.pluginThrottle, !heli && n != "default.x52");
         if (n != "default.x52") CHECK(p.axes.throttle.invert);   // ready for the override: the X52 lever reads 0 at full power
         for (const LightRule& r : p.rules) CHECK(r.dataref != "sim/cockpit2/controls/flap_ratio" && r.dataref != "sim/cockpit2/controls/parking_brake_ratio");
+        bool fighter = n == "aircraft-F-4.x52";   // its three flap steps are on hat 2 (left, right) as well
         for (const Binding& bd : p.bindings)                  // the flaps are on the slider, not on B and C
-            for (const Step& st : bd.press) CHECK(st.text != "sim/flight_controls/flaps_up" && st.text != "sim/flight_controls/flaps_down");
+            for (const Step& st : bd.press) if (!fighter) CHECK(st.text != "sim/flight_controls/flaps_up" && st.text != "sim/flight_controls/flaps_down");
         if (n == "aircraft-Cessna_CitationX.x52") {
             CHECK(p.axes.sliderFlaps);
             CHECK(!p.axes.slider.invert);                     // Invert flaps off: slider away from you deploys them
@@ -2198,10 +2199,16 @@ TEST(the_ready_made_profiles_light_the_throttle_and_let_the_plugin_drive_it) {
             CHECK_EQ(p.exact(26, 2)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch3"));
             CHECK_EQ(p.exact(27, 2)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch4"));
         }
-        if (n == "aircraft-F-4.x52" || n == "aircraft-F-14D.x52") {   // no rudder trim in the fighters
-            CHECK(p.exact(21, kLayerAny) == nullptr);
-            CHECK(p.exact(23, kLayerAny) == nullptr);
-            CHECK(p.exact(20, kLayerAny) != nullptr);   // pitch trim stays
+        if (n == "aircraft-F-4.x52") {   // no rudder trim: flaps one step on hat 2 left and right, pitch trim stays
+            CHECK_EQ(p.exact(21, kLayerAny)->press[0].text, std::string("sim/flight_controls/flaps_down"));
+            CHECK_EQ(p.exact(23, kLayerAny)->press[0].text, std::string("sim/flight_controls/flaps_up"));
+            CHECK_EQ(p.exact(20, kLayerAny)->press[0].text, std::string("sim/flight_controls/pitch_trim_down"));
+        }
+        if (n == "aircraft-F-14D.x52") {   // hat 2 is the weapon select, in every mode: up 1, right 2, down 3, left 4
+            CHECK_EQ(p.exact(20, kLayerAny)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch1"));
+            CHECK_EQ(p.exact(21, kLayerAny)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch2"));
+            CHECK_EQ(p.exact(22, kLayerAny)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch3"));
+            CHECK_EQ(p.exact(23, kLayerAny)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch4"));
         }
         if (n == "aircraft-F-4.x52") {
             CHECK_EQ(p.exact(2, kLayerAny)->press[0].text, std::string("sim/weapons/fire_air_to_ground"));   // Fire drops bombs

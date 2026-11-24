@@ -85,7 +85,9 @@ bind 6 any press "Brakes (hold)" cmd:sim/flight_controls/brakes_regular
 bind 15 any press "Fire weapon" cmd:sim/weapons/fire_any_armed
 bind 16 any press "Cockpit view" cmd:sim/view/3d_cockpit_cmnd_look
 bind 20 any press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
+bind 21 any press "Flaps down" cmd:sim/flight_controls/flaps_down
 bind 22 any press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
+bind 23 any press "Flaps up" cmd:sim/flight_controls/flaps_up
 bind 35 any press "Screen page -" cmd:x52pro/mfd_page_prev
 bind 36 any press "Screen page +" cmd:x52pro/mfd_page_next
 bind 37 any press "Screen cursor up" cmd:x52pro/mfd_up

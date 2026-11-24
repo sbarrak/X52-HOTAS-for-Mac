@@ -180,7 +180,16 @@ def layout(f):
         else:
             any_[SHAT_U] = ("Trim nose down", S("flight_controls/pitch_trim_down"))
             any_[SHAT_D] = ("Trim nose up", S("flight_controls/pitch_trim_up"))
-            if k not in ("glider", "fighter"):   # no rudder trim in the fighters: rarely used
+            if k == "fighter" and f.get("f14"):
+                # The F-14's hat 2 is its weapon select, as in the manual: up 1 Sidewinder, right 2 Sparrow, down 3 Gun, left 4 Phoenix.
+                any_[SHAT_U] = ("Sidewinder", "cmd:laminar/f14/fltc/cs_wpn_select_switch1")
+                any_[SHAT_R] = ("Sparrow", "cmd:laminar/f14/fltc/cs_wpn_select_switch2")
+                any_[SHAT_D] = ("Gun", "cmd:laminar/f14/fltc/cs_wpn_select_switch3")
+                any_[SHAT_L] = ("Phoenix", "cmd:laminar/f14/fltc/cs_wpn_select_switch4")
+            elif k == "fighter":   # F-4: no rudder trim (rarely used): flaps one step at a time, like the speed brake
+                any_[SHAT_L] = ("Flaps up", S("flight_controls/flaps_up"))
+                any_[SHAT_R] = ("Flaps down", S("flight_controls/flaps_down"))
+            if k not in ("glider", "fighter"):
                 any_[SHAT_L] = ("Rudder trim L", S("flight_controls/rudder_trim_left"))
                 any_[SHAT_R] = ("Rudder trim R", S("flight_controls/rudder_trim_right"))
     any_[MOUSE] = ("Cockpit view", S("view/3d_cockpit_cmnd_look"))

@@ -84,8 +84,10 @@ bind 5 any press "Speedbrake out" cmd:sim/flight_controls/speed_brakes_down_one
 bind 6 any press "Brakes (hold)" cmd:sim/flight_controls/brakes_regular
 bind 15 any press "Guns" cmd:sim/weapons/fire_guns
 bind 16 any press "Cockpit view" cmd:sim/view/3d_cockpit_cmnd_look
-bind 20 any press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
-bind 22 any press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
+bind 20 any press "Sidewinder" cmd:laminar/f14/fltc/cs_wpn_select_switch1
+bind 21 any press "Sparrow" cmd:laminar/f14/fltc/cs_wpn_select_switch2
+bind 22 any press "Gun" cmd:laminar/f14/fltc/cs_wpn_select_switch3
+bind 23 any press "Phoenix" cmd:laminar/f14/fltc/cs_wpn_select_switch4
 bind 35 any press "Screen page -" cmd:x52pro/mfd_page_prev
 bind 36 any press "Screen page +" cmd:x52pro/mfd_page_next
 bind 37 any press "Screen cursor up" cmd:x52pro/mfd_up
