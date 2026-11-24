@@ -119,7 +119,7 @@ def layout(f):
     """{layer: {button: (label, steps)}} - layer 0 is every mode."""
     k = f["kind"]
     jetlike = k in ("jet", "airliner", "fighter")
-    L = {ANY: {}, 1: {}, 2: {}, 3: {}}
+    L = {ANY: {}, 1: {}, 2: {}, 3: {}, 5: {}}   # 5 = mode 2 + pinkie (the F-14 only)
     any_, m1, m2, m3 = L[ANY], L[1], L[2], L[3]   # m2 is cruise, m3 is landing
 
     # ---- every mode
@@ -186,6 +186,11 @@ def layout(f):
                 any_[SHAT_R] = ("Sparrow", "cmd:laminar/f14/fltc/cs_wpn_select_switch2")
                 any_[SHAT_D] = ("Gun", "cmd:laminar/f14/fltc/cs_wpn_select_switch3")
                 any_[SHAT_L] = ("Phoenix", "cmd:laminar/f14/fltc/cs_wpn_select_switch4")
+                # Combat (mode 2) with the pinkie held: the trims on the same hat (the pinkie is a shift in mode 2 only).
+                L[5][SHAT_U] = ("Trim nose down", S("flight_controls/pitch_trim_down"))
+                L[5][SHAT_D] = ("Trim nose up", S("flight_controls/pitch_trim_up"))
+                L[5][SHAT_L] = ("Rudder trim L", S("flight_controls/rudder_trim_left"))
+                L[5][SHAT_R] = ("Rudder trim R", S("flight_controls/rudder_trim_right"))
             if k != "glider" and not f.get("f14"):
                 any_[SHAT_L] = ("Rudder trim L", S("flight_controls/rudder_trim_left"))
                 any_[SHAT_R] = ("Rudder trim R", S("flight_controls/rudder_trim_right"))

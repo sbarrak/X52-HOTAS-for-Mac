@@ -503,6 +503,55 @@ TEST(pinkie_is_an_ordinary_button_when_shift_is_turned_off) {
     CHECK_EQ(h.str(), std::string("begin:pinkie "));
 }
 
+TEST(the_pinkie_can_be_a_shift_in_one_mode_only) {
+    Rec h;
+    Engine e(h);
+    Profile p;
+    p.shiftModes = 2;                                          // a shift in mode 2 only, a plain button (brakes) in 1 and 3
+    p.edit(6, kLayerAny).press = act("cmd:brakes");
+    p.edit(20, 2).press = act("cmd:weapon");
+    p.edit(20, 5).press = act("cmd:trim");
+    CHECK(!p.isReserved(6));                                   // so its binding can be edited
+    e.setProfile(p);
+    e.buttonEvent(6, true, 0.0);                               // mode 1: the pinkie is the brake button
+    CHECK(!e.shift());
+    CHECK_EQ(h.str(), std::string("begin:brakes "));
+    e.buttonEvent(6, false, 0.1);
+    CHECK_EQ(h.str(), std::string("end:brakes "));
+    e.buttonEvent(28, false, 0.2);
+    e.buttonEvent(29, true, 0.2);
+    e.tick(0.5);                                               // mode 2
+    CHECK_EQ(e.mode(), 2);
+    e.buttonEvent(20, true, 0.6);
+    e.buttonEvent(20, false, 0.7);
+    e.buttonEvent(6, true, 0.8);                               // mode 2: the pinkie shifts, the brakes stay off
+    CHECK(e.shift());
+    CHECK_EQ(e.layer(), 5);
+    e.buttonEvent(20, true, 0.9);
+    e.buttonEvent(20, false, 1.0);
+    e.buttonEvent(6, false, 1.1);
+    CHECK(!e.shift());
+    CHECK_EQ(h.str(), std::string("begin:weapon end:weapon begin:trim end:trim "));
+    // Held as the brake in mode 1, the dial moves to mode 2: the brake lets go and the pinkie becomes the shift.
+    Rec h2;
+    Engine e2(h2);
+    e2.setProfile(p);
+    e2.buttonEvent(6, true, 0.0);
+    e2.buttonEvent(28, false, 0.1);
+    e2.buttonEvent(29, true, 0.1);
+    e2.tick(0.5);
+    CHECK(e2.shift());
+    CHECK_EQ(h2.str(), std::string("begin:brakes end:brakes "));
+    // The setting is saved only when it is not "all modes", and read back.
+    Profile q;
+    std::string err;
+    CHECK(parse(serialize(p), q, &err));
+    CHECK_EQ(q.shiftModes, 2);
+    Profile r = p;
+    r.shiftModes = 7;
+    CHECK(serialize(r).find("pinkie_shift_modes") == std::string::npos);
+}
+
 TEST(release_ends_what_the_press_started_even_if_the_layer_changed) {
     Rec h;
     Engine e(h);
@@ -2199,6 +2248,12 @@ TEST(the_ready_made_profiles_light_the_throttle_and_let_the_plugin_drive_it) {
             CHECK_EQ(p.exact(27, 2)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch4"));
         }
         if (n == "aircraft-F-14D.x52") {   // hat 2 is the weapon select, in every mode: up 1, right 2, down 3, left 4
+            CHECK_EQ(p.shiftModes, 2);                          // the pinkie is the shift in combat only: the trims on hat 2 with it
+            CHECK(p.pinkieShift);
+            CHECK_EQ(p.exact(20, 5)->press[0].text, std::string("sim/flight_controls/pitch_trim_down"));
+            CHECK_EQ(p.exact(21, 5)->press[0].text, std::string("sim/flight_controls/rudder_trim_right"));
+            CHECK_EQ(p.exact(22, 5)->press[0].text, std::string("sim/flight_controls/pitch_trim_up"));
+            CHECK_EQ(p.exact(23, 5)->press[0].text, std::string("sim/flight_controls/rudder_trim_left"));
             CHECK_EQ(p.exact(20, kLayerAny)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch1"));
             CHECK_EQ(p.exact(21, kLayerAny)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch2"));
             CHECK_EQ(p.exact(22, kLayerAny)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch3"));

@@ -298,7 +298,7 @@ void Profile::prune() {
 bool Profile::isReserved(int button) const {
     for (int m : modeButtons)
         if (button == m) return true;
-    if (pinkieShift && button == shiftButton) return true;
+    if (pinkieShift && shiftModes == 7 && button == shiftButton) return true;   // a shift in only some modes is a plain button in the others
     if (clutchSafe && button == clutchButton) return true;
     return false;
 }
@@ -533,6 +533,7 @@ std::string serialize(const Profile& p) {
     if (p.standard) o << "# standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)\nstandard = 1\n";
     if (!p.basedOn.empty()) o << "based_on = " << p.basedOn << "\n";
     o << "pinkie_shift = " << (p.pinkieShift ? 1 : 0) << "\n";
+    if (p.shiftModes != 7) o << "pinkie_shift_modes = " << p.shiftModes << "\n";   // only in these modes (bit 0 mode 1 ... bit 2 mode 3)
     o << "shift_button = " << p.shiftButton << "\n";
     o << "mode_buttons = " << p.modeButtons[0] << " " << p.modeButtons[1] << " " << p.modeButtons[2] << "\n";
     o << "clutch_safe = " << (p.clutchSafe ? 1 : 0) << "\n";
@@ -1038,6 +1039,8 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
             return fail("'" + key + "' needs a number");
         } else if (key == "pinkie_shift") {
             p.pinkieShift = n != 0;
+        } else if (key == "pinkie_shift_modes") {
+            p.shiftModes = clampInt(n, 0, 7);
         } else if (key == "shift_button") {
             p.shiftButton = n;
         } else if (key == "clutch_safe") {

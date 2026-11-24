@@ -27,7 +27,11 @@ def profile_text(ac, acf):
     o.append("name = " + acf)
     o.append("# standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)")
     o.append("standard = 1")
-    o.append("pinkie_shift = 0")
+    if f.get("f14"):   # the F-14: the pinkie is the shift in combat (mode 2) only, for the trims on hat 2; a plain button (brakes) elsewhere
+        o.append("pinkie_shift = 1")
+        o.append("pinkie_shift_modes = 2")
+    else:
+        o.append("pinkie_shift = 0")
     o.append("shift_button = 6")
     o.append("mode_buttons = 28 29 30")
     o.append("clutch_safe = 1")
@@ -68,8 +72,8 @@ def profile_text(ac, acf):
         o.append("master lights == 1 sim/cockpit2/switches/avionics_power_on")
     L = layout(f)
     H = holds(f)
-    for layer in (ANY, 1, 2, 3):
-        for button in sorted(L[layer]):
+    for layer in (ANY, 1, 2, 3, 5):
+        for button in sorted(L.get(layer, {})):
             label, steps = L[layer][button]
             o.append('bind %d %s press "%s" %s' % (button, "any" if layer == ANY else layer, label, steps))
             if layer in H and button in H[layer]:

@@ -20,7 +20,13 @@
 - **F-14: stick hat 2 is the weapon select, in every mode.** Up weapon 1 (Sidewinder), right 2 (Sparrow), down 3
   (Gun), left 4 (Phoenix), as the manual describes the stick's four-way switch. The throttle hat keeps the same four
   in cruise. Hat 2 had the pitch and rudder trim: the F-14 has pitch trim on the scroll wheel in cruise and landing
-  only, and no rudder trim. The F-4 keeps its trims on hat 2. (issue #99)
+  only. The F-4 keeps its trims on hat 2. (issue #99)
+- **The pinkie can be the Shift in some modes only (new profile setting `pinkie_shift_modes`).** Until now the pinkie
+  was a Shift in every mode or in none. With the setting at 2 it is the Shift in mode 2 only and a plain button in
+  modes 1 and 3; the ready-made F-14 profile uses it: in combat (mode 2) the pinkie plus hat 2 is the trims (pitch
+  up and down, rudder left and right), and in takeoff and landing the pinkie is still the wheel brakes. Changing
+  the dial while the pinkie is held lets go of the brakes cleanly. Profiles that do not have the setting behave as
+  before (shift in every mode, or none). (issue #99)
 
 ## 1.3.7
 

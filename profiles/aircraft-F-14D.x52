@@ -3,7 +3,8 @@ x52pro-profile 3
 name = F-14D
 # standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)
 standard = 1
-pinkie_shift = 0
+pinkie_shift = 1
+pinkie_shift_modes = 2
 shift_button = 6
 mode_buttons = 28 29 30
 clutch_safe = 1
@@ -150,3 +151,7 @@ bind 18 3 press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
 bind 19 3 press "Take-off trim" cmd:sim/flight_controls/pitch_trim_takeoff
 bind 24 3 press "Speedbrake in" cmd:sim/flight_controls/speed_brakes_up_one
 bind 26 3 press "Speedbrake out" cmd:sim/flight_controls/speed_brakes_down_one
+bind 20 5 press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
+bind 21 5 press "Rudder trim R" cmd:sim/flight_controls/rudder_trim_right
+bind 22 5 press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
+bind 23 5 press "Rudder trim L" cmd:sim/flight_controls/rudder_trim_left
