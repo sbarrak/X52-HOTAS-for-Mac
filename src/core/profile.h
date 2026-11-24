@@ -205,6 +205,8 @@ struct WheelSet {
 struct Profile {
     std::string name = "default";
     bool pinkieShift = true;
+    int shiftModes = 7;   // the modes where the pinkie is the shift: bit 0 mode 1, bit 1 mode 2, bit 2 mode 3 (7 = all)
+    bool shiftIn(int mode) const { return pinkieShift && mode >= 1 && mode <= 3 && ((shiftModes >> (mode - 1)) & 1); }
     int shiftButton = 6;
     int modeButtons[3] = {28, 29, 30};
     bool clutchSafe = true;

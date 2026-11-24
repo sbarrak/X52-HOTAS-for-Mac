@@ -28,7 +28,7 @@ void Engine::setProfile(const Profile& p) {
     releaseAll();
     profile_ = p;
     // The switches keep their physical position across a profile change.
-    shift_ = profile_.pinkieShift && isDown(profile_.shiftButton);
+    shift_ = profile_.shiftIn(mode_) && isDown(profile_.shiftButton);
     // A latched clutch stays as it was; a held one follows the button.
     clutch_ = profile_.clutchSafe && (profile_.clutchLatched ? clutch_ : isDown(profile_.clutchButton));
 }
@@ -88,7 +88,7 @@ void Engine::buttonEvent(int button, bool down, double now) {
         }
         return;
     }
-    if (profile_.pinkieShift && button == profile_.shiftButton) {
+    if (profile_.shiftIn(mode_) && button == profile_.shiftButton) {
         shift_ = down;
         host_.layerChanged(mode_, shift_);
         return;
@@ -132,6 +132,11 @@ void Engine::tick(double now) {
     if (pendingMode_ && now - pendingSince_ >= profile_.modeSettleMs / 1000.0) {
         mode_ = pendingMode_;
         pendingMode_ = 0;
+        if (profile_.pinkieShift) {   // the pinkie may be a shift in this mode and a plain button in the last one (or the other way round)
+            Button& pk = buttons_[profile_.shiftButton];
+            shift_ = profile_.shiftIn(mode_) && pk.down;
+            if (shift_) endHeld(pk);   // what it was holding as a button (the brakes) lets go
+        }
         host_.layerChanged(mode_, shift_);
     }
     for (Button& b : buttons_) {

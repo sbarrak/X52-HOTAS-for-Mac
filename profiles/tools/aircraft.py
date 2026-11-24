@@ -9,7 +9,7 @@ features, so all aircraft follow the same idea:
 
 The pinkie switch is NOT a shift here: it is a normal button (wheel brakes while held).
 Buttons marked ANY do the same thing in all three modes. The parking brake is a hold on A (tap: gear or
-landing light). The autopilot is one on/off button (B) in every mode. The Fire button drops bombs in the fighters (the trigger is the guns).
+landing light). The autopilot is one on/off button (B) in every mode. The Fire button drops bombs in the F-4 (flares in the F-14, which has no bombs); the F-14 trigger fires the selected weapon, the F-4 trigger is the guns.
 The gear is on A in takeoff and landing only: in cruise there is no gear button.
 """
 
@@ -119,16 +119,19 @@ def layout(f):
     """{layer: {button: (label, steps)}} - layer 0 is every mode."""
     k = f["kind"]
     jetlike = k in ("jet", "airliner", "fighter")
-    L = {ANY: {}, 1: {}, 2: {}, 3: {}}
+    L = {ANY: {}, 1: {}, 2: {}, 3: {}, 5: {}}   # 5 = mode 2 + pinkie (the F-14 only)
     any_, m1, m2, m3 = L[ANY], L[1], L[2], L[3]   # m2 is cruise, m3 is landing
 
     # ---- every mode
     if k == "fighter":
-        any_[TRIGGER] = ("Guns", S("weapons/fire_guns"))
-        any_[TRIGGER2] = ("Fire weapon", S("weapons/fire_any_armed"))
         if f.get("f14"):
-            any_[FIRE] = ("Drop bomb", "cmd:laminar/f14/fltc/cs_bomb_release_button")
+            # The manual: the forward trigger fires the weapon that is selected (the hat picks it); bombs are not supported.
+            any_[TRIGGER] = ("Fire selected weapon", S("weapons/fire_any_armed"))
+            any_[TRIGGER2] = ("Guns", S("weapons/fire_guns"))
+            # Fire is free in the F-14 (no bombs; the flares and chaff are on T2 in combat)
         else:
+            any_[TRIGGER] = ("Guns", S("weapons/fire_guns"))
+            any_[TRIGGER2] = ("Fire weapon", S("weapons/fire_any_armed"))
             any_[FIRE] = ("Drop bomb", S("weapons/fire_air_to_ground"))
     elif f["ap"]:
         any_[TRIGGER] = ("AP disconnect", S("autopilot/servos_off_any"))
@@ -177,7 +180,18 @@ def layout(f):
         else:
             any_[SHAT_U] = ("Trim nose down", S("flight_controls/pitch_trim_down"))
             any_[SHAT_D] = ("Trim nose up", S("flight_controls/pitch_trim_up"))
-            if k != "glider":
+            if k == "fighter" and f.get("f14"):
+                # The F-14's hat 2 is its weapon select, as in the manual: up 1 Sidewinder, right 2 Sparrow, down 3 Gun, left 4 Phoenix.
+                any_[SHAT_U] = ("Sidewinder", "cmd:laminar/f14/fltc/cs_wpn_select_switch1")
+                any_[SHAT_R] = ("Sparrow", "cmd:laminar/f14/fltc/cs_wpn_select_switch2")
+                any_[SHAT_D] = ("Gun", "cmd:laminar/f14/fltc/cs_wpn_select_switch3")
+                any_[SHAT_L] = ("Phoenix", "cmd:laminar/f14/fltc/cs_wpn_select_switch4")
+                # Combat (mode 2) with the pinkie held: the trims on the same hat (the pinkie is a shift in mode 2 only).
+                L[5][SHAT_U] = ("Trim nose down", S("flight_controls/pitch_trim_down"))
+                L[5][SHAT_D] = ("Trim nose up", S("flight_controls/pitch_trim_up"))
+                L[5][SHAT_L] = ("Rudder trim L", S("flight_controls/rudder_trim_left"))
+                L[5][SHAT_R] = ("Rudder trim R", S("flight_controls/rudder_trim_right"))
+            if k != "glider" and not f.get("f14"):
                 any_[SHAT_L] = ("Rudder trim L", S("flight_controls/rudder_trim_left"))
                 any_[SHAT_R] = ("Rudder trim R", S("flight_controls/rudder_trim_right"))
     any_[MOUSE] = ("Cockpit view", S("view/3d_cockpit_cmnd_look"))
@@ -262,6 +276,12 @@ def layout(f):
         m1[T3U] = ("Beacon on", S("lights/beacon_lights_on"))
         m1[T3D] = ("Beacon off", S("lights/beacon_lights_off"))
     engine_hat(m1)
+    if f.get("f14"):
+        # The F-14 ignores the generic nav light off and taxi light off (tested in the sim); its own switches work.
+        m1[THAT_U] = ("Nav lights on", "cmd:laminar/f14/ltng/wing_nav_light_switch_up")
+        m1[THAT_D] = ("Nav lights off", "cmd:laminar/f14/ltng/wing_nav_light_switch_dn")
+        m1[THAT_R] = ("Taxi light", "cmd:laminar/f14/ltng/taxi_light_switch")
+        del m1[THAT_L]
     m1[SCROLL_F] = ("Zoom in", S("general/zoom_in"))
     m1[SCROLL_B] = ("Zoom out", S("general/zoom_out"))
     m1[SCROLL_C] = ("Chase view", S("view/chase"))
@@ -315,14 +335,18 @@ def layout(f):
 
     # ---- Mode 2: cruise (autopilot / systems) and combat (all the weapons)
     if k == "fighter":
-        m2[D] = ("Master arm on", S("weapons/master_arm_on"))
-        m2[E] = ("Master arm off", S("weapons/master_arm_off"))
+        if f.get("f14"):   # the generic master arm commands do nothing in the F-14; its own switch toggles it
+            m2[D] = ("Master arm", "cmd:laminar/f14/weapons/switch/master_arm_switch")
+        else:
+            m2[D] = ("Master arm on", S("weapons/master_arm_on"))
+            m2[E] = ("Master arm off", S("weapons/master_arm_off"))
         if f.get("f14"):
             # The F-14's own weapon select switch, on the throttle hat like the manual says: 1 up, 2 right, 3 down, 4 left.
-            m2[THAT_U] = ("Weapon select 1", "cmd:laminar/f14/fltc/cs_wpn_select_switch1")
-            m2[THAT_R] = ("Weapon select 2", "cmd:laminar/f14/fltc/cs_wpn_select_switch2")
-            m2[THAT_D] = ("Weapon select 3", "cmd:laminar/f14/fltc/cs_wpn_select_switch3")
-            m2[THAT_L] = ("Weapon select 4", "cmd:laminar/f14/fltc/cs_wpn_select_switch4")
+            # (its switches 1 to 4 are Sidewinder, Sparrow, Gun, Phoenix, as in its scripts and the SMS page)
+            m2[THAT_U] = ("Sidewinder", "cmd:laminar/f14/fltc/cs_wpn_select_switch1")
+            m2[THAT_R] = ("Sparrow", "cmd:laminar/f14/fltc/cs_wpn_select_switch2")
+            m2[THAT_D] = ("Gun", "cmd:laminar/f14/fltc/cs_wpn_select_switch3")
+            m2[THAT_L] = ("Phoenix", "cmd:laminar/f14/fltc/cs_wpn_select_switch4")
             m2[T1U] = ("Target next", S("weapons/weapon_target_up"))
             m2[T1D] = ("Target prev", S("weapons/weapon_target_down"))
         else:
