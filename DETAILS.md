@@ -155,6 +155,18 @@ one is selected, and the profile pickers list them in their own **Ready-made pro
 places (Applications, your home folder, Desktop, other disks). A folder you choose by hand
 is remembered.
 
+## Export the manual of a profile
+
+The menu next to the profile picker has **Export manual...**. It fills a Word template with the profile in use and saves a
+`.docx` (for a PDF, use Save as PDF in Word). The built-in template is the layout of the standard aircraft maps: the
+joystick and throttle pictures, the fixed assignment tables (also with the Pinkie held) and the display and lights
+dashboard with icons for the lights. The same menu has **Choose manual template...** to use a template of your own,
+**Save a copy of the built-in manual template...** to start one, and **Use the built-in manual template** to go back.
+
+How to make your own template, step by step: [docs/custom-manual-template.md](docs/custom-manual-template.md). Every
+field a template can show: [docs/manual-data.md](docs/manual-data.md). From the command line:
+`bin/x52manual profile.x52 template.docx out.docx`.
+
 ## Pinkie lights
 
 Every light has two sets of colours: one per mode, and one per mode while the pinkie switch

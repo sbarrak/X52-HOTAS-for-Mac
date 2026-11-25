@@ -101,6 +101,8 @@ buttons with nothing bound are left out. Without the part after the second colon
 
 ## Making and changing a template
 
+Step by step, for people who just use Word: [custom-manual-template.md](custom-manual-template.md). The short version:
+
 The shipped template is `templates/X52-Manual-Template.docx`: the layout of the standard aircraft maps (pictures, fixed tables, display and lights dashboard). Open it in Word and restyle it freely: fonts, colours,
 page layout, extra text and pictures are all yours.
 

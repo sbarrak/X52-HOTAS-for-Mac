@@ -181,7 +181,9 @@ std::string iconRelId(int n) { return "rId" + std::to_string(901 + n); }
 
 std::string pictureRun(const std::string& name, int id, const std::string& rid) {
     const std::string emu = "139700";   // 11 pt
-    return "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"" + emu + "\" cy=\"" + emu + "\"/>"
+    return "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" "
+           "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" "
+           "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><wp:extent cx=\"" + emu + "\" cy=\"" + emu + "\"/>"
            "<wp:docPr id=\"" + std::to_string(id) + "\" name=\"Light icon " + name + "\"/>"
            "<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect=\"1\"/></wp:cNvGraphicFramePr>"
            "<a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic>"

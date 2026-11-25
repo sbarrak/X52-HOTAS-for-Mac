@@ -512,6 +512,11 @@ TEST(fill_puts_light_icons_into_the_file_with_their_parts_and_relationships) {
     CHECK_EQ(countOf(rels, "<Relationship "), (size_t)2);                              // one per picture, not per use
     CHECK(rels.find("Target=\"media/light_g.png\"") != std::string::npos);
     CHECK(partOf(r.bytes, "[Content_Types].xml").find("Extension=\"png\"") != std::string::npos);
+    // Every prefix the picture markup uses is declared (an undeclared one makes the file invalid and Word refuses it).
+    for (const char* prefix : {"a", "pic"}) {
+        std::string use = std::string("<") + prefix + ":";
+        if (xml.find(use) != std::string::npos) CHECK(xml.find(std::string("xmlns:") + prefix + "=") != std::string::npos);
+    }
     CHECK_EQ(r.unknownTags.size(), (size_t)1);                                         // the picture that is not in the set
     CHECK_EQ(r.unknownTags.empty() ? std::string() : r.unknownTags[0], std::string("icon:nope"));
 }

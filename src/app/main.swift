@@ -322,6 +322,31 @@ final class Model: ObservableObject {
         customTemplate = url.path
         UserDefaults.standard.set(url.path, forKey: "manualTemplate")
     }
+    // A copy of the built-in template to start a custom one from (it lives inside the app, where nobody looks).
+    func saveBuiltInTemplateCopy() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "docx")!]
+        panel.nameFieldStringValue = "My X52 Pro manual template.docx"
+        panel.message = "Save a copy of the built-in manual template. Open it in Word, change it, then choose it with “Choose manual template...”."
+        panel.prompt = "Save copy"
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let alert = NSAlert()
+        do {
+            if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
+            try FileManager.default.copyItem(atPath: builtInTemplate, toPath: url.path)
+            alert.messageText = "Template copy saved"
+            alert.informativeText = "Open it in Word and change what you like. The guide “Your own manual template” explains how the fields work."
+            alert.addButton(withTitle: "Show in Finder")
+            alert.addButton(withTitle: "OK")
+            if alert.runModal() == .alertFirstButtonReturn { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+        } catch {
+            alert.messageText = "The copy could not be saved"
+            alert.informativeText = error.localizedDescription
+            alert.alertStyle = .warning
+            alert.runModal()
+        }
+    }
     func useBuiltInTemplate() {
         customTemplate = ""
         UserDefaults.standard.removeObject(forKey: "manualTemplate")
@@ -2858,6 +2883,7 @@ struct SettingsView: View {
                     Button("Save as new profile...") { x52_copy_ask(); m.tick() }
                     Divider()
                     Button("Export manual...") { m.exportManual() }
+                    Button("Save a copy of the built-in manual template...") { m.saveBuiltInTemplateCopy() }
                     Button("Choose manual template...") { m.chooseManualTemplate() }
                     if !m.customTemplate.isEmpty {
                         Button("Use the built-in manual template") { m.useBuiltInTemplate() }
