@@ -140,23 +140,21 @@ std::string triggerText(const Trigger& t) {
 }
 std::string ruleColorText(int c) { return c == kRuleMode ? "mode light" : ruleColorName(c); }
 
-// The light dots of the standard maps, as coloured characters: a full dot lights steady, a hollow one is off, rays flash,
-// two half dots alternate.
-const char* colorHex(int c) {
-    switch (c) {
-        case (int)Color::Green: return "2E9E57";
-        case (int)Color::Amber: return "F0B429";
-        case (int)Color::Red: return "D64545";
-        default: return "8A8A8A";
-    }
-}
-std::string styled(const std::string& hex, const std::string& text) { return "\x01" + hex + ",22\x02" + text + "\x03"; }
+// The light icons (templates/light-icons, drawn by tools/make_light_icons.py): a value puts one in its cell with
+// \x04<name>\x05. Names: off; g a r; <name>_flash; ra ar rg gr ag ga (primary colour left, secondary right) and the same
+// with _flash; gar and gar_flash (the mode's own colour).
+char colorLetter(int c) { return c == (int)Color::Green ? 'g' : c == (int)Color::Amber ? 'a' : 'r'; }
+std::string picture(const std::string& name) { return "\x04" + name + "\x05"; }
 std::string dot(int c, bool flashing = false) {
-    if (c == (int)Color::Off) return styled(colorHex(c), "\xE2\x97\x8B");                           // hollow circle
-    return styled(colorHex(c), flashing ? "\xE2\x9C\xBA" : "\xE2\x97\x8F");                       // rays / full circle
+    if (c == (int)Color::Off) return picture("off");
+    return picture(std::string(1, colorLetter(c)) + (flashing ? "_flash" : ""));
 }
-std::string splitDot(int a, int b) { return styled(colorHex(a), "\xE2\x97\x96") + styled(colorHex(b), "\xE2\x97\x97"); }   // two half circles
-std::string ruleDot(int c) { return c == kRuleMode ? std::string("mode light") : dot(c); }
+std::string pairDot(int primary, int secondary, bool flashing = false) {
+    if (primary == (int)Color::Off || secondary == (int)Color::Off || primary == secondary) return dot(primary, flashing);
+    return picture(std::string(1, colorLetter(primary)) + colorLetter(secondary) + (flashing ? "_flash" : ""));
+}
+std::string modeDot(bool flashing = false) { return picture(flashing ? "gar_flash" : "gar"); }   // the mode's own colour
+std::string ruleDot(int c) { return c == kRuleMode ? modeDot() : dot(c); }
 
 // A live light's condition in the words of the matching ready-made rule ("Parking brake"), else as a test on the dataref.
 std::string conditionWords(const LightRule& r) {
@@ -189,6 +187,10 @@ std::string stripStyle(const std::string& v) {
     for (size_t i = 0; i < v.size(); ++i) {
         if (v[i] == '\x01') {
             size_t e = v.find('\x02', i);
+            if (e == std::string::npos) break;
+            i = e;
+        } else if (v[i] == '\x04') {
+            size_t e = v.find('\x05', i);
             if (e == std::string::npos) break;
             i = e;
         } else if (v[i] != '\x03') {
@@ -315,14 +317,13 @@ ManualData buildManualData(const Profile& p, const std::string& appVersion, cons
         const Alarm* a = n <= (int)p.alarms.size() ? &p.alarms[n - 1] : nullptr;
         d.values[pre + "name"] = a ? (a->name.empty() ? triggerText(*a) : a->name) : "";
         d.values[pre + "light"] = a ? kLightLabels[a->led >= 0 && a->led < kLedCount ? a->led : 0] : "";
-        for (int m = 1; m <= 3; ++m) {
-            std::string cell;
-            if (a) {
-                int c = a->color == kRuleMode ? (int)p.leds[m - 1][a->led] : a->color;   // "mode light": the colour the mode gives it
-                cell = a->effect == Effect::Alternate ? splitDot(c, a->color2) : dot(c, a->effect == Effect::Blink);
-            }
-            d.values[pre + "m" + std::to_string(m)] = cell;
+        std::string cell;
+        if (a) {
+            if (a->color == kRuleMode) cell = modeDot(a->effect == Effect::Blink);                         // "mode light": three colours
+            else if (a->effect == Effect::Alternate) cell = pairDot(a->color, a->color2);                 // two colours, primary first
+            else cell = dot(a->color, a->effect == Effect::Blink);
         }
+        for (int m = 1; m <= 3; ++m) d.values[pre + "m" + std::to_string(m)] = cell;
         d.values[pre + "rate"] = !a ? "" : a->effect == Effect::Steady ? "Steady" : a->fast ? "Fast" : "Slow";
     }
     return d;

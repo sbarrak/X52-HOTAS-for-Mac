@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <dirent.h>
+#include <fstream>
+#include <sstream>
 
 #include "zipfile.h"
 
@@ -14,6 +17,9 @@ struct Scope {
     const ManualData* data;
     const ManualRow* row;   // the entry being repeated, or null
     std::vector<std::string>* unknown;
+    const IconSet* icons;
+    std::vector<std::string>* iconsUsed;   // the pictures put into the part so far (each once)
+    bool pictures;                         // false in headers and footers: they have no picture relationships of their own
 };
 
 // "<w:sdt" followed by '>' or ' ': a content control, not <w:sdtPr> or <w:sdtContent>.
@@ -104,6 +110,7 @@ std::string runProps(const std::string& content, size_t from) {
 struct Seg {
     std::string text, color;
     int size = 0;
+    std::string icon;   // a picture instead of text: \x04<name>\x05
 };
 
 std::vector<Seg> parseStyled(const std::string& v) {
@@ -123,6 +130,14 @@ std::vector<Seg> parseStyled(const std::string& v) {
             size_t comma = spec.find(',');
             cur.color = spec.substr(0, comma);
             cur.size = comma == npos ? 0 : atoi(spec.c_str() + comma + 1);
+            i = e;
+        } else if (c == '\x04') {
+            size_t e = v.find('\x05', i);
+            if (e == npos) break;
+            flush();
+            Seg pic;
+            pic.icon = v.substr(i + 1, e - i - 1);
+            out.push_back(pic);
             i = e;
         } else if (c == '\x03') {
             flush();
@@ -161,7 +176,22 @@ std::string styledProps(const std::string& props, const Seg& s) {
 }
 
 // The control's text as a run (or paragraph, when the control holds paragraphs).
-std::string render(const std::string& content, const std::string& value) {
+// The relationship of the n-th picture used: rId901, rId902, ...
+std::string iconRelId(int n) { return "rId" + std::to_string(901 + n); }
+
+std::string pictureRun(const std::string& name, int id, const std::string& rid) {
+    const std::string emu = "139700";   // 11 pt
+    return "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\"><wp:extent cx=\"" + emu + "\" cy=\"" + emu + "\"/>"
+           "<wp:docPr id=\"" + std::to_string(id) + "\" name=\"Light icon " + name + "\"/>"
+           "<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect=\"1\"/></wp:cNvGraphicFramePr>"
+           "<a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic>"
+           "<pic:nvPicPr><pic:cNvPr id=\"0\" name=\"" + name + ".png\"/><pic:cNvPicPr/></pic:nvPicPr>"
+           "<pic:blipFill><a:blip r:embed=\"" + rid + "\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>"
+           "<pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"" + emu + "\" cy=\"" + emu + "\"/></a:xfrm>"
+           "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>";
+}
+
+std::string render(const std::string& content, const std::string& value, const Scope& scope) {
     bool block = content.find("<w:p>") != npos || content.find("<w:p ") != npos;
     std::string ppr;
     size_t from = 0;
@@ -174,7 +204,21 @@ std::string render(const std::string& content, const std::string& value) {
     }
     std::string props = runProps(content, from);
     std::string runs;
+    static int pictureId = 9000;
     for (const Seg& seg : parseStyled(value)) {
+        if (!seg.icon.empty()) {
+            bool have = false;
+            if (scope.icons) have = scope.icons->find(seg.icon) != scope.icons->end();
+            if (!scope.pictures || !have) {
+                std::string tag = "icon:" + seg.icon;
+                if (std::find(scope.unknown->begin(), scope.unknown->end(), tag) == scope.unknown->end()) scope.unknown->push_back(tag);
+                continue;
+            }
+            auto at = std::find(scope.iconsUsed->begin(), scope.iconsUsed->end(), seg.icon);
+            if (at == scope.iconsUsed->end()) at = scope.iconsUsed->insert(scope.iconsUsed->end(), seg.icon);
+            runs += pictureRun(seg.icon, ++pictureId, iconRelId((int)(at - scope.iconsUsed->begin())));
+            continue;
+        }
         runs += "<w:r>" + styledProps(props, seg);
         size_t start = 0;
         for (;;) {
@@ -237,7 +281,7 @@ std::string process(const std::string& xml, const Scope& scope) {
                 if (std::find(scope.unknown->begin(), scope.unknown->end(), tag) == scope.unknown->end()) scope.unknown->push_back(tag);
             } else {
                 for (const ManualRow& row : list->second)
-                    if (rowPasses(row, filter)) out += process(content, Scope{scope.data, &row, scope.unknown});
+                    if (rowPasses(row, filter)) out += process(content, Scope{scope.data, &row, scope.unknown, scope.icons, scope.iconsUsed, scope.pictures});
             }
         } else if (!tag.empty()) {
             std::string value;
@@ -245,7 +289,7 @@ std::string process(const std::string& xml, const Scope& scope) {
                 if (std::find(scope.unknown->begin(), scope.unknown->end(), tag) == scope.unknown->end()) scope.unknown->push_back(tag);
                 value.clear();
             }
-            out += render(content, value);
+            out += render(content, value, scope);
         } else {
             out += sdt;   // someone else's content control: left alone
         }
@@ -274,7 +318,23 @@ int templateSchema(const std::string& templateBytes) {
     return 0;
 }
 
-FillResult fillDocx(const std::string& templateBytes, const ManualData& data) {
+IconSet loadIconSet(const std::string& dir) {
+    IconSet icons;
+    DIR* d = opendir(dir.c_str());
+    if (!d) return icons;
+    while (dirent* e = readdir(d)) {
+        std::string name = e->d_name;
+        if (name.size() < 5 || name.compare(name.size() - 4, 4, ".png") != 0) continue;
+        std::ifstream f(dir + "/" + name, std::ios::binary);
+        std::stringstream ss;
+        ss << f.rdbuf();
+        if (f) icons[name.substr(0, name.size() - 4)] = ss.str();
+    }
+    closedir(d);
+    return icons;
+}
+
+FillResult fillDocx(const std::string& templateBytes, const ManualData& data, const IconSet& icons) {
     FillResult r;
     std::vector<ZipEntry> parts;
     std::string err;
@@ -294,9 +354,26 @@ FillResult fillDocx(const std::string& templateBytes, const ManualData& data) {
                   "; this app has " + std::to_string(kManualSchema) + ").";
         return r;
     }
-    Scope scope{&data, nullptr, &r.unknownTags};
+    std::vector<std::string> used;
     for (ZipEntry& e : parts)
-        if (isWordPart(e.name)) e.data = process(e.data, scope);
+        if (isWordPart(e.name)) e.data = process(e.data, Scope{&data, nullptr, &r.unknownTags, &icons, &used, e.name == "word/document.xml"});
+    if (!used.empty()) {   // the pictures: their files, a relationship for each, and the png type
+        std::string rels;
+        for (size_t n = 0; n < used.size(); ++n) {
+            const std::string& name = used[n];
+            parts.push_back({"word/media/light_" + name + ".png", icons.at(name)});
+            rels += "<Relationship Id=\"" + iconRelId((int)n) + "\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/light_" + name + ".png\"/>";
+        }
+        for (ZipEntry& e : parts) {
+            if (e.name == "word/_rels/document.xml.rels") {
+                size_t end = e.data.rfind("</Relationships>");
+                if (end != npos) e.data.insert(end, rels);
+            } else if (e.name == "[Content_Types].xml" && e.data.find("Extension=\"png\"") == npos) {
+                size_t end = e.data.rfind("</Types>");
+                if (end != npos) e.data.insert(end, "<Default Extension=\"png\" ContentType=\"image/png\"/>");
+            }
+        }
+    }
     r.bytes = writeZip(parts);
     r.ok = true;
     return r;

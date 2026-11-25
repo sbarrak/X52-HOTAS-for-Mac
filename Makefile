@@ -89,7 +89,7 @@ build/AppIcon.icns: tools/make_icon.swift
 	swift tools/make_icon.swift build/AppIcon.iconset
 	iconutil -c icns build/AppIcon.iconset -o $@
 
-$(APPBIN): src/app/main.swift src/app/Info.plist $(APPSRC) $(HEADERS) $(XPL) build/AppIcon.icns VERSION templates/X52-Manual-Template.docx
+$(APPBIN): src/app/main.swift src/app/Info.plist $(APPSRC) $(HEADERS) $(XPL) build/AppIcon.icns VERSION templates/X52-Manual-Template.docx $(wildcard templates/light-icons/*.png)
 	@mkdir -p "$(APP)/Contents/MacOS" build/appobj
 	cd build/appobj && $(CXX) $(CXXFLAGS) -mmacosx-version-min=13.0 -c $(addprefix ../../,$(APPSRC))
 	swiftc -O -target arm64-apple-macos13.0 -import-objc-header src/app/bridge.h src/app/main.swift \
@@ -98,6 +98,7 @@ $(APPBIN): src/app/main.swift src/app/Info.plist $(APPSRC) $(HEADERS) $(XPL) bui
 	cp $(XPL) "$(APP)/Contents/Resources/X52Pro.xpl"
 	cp build/AppIcon.icns "$(APP)/Contents/Resources/AppIcon.icns"
 	cp templates/X52-Manual-Template.docx "$(APP)/Contents/Resources/X52-Manual-Template.docx"
+	rm -rf "$(APP)/Contents/Resources/light-icons" && cp -R templates/light-icons "$(APP)/Contents/Resources/light-icons"
 	cp src/app/Info.plist "$(APP)/Contents/Info.plist"
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" -c "Set :CFBundleVersion $(VERSION)" "$(APP)/Contents/Info.plist"
 	codesign --force --sign - "$(APP)"

@@ -55,18 +55,21 @@ assigned shows an em dash.
 | Tag | Contains |
 |---|---|
 | `pages.<1..12>.m<1..3>` | The page the left wheel reaches in that position and mode (hidden pages left out); empty after the last. |
-| `light.<fire, a, b, d, e, t1, t2, t3, pov, clutch, throttle>.m<1..3>` | The light's colour in that mode as a coloured dot (a hollow dot when off), with the Pinkie colour after it when that differs. `...m<n>.name` is the same in words (`green`, `red (Pinkie: amber)`). |
-| `alarm.<1..8>.name`, `.light`, `.m1`, `.m2`, `.m3`, `.rate` | An alarm: its name, its light, and in each mode a dot for its colour: a full dot when steady, rays when flashing, two half dots (the two colours) when alternating. An alarm set to the mode light shows the colour the mode gives that light. The rate is `Steady`, `Slow` or `Fast`. Rows without an alarm are empty. |
+| `light.<fire, a, b, d, e, t1, t2, t3, pov, clutch, throttle>.m<1..3>` | The light's colour in that mode as an icon (a hollow disc when off), with ` Pinkie ` and a second icon after it when the colour differs while the Pinkie is held. `...m<n>.name` is the same in words (`green`, `red (Pinkie: amber)`). |
+| `alarm.<1..8>.name`, `.light`, `.m1`, `.m2`, `.m3`, `.rate` | An alarm: its name, its light, and in each mode an icon for its colour: a full disc when steady, black rays when flashing, a split disc (primary colour left, secondary right) when alternating, three colours when it uses the mode light. The rate is `Steady`, `Slow` or `Fast`. Rows without an alarm are empty. |
 
-The dots are coloured characters, so a template only has to give the cell its font and size; the app colours them. A
-value can colour part of itself with `\x01RRGGBB,size\x02 ... \x03` (size in half-points); `stripStyle` gives the plain text.
+**The light icons** are 21 PNG files in `templates/light-icons/` (drawn by `tools/make_light_icons.py`), bundled with the app
+and added to the Word file when they are used, so a template only has to give the cell its alignment. A value shows
+an icon with `\x04<name>\x05`: `off`; `g`, `a`, `r` (steady); `g_flash`, `a_flash`, `r_flash`; `ra`, `ar`, `rg`, `gr`,
+`ag`, `ga` (two colours, primary first) and the same with `_flash`; `gar` and `gar_flash` (three colours: the mode's own).
+A value can also colour part of itself with `\x01RRGGBB,size\x02 ... \x03`; `stripStyle` gives the plain text.
 
 Two lists have no fixed size, but never fewer than 3 rows (padded with empty rows):
 
 | List | Row fields |
 |---|---|
 | `user_pages` | `page.title`, `page.fields` (the labels of the page's rows) |
-| `rules` | `rule.light`, `rule.condition` (the ready-made rule's name, such as `Parking brake`, else the test on the dataref), `rule.active` and `rule.otherwise` (dots; `mode light` when it leaves the mode's colour; `rule.active_name` and `rule.otherwise_name` in words) (the live lights) |
+| `rules` | `rule.light`, `rule.condition` (the ready-made rule's name, such as `Parking brake`, else the test on the dataref), `rule.active` and `rule.otherwise` (icons; the three-colour icon when it leaves the mode's colour; `rule.active_name` and `rule.otherwise_name` in words) (the live lights) |
 
 ## Plain lists of buttons (optional)
 
@@ -108,7 +111,8 @@ page layout, extra text and pictures are all yours.
 - **Needs a newer app?** File > Info > Properties > Advanced > Custom: add a number property `X52TemplateSchema` with
   the schema the template needs. An app that knows an older schema will refuse it.
 - **Start over:** `python3 tools/make_manual_template.py` rebuilds the template from the empty aircraft profile template in `docs/mapping/` (standard library only). The pictures, the header and the layout come from that file; the aircraft picture in the header is a placeholder you replace in Word.
-- **Try a template without the app:** `bin/x52manual profile.x52 template.docx out.docx` (built by `make`).
+- **Try a template without the app:** `bin/x52manual profile.x52 template.docx out.docx` (built by `make`); it finds the light icons in the `light-icons` folder next to the template.
+- **Redraw the light icons:** `python3 tools/make_light_icons.py` (standard library only).
 
 ## Planned (not in schema 1 yet)
 

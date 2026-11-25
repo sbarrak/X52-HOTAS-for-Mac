@@ -373,7 +373,7 @@ TEST(the_shipped_template_only_uses_tags_the_manual_data_has) {
             std::string err;
             CHECK(parse(slurpFile(profile), p, &err));
         }
-        FillResult r = fillDocx(tmpl, buildManualData(p, "1.5.0", "some-profile"));
+        FillResult r = fillDocx(tmpl, buildManualData(p, "1.5.0", "some-profile"), loadIconSet("templates/light-icons"));
         CHECK(r.ok);
         std::string unknown;
         for (const std::string& u : r.unknownTags) unknown += u + " ";
@@ -383,6 +383,7 @@ TEST(the_shipped_template_only_uses_tags_the_manual_data_has) {
         CHECK(readZip(r.bytes, parts, &err));
         for (const ZipEntry& e : parts)
             if (e.name == "word/document.xml" || e.name == "word/header1.xml") CHECK(e.data.find("<w:sdt") == std::string::npos);
+        CHECK(partOf(r.bytes, "word/document.xml").find("<w:drawing>") != std::string::npos);   // the light icons are in
         std::string header = partOf(r.bytes, "word/header1.xml");
         CHECK(header.find("some-profile.x52") != std::string::npos);
         std::string doc = partOf(r.bytes, "word/document.xml");
@@ -450,42 +451,79 @@ TEST(manual_dashboard_values_pages_lights_rules_and_alarms) {
     CHECK_EQ(d.value("light.a.m1.name"), std::string("red (Pinkie: amber)"));
     CHECK_EQ(d.value("light.a.m2.name"), std::string("green"));
     CHECK_EQ(d.value("light.pov.m1.name"), std::string("green"));
-    CHECK(d.value("light.a.m2").find("\xE2\x97\x8F") != std::string::npos);            // a full dot
-    CHECK(d.value("light.a.m2").find("2E9E57") != std::string::npos);                    // in green
-    CHECK(d.value("light.a.m1").find("Pinkie") != std::string::npos);                    // and the Pinkie colour when it differs
-    CHECK_EQ(stripStyle(d.value("light.a.m2")), std::string("\xE2\x97\x8F"));
+    CHECK_EQ(d.value("light.a.m2"), std::string("\x04g\x05"));                          // a steady green icon
+    CHECK_EQ(d.value("light.a.m1"), std::string("\x04r\x05 Pinkie \x04" "a\x05"));        // red, and the Pinkie colour when it differs
+    CHECK_EQ(stripStyle(d.value("light.a.m1")), std::string(" Pinkie "));
     CHECK_EQ(d.lists.at("rules").size(), (size_t)3);                       // a table never has fewer than 3 rows
     CHECK_EQ(d.lists.at("rules")[0].at("rule.light"), std::string("B"));
     CHECK_EQ(d.lists.at("rules")[0].at("rule.condition"), std::string("sim/x/gear > 0.5"));
     CHECK_EQ(d.lists.at("rules")[0].at("rule.active_name"), std::string("amber"));
     CHECK_EQ(d.lists.at("rules")[0].at("rule.otherwise_name"), std::string("mode light"));
-    CHECK(d.lists.at("rules")[0].at("rule.active").find("F0B429") != std::string::npos);   // an amber dot
+    CHECK_EQ(d.lists.at("rules")[0].at("rule.active"), std::string("\x04" "a\x05"));          // an amber icon
+    CHECK_EQ(d.lists.at("rules")[0].at("rule.otherwise"), std::string("\x04gar\x05"));        // three colours: the mode's own
     CHECK_EQ(d.value("alarm.1.name"), std::string("Stall"));
     CHECK_EQ(d.value("alarm.1.light"), std::string("H2 lit hat"));
     CHECK_EQ(d.value("alarm.1.rate"), std::string("Fast"));
-    CHECK_EQ(stripStyle(d.value("alarm.1.m1")), std::string("\xE2\x9C\xBA"));                // flashing: rays
+    CHECK_EQ(d.value("alarm.1.m1"), std::string("\x04r_flash\x05"));                          // flashing: rays
     CHECK_EQ(d.value("alarm.2.name"), std::string(""));                    // 8 alarm rows, always
     CHECK(!d.value("pages.1.m1").empty());                                  // the built-in pages come first
     CHECK_EQ(d.lists.at("user_pages").size(), (size_t)3);
 }
 
-TEST(manual_alarm_dots_show_steady_flashing_and_alternating_and_use_the_mode_light) {
+TEST(manual_alarm_icons_show_steady_flashing_alternating_in_order_and_the_mode_light) {
     Profile p;
-    p.leds[1][LedA] = Color::Amber;                    // mode 2 lights A amber
-    Alarm steady, alt, modeLight;
+    Alarm steady, alt, altBack, modeLight, modeFlash;
     steady.name = "S"; steady.effect = Effect::Steady; steady.color = (int)Color::Red; steady.dataref = "x";
     alt.name = "A"; alt.effect = Effect::Alternate; alt.color = (int)Color::Red; alt.color2 = (int)Color::Amber; alt.fast = true; alt.dataref = "x";
-    modeLight.name = "M"; modeLight.effect = Effect::Steady; modeLight.color = kRuleMode; modeLight.led = LedA; modeLight.dataref = "x";
-    p.alarms = {steady, alt, modeLight};
+    altBack = alt; altBack.color = (int)Color::Amber; altBack.color2 = (int)Color::Red; altBack.fast = false;
+    modeLight.name = "M"; modeLight.effect = Effect::Steady; modeLight.color = kRuleMode; modeLight.dataref = "x";
+    modeFlash = modeLight; modeFlash.effect = Effect::Blink;
+    p.alarms = {steady, alt, altBack, modeLight, modeFlash};
     ManualData d = buildManualData(p, "1.5.0");
-    CHECK_EQ(stripStyle(d.value("alarm.1.m1")), std::string("\xE2\x97\x8F"));                         // steady: a full dot
+    CHECK_EQ(d.value("alarm.1.m1"), std::string("\x04r\x05"));                       // steady: a full disc
     CHECK_EQ(d.value("alarm.1.rate"), std::string("Steady"));
-    CHECK_EQ(stripStyle(d.value("alarm.2.m1")), std::string("\xE2\x97\x96\xE2\x97\x97"));            // alternating: two half dots
-    CHECK(d.value("alarm.2.m1").find("D64545") != std::string::npos);
-    CHECK(d.value("alarm.2.m1").find("F0B429") != std::string::npos);
+    CHECK_EQ(d.value("alarm.2.m1"), std::string("\x04ra\x05"));                      // red then amber...
+    CHECK_EQ(d.value("alarm.3.m3"), std::string("\x04" "ar\x05"));                      // ...is not amber then red
     CHECK_EQ(d.value("alarm.2.rate"), std::string("Fast"));
-    CHECK(d.value("alarm.3.m2").find("F0B429") != std::string::npos);                                // the mode's own colour in mode 2
-    CHECK(d.value("alarm.3.m1").find("2E9E57") != std::string::npos);                                // green in mode 1
+    CHECK_EQ(d.value("alarm.3.rate"), std::string("Slow"));
+    CHECK_EQ(d.value("alarm.4.m2"), std::string("\x04gar\x05"));                     // the mode light: three colours
+    CHECK_EQ(d.value("alarm.5.m1"), std::string("\x04gar_flash\x05"));
+}
+
+TEST(fill_puts_light_icons_into_the_file_with_their_parts_and_relationships) {
+    ManualData d;
+    d.values["a"] = "\x04g\x05";
+    d.values["b"] = "\x04g\x05 and \x04ra_flash\x05";
+    d.values["c"] = "\x04nope\x05";
+    IconSet icons = {{"g", "PNG-G"}, {"ra_flash", "PNG-RA"}};
+    std::vector<ZipEntry> in = {{"[Content_Types].xml", "<Types></Types>"},
+        {"word/document.xml", docWith("<w:p>" + inlineControl("a") + inlineControl("b") + inlineControl("c") + "</w:p>")},
+        {"word/_rels/document.xml.rels", "<Relationships></Relationships>"}};
+    FillResult r = fillDocx(writeZip(in), d, icons);
+    CHECK(r.ok);
+    std::string xml = partOf(r.bytes, "word/document.xml");
+    CHECK_EQ(countOf(xml, "<w:drawing>"), (size_t)3);                                  // g, g, ra_flash
+    CHECK(xml.find("r:embed=\"rId901\"") != std::string::npos);
+    CHECK(xml.find("r:embed=\"rId902\"") != std::string::npos);
+    CHECK(xml.find(" and ") != std::string::npos);                                     // text between pictures stays
+    CHECK_EQ(partOf(r.bytes, "word/media/light_g.png"), std::string("PNG-G"));
+    CHECK_EQ(partOf(r.bytes, "word/media/light_ra_flash.png"), std::string("PNG-RA"));
+    std::string rels = partOf(r.bytes, "word/_rels/document.xml.rels");
+    CHECK_EQ(countOf(rels, "<Relationship "), (size_t)2);                              // one per picture, not per use
+    CHECK(rels.find("Target=\"media/light_g.png\"") != std::string::npos);
+    CHECK(partOf(r.bytes, "[Content_Types].xml").find("Extension=\"png\"") != std::string::npos);
+    CHECK_EQ(r.unknownTags.size(), (size_t)1);                                         // the picture that is not in the set
+    CHECK_EQ(r.unknownTags.empty() ? std::string() : r.unknownTags[0], std::string("icon:nope"));
+}
+
+TEST(the_light_icon_folder_has_every_icon_the_manual_can_ask_for) {
+    IconSet icons = loadIconSet("templates/light-icons");
+    CHECK_EQ(icons.size(), (size_t)21);
+    for (const char* name : {"off", "g", "a", "r", "g_flash", "a_flash", "r_flash", "ra", "ar", "rg", "gr", "ag", "ga",
+                             "ra_flash", "ar_flash", "rg_flash", "gr_flash", "ag_flash", "ga_flash", "gar", "gar_flash"}) {
+        CHECK(icons.count(name) == 1);
+        if (icons.count(name)) CHECK(icons[name].compare(1, 3, "PNG") == 0);          // a real PNG file
+    }
 }
 
 TEST(fill_colours_the_styled_parts_of_a_value_and_keeps_the_rest) {

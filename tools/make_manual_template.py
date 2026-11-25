@@ -90,6 +90,26 @@ def map_rows(table, tags_for_row):
     return "".join(out)
 
 
+def roomy_cols(table, cols):
+    """The cells in these columns hold a light icon: centred, with normal line spacing so the line is as tall as the picture."""
+    out, pos = [], 0
+    for r in rows_of(table)[1:]:
+        row, rpos, parts = r.group(0), 0, []
+        for i, c in enumerate(cells_of(row)):
+            parts.append(row[rpos:c.start()])
+            cell = c.group(0)
+            if i in cols:
+                cell = cell.replace('w:line="200" w:lineRule="exact"', 'w:line="240" w:lineRule="auto"').replace("</w:pPr>", '<w:jc w:val="center"/></w:pPr>', 1)
+            parts.append(cell)
+            rpos = c.end()
+        parts.append(row[rpos:])
+        out.append(table[pos:r.start()])
+        out.append("".join(parts))
+        pos = r.end()
+    out.append(table[pos:])
+    return "".join(out)
+
+
 def control_table(table, prefix):
     """Rows labelled with a control ('A tap'): each of the three mode cells gets <prefix>.<label slug>.m<n>."""
     return map_rows(table, lambda label, n: [None] + ["%s.%s.m%d" % (prefix, slug(label), m) for m in (1, 2, 3)])
@@ -160,9 +180,9 @@ def transform_document(xml):
         elif i == 3: t = control_table(t, "pinkie_throttle")
         elif i == 4: t = numbered_table(t, lambda n, c: "pages.%d.m%d" % (n, c))
         elif i == 5: t = repeat_table(t, "user_pages", ["page.title", "page.fields"])
-        elif i == 6: t = light_table(t)
-        elif i == 7: t = repeat_table(t, "rules", ["rule.light", "rule.condition", "rule.active", "rule.otherwise"])
-        else: t = numbered_table(t, lambda n, c: "alarm.%d.%s" % (n, ["name", "light", "m1", "m2", "m3", "rate"][c - 1]))
+        elif i == 6: t = light_table(roomy_cols(t, (1, 2, 3)))
+        elif i == 7: t = repeat_table(roomy_cols(t, (2, 3)), "rules", ["rule.light", "rule.condition", "rule.active", "rule.otherwise"])
+        else: t = numbered_table(roomy_cols(t, (3, 4, 5)), lambda n, c: "alarm.%d.%s" % (n, ["name", "light", "m1", "m2", "m3", "rate"][c - 1]))
         new[(a, b)] = t
     for (a, b) in sorted(new, reverse=True):
         xml = xml[:a] + new[(a, b)] + xml[b:]

@@ -334,7 +334,7 @@ final class Model: ObservableObject {
         panel.prompt = "Export"
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        let ok = x52_export_manual(key, manualTemplate, url.path) != 0
+        let ok = x52_export_manual(key, manualTemplate, (Bundle.main.resourcePath ?? "") + "/light-icons", url.path) != 0
         let note = str(x52_export_message())
         let alert = NSAlert()
         if ok {

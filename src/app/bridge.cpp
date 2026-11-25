@@ -881,7 +881,7 @@ bool readFile(const std::string& path, std::string& out) {
 
 const char* x52_export_message(void) { return exportMessage.c_str(); }
 
-int x52_export_manual(const char* key, const char* templatePath, const char* outPath) {
+int x52_export_manual(const char* key, const char* templatePath, const char* iconDir, const char* outPath) {
     exportMessage.clear();
     if (!agent || !key || !templatePath || !outPath || !*outPath) {
         exportMessage = "Nothing to export.";
@@ -901,7 +901,8 @@ int x52_export_manual(const char* key, const char* templatePath, const char* out
         exportMessage = "The template could not be read: " + std::string(templatePath);
         return 0;
     }
-    FillResult r = fillDocx(tmpl, buildManualData(p, X52_VERSION, key));
+    IconSet icons = loadIconSet(iconDir ? iconDir : "");
+    FillResult r = fillDocx(tmpl, buildManualData(p, X52_VERSION, key), icons);
     if (!r.ok) {
         exportMessage = r.error;
         return 0;
@@ -913,7 +914,8 @@ int x52_export_manual(const char* key, const char* templatePath, const char* out
         exportMessage = "The file could not be written: " + std::string(outPath);
         return 0;
     }
-    if (!r.unknownTags.empty()) {
+    if (icons.empty()) exportMessage = "The light pictures were not found, so the lights are left out of the manual.";
+    else if (!r.unknownTags.empty()) {
         exportMessage = "The template has fields this version of the app does not know, so they are empty:";
         for (const std::string& t : r.unknownTags) exportMessage += " " + t;
     }

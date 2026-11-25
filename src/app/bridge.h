@@ -232,7 +232,7 @@ const char* x52_calibration_live(void);
 // Export manual: fills a Word template (a .docx with tagged content controls, see docs/manual-data.md) with the profile
 // `key` and writes the result to outPath. 1 on success, 0 when it failed; x52_export_message says why, or, after a success,
 // what to look at ("" when there is nothing to say). Never changes a profile.
-int x52_export_manual(const char* key, const char* templatePath, const char* outPath);
+int x52_export_manual(const char* key, const char* templatePath, const char* iconDir, const char* outPath);   // iconDir: the folder of the light pictures
 const char* x52_export_message(void);
 
 const char* x52_profiles(void);                // keys, one per line
