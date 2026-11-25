@@ -32,7 +32,7 @@ APP = $(BIN)/X52Pro.app
 APPBIN = $(APP)/Contents/MacOS/X52Pro
 APPSRC = src/app/bridge.cpp $(AGENT) $(CORE) $(MAC)
 
-all: test $(XPL) $(BIN)/x52probe app
+all: test $(XPL) $(BIN)/x52probe $(BIN)/x52manual app
 
 build/test_core: tests/test_core.cpp tests/check.h $(CORE) $(HEADERS)
 	@mkdir -p build
@@ -66,6 +66,10 @@ test: build/test_core build/test_plugin build/test_agent build/test_xplane build
 	./build/test_manual
 	./build/test_plugin
 	./build/test_agent
+
+$(BIN)/x52manual: tools/x52manual.cpp $(CORE) $(DOCX) $(HEADERS)
+	@mkdir -p $(BIN)
+	$(CXX) $(CXXFLAGS) -o $@ tools/x52manual.cpp $(CORE) $(DOCX) -lz
 
 $(BIN)/x52probe: tools/x52probe.cpp $(CORE) $(MAC) $(HEADERS)
 	@mkdir -p $(BIN)

@@ -44,6 +44,20 @@ Each row of those lists has:
 
 A binding with no label shows its command text instead (`cmd:sim/...`).
 
+## Making and changing a template
+
+The shipped template is `templates/X52-Manual-Template.docx`. Open it in Word and restyle it freely: fonts, colours,
+page layout, extra text and pictures are all yours.
+
+- **Show a value:** Developer tab > Plain Text Content Control, then Properties > Tag: the tag from the tables above.
+  Format the control's text the way you want the value to look.
+- **Repeat a table row:** put a content control around the whole row, tag it `repeat:stick_buttons` (or
+  `repeat:throttle_buttons`), and use the row tags (`button.name`, `button.m1`, ...) in its cells.
+- **Needs a newer app?** File > Info > Properties > Advanced > Custom: add a number property `X52TemplateSchema` with
+  the schema the template needs. An app that knows an older schema will refuse it.
+- **Start over:** `python3 tools/make_manual_template.py` writes a fresh basic template (standard library only).
+- **Try a template without the app:** `bin/x52manual profile.x52 template.docx out.docx` (built by `make`).
+
 ## Planned (not in schema 1 yet)
 
 Lights, alarms, screen pages and the axes. They will be added without changing the schema number.
