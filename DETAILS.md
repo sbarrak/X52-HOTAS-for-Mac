@@ -160,8 +160,8 @@ is remembered.
 The menu next to the profile picker has **Export Current Template...**. It fills a Word template with the profile in use and saves a
 `.docx` (for a PDF, use Save as PDF in Word). The built-in template is the layout of the standard aircraft maps: the
 joystick and throttle pictures, the fixed assignment tables (also with the Pinkie held) and the display and lights
-dashboard with icons for the lights. The same menu has **Choose manual template...** to use a template of your own,
-**Save a Built-In Template Blank Copy...** to start one, and **Use the built-in manual template** to go back.
+dashboard with icons for the lights. The same menu has **Choose Custom Template...** to use a template of your own,
+**Save a Built-In Template Blank Copy...** to start one, and **Use the Built-In Template** to go back.
 
 How to make your own template, step by step: [docs/custom-manual-template.md](docs/custom-manual-template.md). Every
 field a template can show: [docs/manual-data.md](docs/manual-data.md). From the command line:

@@ -78,9 +78,9 @@ picture and choose **Change Picture**, then pick a picture of your aircraft. The
 
 ## 7. Use your template
 
-1. Menu next to the profile picker > **Choose manual template...**, and pick your `.docx` file. The app remembers it.
+1. Menu next to the profile picker > **Choose Custom Template...**, and pick your `.docx` file. The app remembers it.
 2. Menu > **Export Current Template...** and save the result. Open it in Word. For a PDF use File > Save as PDF there.
-3. To go back to the standard template: menu > **Use the built-in manual template**.
+3. To go back to the standard template: menu > **Use the Built-In Template**.
 
 If your template uses a tag the app does not know (a typo, or a field from a newer version), the exported file has an
 empty spot there and the app lists the unknown tags after the export.

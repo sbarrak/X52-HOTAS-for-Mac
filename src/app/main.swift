@@ -327,7 +327,7 @@ final class Model: ObservableObject {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "docx")!]
         panel.nameFieldStringValue = "My X52 Pro manual template.docx"
-        panel.message = "Save a blank copy of the built-in template. Open it in Word, change it, then choose it with “Choose manual template...”."
+        panel.message = "Save a blank copy of the built-in template. Open it in Word, change it, then choose it with “Choose Custom Template...”."
         panel.prompt = "Save copy"
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -2884,9 +2884,9 @@ struct SettingsView: View {
                     Divider()
                     Button("Export Current Template...") { m.exportManual() }
                     Button("Save a Built-In Template Blank Copy...") { m.saveBuiltInTemplateCopy() }
-                    Button("Choose manual template...") { m.chooseManualTemplate() }
+                    Button("Choose Custom Template...") { m.chooseManualTemplate() }
                     if !m.customTemplate.isEmpty {
-                        Button("Use the built-in manual template") { m.useBuiltInTemplate() }
+                        Button("Use the Built-In Template") { m.useBuiltInTemplate() }
                     }
                     Divider()
                     Button("Delete this profile...") { m.deleteCurrent() }.disabled(!m.canDelete)
