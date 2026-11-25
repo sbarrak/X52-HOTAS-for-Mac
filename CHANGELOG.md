@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.2
+
+### Fixed
+- **The Axes tab flickered while turning the scroll wheel (#119).** Symptom: the controls list jumped as the wheel turned. Cause: the value text sat in a 90 pt column and the wheel's text ("forward  net -6") did not fit, so it wrapped and the row changed height on every notch. Fix: a wider column (150 pt) and the text is limited to one line. Fixed in 1.6.2.
+
 ## 1.6.1
 
 ### Added

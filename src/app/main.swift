@@ -2372,7 +2372,7 @@ struct AxesTab: View {
                     HStack(spacing: 12) {
                         Text(a.name).frame(width: 150, alignment: .leading).foregroundStyle(a.moving ? Color.green : Color.primary)
                         ProgressView(value: Double(a.percent), total: 100).frame(width: 200)
-                        Text(a.text).frame(width: 90, alignment: .leading)
+                        Text(a.text).lineLimit(1).frame(width: 150, alignment: .leading)
                         if a.usage != 9999 { Text("raw \(a.raw)").foregroundStyle(.secondary) }
                     }
                 }
