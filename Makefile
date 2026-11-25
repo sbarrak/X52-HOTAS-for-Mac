@@ -14,7 +14,7 @@ CXX     = clang++
 VERSION  = $(shell cat VERSION)
 CXXFLAGS = -std=c++17 -O2 -Wall -Wextra $(ARCH) -fvisibility=hidden -DX52_VERSION='"$(VERSION)"'
 
-CORE   = src/core/profile.cpp src/core/mfd.cpp src/core/pages.cpp src/core/sidepages.cpp src/core/keys.cpp src/core/engine.cpp src/core/catalog.cpp src/core/xpjoy.cpp src/core/pagetree.cpp src/core/pageview.cpp src/core/axes.cpp src/core/update.cpp
+CORE   = src/core/profile.cpp src/core/mfd.cpp src/core/pages.cpp src/core/sidepages.cpp src/core/keys.cpp src/core/engine.cpp src/core/catalog.cpp src/core/xpjoy.cpp src/core/pagetree.cpp src/core/pageview.cpp src/core/axes.cpp src/core/update.cpp src/core/manual.cpp
 MAC    = src/mac/x52device.cpp src/mac/x52input.cpp src/mac/keysend.cpp src/mac/xplane.cpp src/mac/simlink.cpp
 PLUGIN = src/plugin/plugin.cpp src/plugin/ui.cpp src/plugin/store.cpp
 AGENT  = src/app/agent.cpp src/plugin/store.cpp
@@ -37,6 +37,10 @@ build/test_core: tests/test_core.cpp tests/check.h $(CORE) $(HEADERS)
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) -o $@ tests/test_core.cpp $(CORE)
 
+build/test_manual: tests/test_manual.cpp tests/check.h $(CORE) $(HEADERS)
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) -o $@ tests/test_manual.cpp $(CORE)
+
 build/test_plugin: tests/test_plugin.cpp tests/fake_xplm.cpp tests/fake_xplm.h tests/check.h $(PLUGIN) $(CORE) $(MAC) $(HEADERS)
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) $(XPDEFS) $(XPINC) -DX52_NO_GL -DX52_NO_HID -o $@ tests/test_plugin.cpp tests/fake_xplm.cpp \
@@ -54,10 +58,11 @@ build/test_simlink: tests/test_simlink.cpp tests/check.h src/mac/simlink.cpp src
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) -o $@ tests/test_simlink.cpp src/mac/simlink.cpp
 
-test: build/test_core build/test_plugin build/test_agent build/test_xplane build/test_simlink
+test: build/test_core build/test_plugin build/test_agent build/test_xplane build/test_simlink build/test_manual
 	./build/test_simlink
 	./build/test_xplane
 	./build/test_core
+	./build/test_manual
 	./build/test_plugin
 	./build/test_agent
 
