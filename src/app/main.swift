@@ -327,7 +327,7 @@ final class Model: ObservableObject {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "docx")!]
         panel.nameFieldStringValue = "My X52 Pro manual template.docx"
-        panel.message = "Save a copy of the built-in manual template. Open it in Word, change it, then choose it with “Choose manual template...”."
+        panel.message = "Save a blank copy of the built-in template. Open it in Word, change it, then choose it with “Choose manual template...”."
         panel.prompt = "Save copy"
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -335,7 +335,7 @@ final class Model: ObservableObject {
         do {
             if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
             try FileManager.default.copyItem(atPath: builtInTemplate, toPath: url.path)
-            alert.messageText = "Template copy saved"
+            alert.messageText = "Blank template copy saved"
             alert.informativeText = "Open it in Word and change what you like. The guide “Your own manual template” explains how the fields work."
             alert.addButton(withTitle: "Show in Finder")
             alert.addButton(withTitle: "OK")
@@ -2882,8 +2882,8 @@ struct SettingsView: View {
                     Button("New blank profile...") { m.newBlank() }
                     Button("Save as new profile...") { x52_copy_ask(); m.tick() }
                     Divider()
-                    Button("Export manual...") { m.exportManual() }
-                    Button("Save a copy of the built-in manual template...") { m.saveBuiltInTemplateCopy() }
+                    Button("Export Current Template...") { m.exportManual() }
+                    Button("Save a Built-In Template Blank Copy...") { m.saveBuiltInTemplateCopy() }
                     Button("Choose manual template...") { m.chooseManualTemplate() }
                     if !m.customTemplate.isEmpty {
                         Button("Use the built-in manual template") { m.useBuiltInTemplate() }

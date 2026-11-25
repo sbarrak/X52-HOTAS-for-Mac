@@ -1,5 +1,5 @@
 // x52manual: fills a manual template with a profile, from the command line (for trying a template out; the app does the same
-// from its Export manual button).
+// from its Export Current Template button).
 //   x52manual <profile.x52> <template.docx> <output.docx> [icon folder]
 // The icon folder (the light pictures) is the template's folder + /light-icons when not given.
 #include <fstream>

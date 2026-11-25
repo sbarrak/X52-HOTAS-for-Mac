@@ -1,6 +1,6 @@
 # Manual data: what a manual template can show
 
-The app's "Export manual" fills a Word template with the data of one profile. This file is the contract between
+The app's "Export Current Template" fills a Word template with the data of one profile. This file is the contract between
 the app and the templates: every field name a template may use, and what it contains. The code is
 `src/core/manual.cpp`.
 

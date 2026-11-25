@@ -4,7 +4,7 @@
 The empty template (docs/mapping/X52 Pro - Empty aircraft profile template.docx) is the manual's layout: the page
 header, the joystick and throttle pictures, the assignment tables with their fixed rows, the display and lights
 dashboard. This script turns its blank spots into Word content controls with tags (Developer tab > Properties), which
-the app's Export manual fills in. Layout, pictures and fonts are not touched.
+the app's Export Current Template fills in. Layout, pictures and fonts are not touched.
 
 Standard library only (no packages). After the first run the .docx is the file you edit in Word; run this again only to
 start over from the empty template. The tags are listed in docs/manual-data.md.
@@ -187,9 +187,9 @@ def transform_document(xml):
     for (a, b) in sorted(new, reverse=True):
         xml = xml[:a] + new[(a, b)] + xml[b:]
 
-    # The mode names in the column headings: "Mode 1 / Takeoff" -> "Mode 1 / " + the mode's name.
+    # The mode names in the column headings: "Mode 1 / Takeoff" -> "Mode 1 (" + the mode's name + ")".
     def mode_head(m):
-        return text_run(m.group(1), "Mode %s / " % m.group(2)) + control("mode.%s.name" % m.group(2), m.group(1))
+        return text_run(m.group(1), "Mode %s (" % m.group(2)) + control("mode.%s.name" % m.group(2), m.group(1)) + text_run(m.group(1), ")")
     xml = re.sub(r"<w:r>(" + RPR + r")<w:t xml:space=\"preserve\">Mode (\d) / \w+</w:t></w:r>", mode_head, xml, flags=re.S)
     xml = split_run(xml, "Shift enabled in each mode:  Mode 1 ________   Mode 2 ________   Mode 3 ________.   Record the actual shifted assignments and the Any mode actions that remain available.",
                     [("t", "Shift enabled in each mode:  Mode 1 "), ("c", "shift.m1"), ("t", "   Mode 2 "), ("c", "shift.m2"),

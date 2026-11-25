@@ -1,6 +1,6 @@
 # Your own manual template
 
-**Export manual...** (the menu next to the profile picker) fills a Word file with your profile. The app ships with a
+**Export Current Template...** (the menu next to the profile picker) fills a Word file with your profile. The app ships with a
 standard template, the layout of the standard aircraft maps. If you want a different look (your own fonts, colours,
 logo, wording, a shorter or longer manual) you make a template of your own in Word and tell the app to use it. You
 never need the command line.
@@ -12,7 +12,7 @@ and size you gave it. Everything else in the file is yours to change.
 ## 1. Get a copy of the standard template
 
 1. In the app, open the menu next to the profile picker (the circle with the three dots).
-2. Choose **Save a copy of the built-in manual template...** and pick a place to save it.
+2. Choose **Save a Built-In Template Blank Copy...** and pick a place to save it.
 
 (The same file is `templates/X52-Manual-Template.docx` in the project.)
 
@@ -79,7 +79,7 @@ picture and choose **Change Picture**, then pick a picture of your aircraft. The
 ## 7. Use your template
 
 1. Menu next to the profile picker > **Choose manual template...**, and pick your `.docx` file. The app remembers it.
-2. Menu > **Export manual...** and save the result. Open it in Word. For a PDF use File > Save as PDF there.
+2. Menu > **Export Current Template...** and save the result. Open it in Word. For a PDF use File > Save as PDF there.
 3. To go back to the standard template: menu > **Use the built-in manual template**.
 
 If your template uses a tag the app does not know (a typo, or a field from a newer version), the exported file has an

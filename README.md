@@ -53,7 +53,7 @@ Each ready-made profile comes with a printable button map and a full [guide](pro
 
 Want it your way? Start a new profile from any of them, change what you like, and keep it as your own **Signature Blueprint**. The originals never change, so you can always go back.
 
-Need a map of your own profile? **Export manual...** (in the menu next to the profile picker) fills a Word file with your buttons, lights, alarms and screen pages. Prefer another layout? Make your own template in Word: [how](docs/custom-manual-template.md).
+Need a map of your own profile? **Export Current Template...** (in the menu next to the profile picker) fills a Word file with your buttons, lights, alarms and screen pages. Prefer another layout? Make your own template in Word: [how](docs/custom-manual-template.md).
 
 <br>
 

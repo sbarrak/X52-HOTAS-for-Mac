@@ -387,6 +387,8 @@ TEST(the_shipped_template_only_uses_tags_the_manual_data_has) {
         std::string header = partOf(r.bytes, "word/header1.xml");
         CHECK(header.find("some-profile.x52") != std::string::npos);
         std::string doc = partOf(r.bytes, "word/document.xml");
+        CHECK(doc.find(">Mode 1 (</w:t>") != std::string::npos);                // headings read "Mode 1 (Takeoff)"
+        CHECK(doc.find(">Mode 1 / ") == std::string::npos);
         CHECK(doc.find("A tap") != std::string::npos);                          // the fixed rows are still there
         CHECK(doc.find("Roll / pitch / twist") != std::string::npos);
         CHECK(doc.find("Display and lights dashboard") != std::string::npos);
