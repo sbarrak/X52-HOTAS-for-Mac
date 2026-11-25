@@ -2591,20 +2591,25 @@ TEST(the_ready_made_profiles_light_the_throttle_and_let_the_plugin_drive_it) {
             // Modes: 1 takeoff, 2 cruise, 3 landing. One autopilot button (B) in every mode.
             CHECK_EQ(p.exact(4, kLayerAny)->press[0].text, std::string("sim/autopilot/servos_toggle"));
             CHECK(!p.exact(4, 1) && !p.exact(4, 2) && !p.exact(4, 3));
-            CHECK_EQ(p.exact(5, 2)->press[0].text, std::string("sim/autopilot/altitude_hold"));   // C, cruise
+            CHECK_EQ(p.exact(5, 2)->press[0].text, std::string("sim/autopilot/approach"));        // C, cruise (#121)
             CHECK_EQ(p.exact(5, 3)->press[0].text, std::string("sim/autopilot/approach"));        // C, landing
             CHECK_EQ(p.exact(7, 3)->press[0].text, std::string("sim/engines/thrust_reverse_hold"));   // D, landing: reverse
             CHECK_EQ(p.modeNames[1], std::string("Cruise"));
             CHECK_EQ(p.modeBannerMs, 1500);
         }
-        // The parking brake is a hold on A in every mode (tap: gear, or the landing light in cruise); Fire is free.
+        // The parking brake is a hold on A in every mode, with the aircraft's own command (#121); Fire is free.
+        // The R22 and the ASK 21 have no parking brake.
         CHECK(!p.exact(2, kLayerAny) || p.exact(2, kLayerAny)->press[0].text != "sim/flight_controls/brakes_toggle_max");
-        for (int mode = 1; mode <= 3 && n.compare(0, 9, "aircraft-") == 0; ++mode) {
+        bool noPark = n.find("R22") != std::string::npos || n == "aircraft-ASK21.x52";
+        for (int mode = 1; mode <= 3 && n.compare(0, 9, "aircraft-") == 0 && !noPark; ++mode) {
             const Binding* a = p.exact(3, mode);
             CHECK(a != nullptr);
             if (a) {
                 CHECK_EQ(a->hold.size(), (size_t)1);
-                if (!a->hold.empty()) CHECK_EQ(a->hold[0].text, std::string("sim/flight_controls/brakes_toggle_max"));
+                if (!a->hold.empty())
+                    CHECK(a->hold[0].text == "sim/flight_controls/brakes_toggle_max" ||
+                          a->hold[0].text == "sim/flight_controls/park_brake_valve_toggle" ||
+                          a->hold[0].text == "laminar/CitX/brakes/park_handle");
             }
         }
         if (n == "aircraft-F-14D.x52") {   // the F-14's own weapon select switch on the throttle hat
@@ -2656,6 +2661,127 @@ TEST(the_ready_made_profiles_light_the_throttle_and_let_the_plugin_drive_it) {
     }
     if (d) closedir(d);
     CHECK_EQ(checked, 24);
+}
+
+namespace {
+bool readyMade(const std::string& n, Profile& p) {
+    std::ifstream f("profiles/" + n);
+    std::stringstream ss;
+    ss << f.rdbuf();
+    std::string err;
+    return parse(ss.str(), p, &err);
+}
+const std::vector<std::string> kCivil = {
+    "aircraft-A330.x52", "aircraft-ALIA-250.x52", "aircraft-ASK21.x52", "aircraft-Aerolite_103.x52",
+    "aircraft-Baron_58.x52", "aircraft-C90B.x52", "aircraft-Cessna_172SP.x52", "aircraft-Cessna_172SP_G1000.x52",
+    "aircraft-Cessna_172SP_seaplane.x52", "aircraft-Cessna_CitationX.x52", "aircraft-Cirrus SR22.x52",
+    "aircraft-CirrusSF50.x52", "aircraft-L5_Sentinel.x52", "aircraft-MD80.x52", "aircraft-N844X.x52",
+    "aircraft-PA-18-150.x52", "aircraft-RV-10.x52", "aircraft-Robinson R22 Beta II.x52",
+    "aircraft-Robinson R22 Beta II_mariner.x52", "aircraft-S-76C.x52", "aircraft-b738.x52", "default.x52"};
+}  // namespace
+
+// One layout for the civil ready-made profiles (#121): E is the wheel brakes in every mode and layer, the pinkie
+// is a Shift in every mode (never the brakes), and each shifted layer keeps its mode's buttons unless it changes them.
+TEST(the_civil_profiles_share_one_layout) {
+    for (const std::string& n : kCivil) {
+        Profile p;
+        CHECK(readyMade(n, p));
+        CHECK(p.standard);
+        CHECK(p.pinkieShift);
+        CHECK_EQ(p.shiftModes, 7);
+        CHECK(p.exact(6, kLayerAny) == nullptr);   // the pinkie has no binding: it is only the Shift
+        for (int layer = 1; layer <= 6; ++layer) {
+            const Binding* e = p.find(8, layer);
+            CHECK(e != nullptr);
+            if (e) {
+                CHECK_EQ(actionToText(e->press), std::string("cmd:sim/flight_controls/brakes_regular"));
+                CHECK(e->hold.empty());   // a hold would hold the brakes back for 400 ms
+            }
+            CHECK(p.find(7, layer) == nullptr || actionToText(p.find(7, layer)->press).find("brakes_regular") == std::string::npos);
+        }
+        // Pinkie + mode: the same as the mode, except the wheel (zoom), the extra lights (hat, modes 1 and 3),
+        // and in cruise C (flight director) and the throttle hat right/left (VS).
+        for (int mode = 1; mode <= 3; ++mode) {
+            for (int button = 1; button <= kMaxButton; ++button) {
+                if (button == 6 || button == 17 || button == 18 || button == 19) continue;
+                if (button >= 24 && button <= 27) continue;
+                if (mode == 2 && button == 5) continue;
+                if (mode == 1 && (button == 13 || button == 14) && n.find("R22") != std::string::npos) continue;
+                if (mode == 3 && (button == 13 || button == 14) && p.find(13, 3) &&
+                    actionToText(p.find(13, 3)->press).find("take_off_go_around") != std::string::npos) continue;
+                const Binding* a = p.find(button, mode);
+                const Binding* b = p.find(button, mode + 3);
+                CHECK((a != nullptr) == (b != nullptr));
+                if (a && b) {
+                    CHECK_EQ(actionToText(a->press), actionToText(b->press));
+                    CHECK_EQ(actionToText(a->hold), actionToText(b->hold));
+                    CHECK_EQ(a->label, b->label);
+                }
+            }
+            const Binding* zoom = p.find(17, mode + 3);
+            CHECK(zoom && actionToText(zoom->press) == "cmd:sim/general/zoom_in");
+            // The hat's lights are the same in modes 1 and 3.
+            for (int button = 24; button <= 27; ++button) {
+                const Binding* m1 = p.find(button, 1);
+                const Binding* m3 = p.find(button, 3);
+                CHECK((m1 != nullptr) == (m3 != nullptr));
+                if (m1 && m3) CHECK_EQ(actionToText(m1->press), actionToText(m3->press));
+            }
+        }
+        // AP aircraft: B on/off and trigger stage 1 disconnect in every mode and layer; no TOGA on stage 2.
+        const Binding* b = p.find(4, 1);
+        if (b && actionToText(b->press) == "cmd:sim/autopilot/servos_toggle") {
+            for (int layer = 1; layer <= 6; ++layer) {
+                CHECK_EQ(actionToText(p.find(4, layer)->press), std::string("cmd:sim/autopilot/servos_toggle"));
+                CHECK_EQ(actionToText(p.find(1, layer)->press), std::string("cmd:sim/autopilot/servos_off_any"));
+                const Binding* t2 = p.find(15, layer);
+                CHECK(!t2 || actionToText(t2->press).find("take_off_go_around") == std::string::npos);
+            }
+            CHECK_EQ(actionToText(p.find(5, 2)->press), std::string("cmd:sim/autopilot/approach"));   // C: approach
+            CHECK_EQ(actionToText(p.find(11, 2)->press), std::string("cmd:sim/autopilot/altitude_hold"));   // T2 up
+        }
+    }
+}
+
+// The engine with a real profile: E brakes begin at the press and end at the release, also when the mode or the
+// pinkie changes in between; A on fixed gear does nothing on a tap and sets the parking brake when held; the
+// trigger disconnects the autopilot with the pinkie held; reverse ends when D is let go.
+TEST(the_civil_buttons_behave_in_the_engine) {
+    Profile sky, b738;
+    CHECK(readyMade("aircraft-Cessna_172SP.x52", sky));
+    CHECK(readyMade("aircraft-b738.x52", b738));
+    Rec h;
+    Engine e(h);
+    e.setProfile(b738);
+    e.buttonEvent(28, true, 0.0);   // mode 1
+    e.tick(1.0);
+    h.str();
+    e.buttonEvent(8, true, 1.1);
+    CHECK_EQ(h.str(), std::string("begin:sim/flight_controls/brakes_regular "));
+    e.buttonEvent(6, true, 1.2);    // pinkie
+    e.buttonEvent(28, false, 1.3);
+    e.buttonEvent(30, true, 1.3);   // mode 3
+    e.tick(2.0);
+    CHECK_EQ(h.str(), std::string(""));   // still braking
+    e.buttonEvent(8, false, 2.1);
+    CHECK_EQ(h.str(), std::string("end:sim/flight_controls/brakes_regular "));
+    e.buttonEvent(1, true, 2.2);    // trigger with the pinkie held, mode 3
+    e.buttonEvent(1, false, 2.3);
+    CHECK_EQ(h.str(), std::string("begin:sim/autopilot/servos_off_any end:sim/autopilot/servos_off_any "));
+    e.buttonEvent(6, false, 2.4);
+    e.buttonEvent(7, true, 2.5);    // D: reverse while held
+    e.buttonEvent(7, false, 3.5);
+    CHECK_EQ(h.str(), std::string("begin:sim/engines/thrust_reverse_hold end:sim/engines/thrust_reverse_hold "));
+    e.setProfile(sky);
+    h.str();
+    e.buttonEvent(3, true, 4.0);    // A tap on fixed gear: nothing
+    e.buttonEvent(3, false, 4.1);
+    e.tick(4.2);
+    CHECK_EQ(h.str(), std::string(""));
+    e.buttonEvent(3, true, 5.0);    // A held: the parking brake
+    e.tick(5.5);
+    e.buttonEvent(3, false, 6.0);
+    CHECK_EQ(h.str(), std::string("begin:sim/flight_controls/brakes_toggle_max end:sim/flight_controls/brakes_toggle_max "));
 }
 
 TEST(an_older_profile_gets_takeoff_cruise_landing_and_the_parking_brake_on_a) {

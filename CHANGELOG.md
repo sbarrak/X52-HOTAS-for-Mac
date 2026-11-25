@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.6.4
+
+### Changed
+- **One layout for the ready-made civil profiles (#121).** The 21 profiles of the civil aircraft that come with X-Plane 12, and `default.x52`, now put a function on the same control in every aircraft that has it, and leave a button empty where the aircraft does not:
+  - **E held = wheel brakes** in every mode (on at the press, off at the release, no hold delay). The pinkie is no longer the brakes.
+  - **A:** tap = gear in takeoff and landing; held = the parking brake, with each aircraft's own command (the parking brake valve in the Baron, King Air, 737, SR22, SF50 and RV-10, the Citation X's own handle). On fixed gear a tap does nothing.
+  - **Throttle hat in takeoff and landing = exterior lights:** up landing, right taxi, down strobes, left nav. D in takeoff is the beacon. Selectors with three positions (737, MD-82, A330, Citation X) use their own commands: a tap moves them one position up, a hold one down. Landing lights made of several lamps go on or off together.
+  - **Cruise:** T1 HDG / NAV, T2 ALT hold / VS, C approach (no longer a second ALT hold), throttle hat ALT and speed (airliners) or VS.
+  - **Landing:** D held = reverse, T1 autobrake, T2 spoilers arm / retract, T3 up = TOGA on the airliners. TOGA is no longer on the trigger's second stage, which comes after the autopilot disconnect.
+  - **The dials** do a job for the aircraft: the lower dial (i) the prop, speed brake, airbrakes or carb heat, the E dial the mixture (stopping at 5 %), rudder trim or carb heat; they zoom only where the aircraft has nothing else for them. Mixture, prop and carb heat left the throttle hat.
+  - **The pinkie is the Shift** in every mode: with it the scroll wheel zooms; in takeoff and landing the throttle hat has the extra lights (runway turnoff, wing, recognition, logo) where the aircraft has them; in cruise C is the flight director and, in the airliners, the hat's right and left set the VS.
+  - Profiles already saved, your own copies included, are not changed.
+
+### Fixed
+- **The Aerolite 103's flaps did not follow the slider (#121).** Symptom: the slider did nothing in the Aerolite. Cause: the ready-made profile said it had no flaps, but its cockpit has a flap lever with two detents. Fix: the slider sets its flaps. Fixed in 1.6.4.
+- **The Aerolite 103 had carb heat buttons it does not have (#121).** Symptom: the carb heat buttons did nothing. Cause: the profile assumed carb heat; the cockpit has none (it has a mixture lever, now on the E dial). Fixed in 1.6.4.
+- **The ASK 21's tow release used a different command from its cockpit (#121).** Symptom: none seen, but the cockpit's handle releases the tow and the winch. Cause: the profile used `glider_tow_release`, the cockpit `glider_all_release`. Fix: A uses the cockpit's command. Fixed in 1.6.4.
+
 ## 1.6.2
 
 ### Fixed

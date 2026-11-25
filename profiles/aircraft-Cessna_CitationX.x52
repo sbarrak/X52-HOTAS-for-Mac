@@ -3,7 +3,7 @@ x52pro-profile 3
 name = Cessna_CitationX
 # standard: a ready-made profile, never changed by the app or the plugin (changes go to a copy)
 standard = 1
-pinkie_shift = 0
+pinkie_shift = 1
 shift_button = 6
 mode_buttons = 28 29 30
 clutch_safe = 1
@@ -36,7 +36,7 @@ slider_flaps = 1
 slider_invert = 0
 rotary_lower = 1
 rotary_lower_invert = 0
-rotary_upper = 2
+rotary_upper = 5
 rotary_upper_invert = 0
 rotary_lower_range = 0 100
 rotary_upper_range = 0 100
@@ -79,8 +79,8 @@ master screen == 1 sim/cockpit2/switches/avionics_power_on
 master lights == 1 sim/cockpit2/switches/avionics_power_on
 bind 1 any press "AP disconnect" cmd:sim/autopilot/servos_off_any
 bind 4 any press "AP on/off" cmd:sim/autopilot/servos_toggle
-bind 6 any press "Brakes (hold)" cmd:sim/flight_controls/brakes_regular
-bind 15 any press "TOGA" cmd:sim/autopilot/take_off_go_around
+bind 8 any press "Brakes (hold)" cmd:sim/flight_controls/brakes_regular
+bind 15 any press "Contact ATC" cmd:sim/operation/contact_atc
 bind 16 any press "Cockpit view" cmd:sim/view/3d_cockpit_cmnd_look
 bind 20 any press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
 bind 21 any press "Rudder trim R" cmd:sim/flight_controls/rudder_trim_right
@@ -104,10 +104,8 @@ bind 49 any press "Pan right fast" cmd:sim/general/right_fast
 bind 50 any press "Pan down fast" cmd:sim/general/down_fast
 bind 51 any press "Pan left fast" cmd:sim/general/left_fast
 bind 3 1 press "Gear up/down" cmd:sim/flight_controls/landing_gear_toggle
-bind 3 1 hold "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
+bind 3 1 hold "Parking brake" cmd:laminar/CitX/brakes/park_handle
 bind 5 1 press "Flight director" cmd:sim/autopilot/fdir_toggle
-bind 7 1 press "Landing lights" cmd:sim/lights/landing_lights_toggle
-bind 8 1 press "Strobes" cmd:sim/lights/strobe_lights_toggle
 bind 9 1 press "Battery on" cmd:sim/electrical/battery_1_on
 bind 10 1 press "Battery off" cmd:sim/electrical/battery_1_off
 bind 11 1 press "Avionics on" cmd:sim/systems/avionics_on
@@ -117,15 +115,14 @@ bind 14 1 press "APU off" cmd:sim/electrical/APU_off
 bind 17 1 press "Zoom in" cmd:sim/general/zoom_in
 bind 18 1 press "Zoom out" cmd:sim/general/zoom_out
 bind 19 1 press "Chase view" cmd:sim/view/chase
-bind 24 1 press "Nav lights on" cmd:sim/lights/nav_lights_on
-bind 25 1 press "Taxi light on" cmd:sim/lights/taxi_lights_on
-bind 26 1 press "Nav lights off" cmd:sim/lights/nav_lights_off
-bind 27 1 press "Taxi light off" cmd:sim/lights/taxi_lights_off
-bind 3 2 press "Landing light" cmd:sim/lights/landing_lights_toggle
-bind 3 2 hold "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
-bind 5 2 press "AP ALT hold" cmd:sim/autopilot/altitude_hold
+bind 24 1 press "Landing lights" save:sim/cockpit2/switches/landing_lights_switch[0] ; restoreif:sim/cockpit2/switches/landing_lights_switch[0]=0,0.5,sim/lights/landing_01_light_on ; restoreif:sim/cockpit2/switches/landing_lights_switch[0]=0,0.5,sim/lights/landing_02_light_on ; restoreif:sim/cockpit2/switches/landing_lights_switch[0]=0.5,1,sim/lights/landing_01_light_off ; restoreif:sim/cockpit2/switches/landing_lights_switch[0]=0.5,1,sim/lights/landing_02_light_off
+bind 25 1 press "Taxi light" cmd:laminar/CitX/lights/cmd_taxi_toggle
+bind 26 1 press "Anti-coll sel up" cmd:laminar/CitX/lights/cmd_gnd_rec_anti_coll_up
+bind 26 1 hold "Anti-coll sel down" cmd:laminar/CitX/lights/cmd_gnd_rec_anti_coll_dwn
+bind 27 1 press "Nav lights" cmd:laminar/CitX/lights/cmd_navigation_toggle
+bind 3 2 hold "Parking brake" cmd:laminar/CitX/brakes/park_handle
+bind 5 2 press "AP approach" cmd:sim/autopilot/approach
 bind 7 2 press "AP wing leveler" cmd:sim/autopilot/wing_leveler
-bind 8 2 press "Flight director" cmd:sim/autopilot/fdir_toggle
 bind 9 2 press "AP HDG" cmd:sim/autopilot/heading
 bind 10 2 press "AP NAV" cmd:sim/autopilot/NAV
 bind 11 2 press "AP ALT hold" cmd:sim/autopilot/altitude_hold
@@ -140,20 +137,65 @@ bind 25 2 press "Speed +" cmd:sim/autopilot/airspeed_up
 bind 26 2 press "ALT select -" cmd:sim/autopilot/altitude_down
 bind 27 2 press "Speed -" cmd:sim/autopilot/airspeed_down
 bind 3 3 press "Gear up/down" cmd:sim/flight_controls/landing_gear_toggle
-bind 3 3 hold "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
+bind 3 3 hold "Parking brake" cmd:laminar/CitX/brakes/park_handle
 bind 5 3 press "AP approach" cmd:sim/autopilot/approach
 bind 7 3 press "Reverse (hold)" cmd:sim/engines/thrust_reverse_hold
-bind 8 3 press "Strobes" cmd:sim/lights/strobe_lights_toggle
-bind 9 3 press "AP NAV" cmd:sim/autopilot/NAV
-bind 10 3 press "AP HDG" cmd:sim/autopilot/heading
+bind 9 3 press "AP HDG" cmd:sim/autopilot/heading
+bind 10 3 press "AP NAV" cmd:sim/autopilot/NAV
 bind 11 3 press "Spoilers arm" cmd:sim/flight_controls/speed_brakes_arm_toggle
 bind 12 3 press "Spoilers retract" cmd:sim/flight_controls/speed_brakes_up_all
-bind 13 3 press "Pitot heat on" cmd:sim/ice/pitot_heat0_on
-bind 14 3 press "Pitot heat off" cmd:sim/ice/pitot_heat0_off
+bind 13 3 press "TOGA" cmd:sim/autopilot/take_off_go_around
 bind 17 3 press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
 bind 18 3 press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
 bind 19 3 press "Take-off trim" cmd:sim/flight_controls/pitch_trim_takeoff
-bind 24 3 press "Speedbrake in" cmd:sim/flight_controls/speed_brakes_up_one
-bind 25 3 press "Autothrottle" cmd:sim/autopilot/autothrottle_toggle
-bind 26 3 press "Speedbrake out" cmd:sim/flight_controls/speed_brakes_down_one
-bind 27 3 press "Landing lights" cmd:sim/lights/landing_lights_toggle
+bind 24 3 press "Landing lights" save:sim/cockpit2/switches/landing_lights_switch[0] ; restoreif:sim/cockpit2/switches/landing_lights_switch[0]=0,0.5,sim/lights/landing_01_light_on ; restoreif:sim/cockpit2/switches/landing_lights_switch[0]=0,0.5,sim/lights/landing_02_light_on ; restoreif:sim/cockpit2/switches/landing_lights_switch[0]=0.5,1,sim/lights/landing_01_light_off ; restoreif:sim/cockpit2/switches/landing_lights_switch[0]=0.5,1,sim/lights/landing_02_light_off
+bind 25 3 press "Taxi light" cmd:laminar/CitX/lights/cmd_taxi_toggle
+bind 26 3 press "Anti-coll sel up" cmd:laminar/CitX/lights/cmd_gnd_rec_anti_coll_up
+bind 26 3 hold "Anti-coll sel down" cmd:laminar/CitX/lights/cmd_gnd_rec_anti_coll_dwn
+bind 27 3 press "Nav lights" cmd:laminar/CitX/lights/cmd_navigation_toggle
+bind 3 4 press "Gear up/down" cmd:sim/flight_controls/landing_gear_toggle
+bind 3 4 hold "Parking brake" cmd:laminar/CitX/brakes/park_handle
+bind 5 4 press "Flight director" cmd:sim/autopilot/fdir_toggle
+bind 9 4 press "Battery on" cmd:sim/electrical/battery_1_on
+bind 10 4 press "Battery off" cmd:sim/electrical/battery_1_off
+bind 11 4 press "Avionics on" cmd:sim/systems/avionics_on
+bind 12 4 press "Avionics off" cmd:sim/systems/avionics_off
+bind 13 4 press "APU start" cmd:sim/electrical/APU_start
+bind 14 4 press "APU off" cmd:sim/electrical/APU_off
+bind 17 4 press "Zoom in" cmd:sim/general/zoom_in
+bind 18 4 press "Zoom out" cmd:sim/general/zoom_out
+bind 24 4 press "Landing lights" save:sim/cockpit2/switches/landing_lights_switch[0] ; restoreif:sim/cockpit2/switches/landing_lights_switch[0]=0,0.5,sim/lights/landing_01_light_on ; restoreif:sim/cockpit2/switches/landing_lights_switch[0]=0,0.5,sim/lights/landing_02_light_on ; restoreif:sim/cockpit2/switches/landing_lights_switch[0]=0.5,1,sim/lights/landing_01_light_off ; restoreif:sim/cockpit2/switches/landing_lights_switch[0]=0.5,1,sim/lights/landing_02_light_off
+bind 25 4 press "Wing lights" cmd:laminar/CitX/ice/cmd_wing_light_toggle
+bind 26 4 press "Recognition" cmd:laminar/CitX/lights/cmd_recognition_toggle
+bind 27 4 press "Nav lights" cmd:laminar/CitX/lights/cmd_navigation_toggle
+bind 3 5 hold "Parking brake" cmd:laminar/CitX/brakes/park_handle
+bind 5 5 press "Flight director" cmd:sim/autopilot/fdir_toggle
+bind 7 5 press "AP wing leveler" cmd:sim/autopilot/wing_leveler
+bind 9 5 press "AP HDG" cmd:sim/autopilot/heading
+bind 10 5 press "AP NAV" cmd:sim/autopilot/NAV
+bind 11 5 press "AP ALT hold" cmd:sim/autopilot/altitude_hold
+bind 12 5 press "AP VS" cmd:sim/autopilot/vertical_speed
+bind 13 5 press "Autothrottle" cmd:sim/autopilot/autothrottle_toggle
+bind 14 5 press "AP level change" cmd:sim/autopilot/level_change
+bind 17 5 press "Zoom in" cmd:sim/general/zoom_in
+bind 18 5 press "Zoom out" cmd:sim/general/zoom_out
+bind 24 5 press "ALT select +" cmd:sim/autopilot/altitude_up
+bind 25 5 press "VS +" cmd:sim/autopilot/vertical_speed_up
+bind 26 5 press "ALT select -" cmd:sim/autopilot/altitude_down
+bind 27 5 press "VS -" cmd:sim/autopilot/vertical_speed_down
+bind 3 6 press "Gear up/down" cmd:sim/flight_controls/landing_gear_toggle
+bind 3 6 hold "Parking brake" cmd:laminar/CitX/brakes/park_handle
+bind 5 6 press "AP approach" cmd:sim/autopilot/approach
+bind 7 6 press "Reverse (hold)" cmd:sim/engines/thrust_reverse_hold
+bind 9 6 press "AP HDG" cmd:sim/autopilot/heading
+bind 10 6 press "AP NAV" cmd:sim/autopilot/NAV
+bind 11 6 press "Spoilers arm" cmd:sim/flight_controls/speed_brakes_arm_toggle
+bind 12 6 press "Spoilers retract" cmd:sim/flight_controls/speed_brakes_up_all
+bind 13 6 press "Pitot heat on" cmd:sim/ice/pitot_heat0_on
+bind 14 6 press "Pitot heat off" cmd:sim/ice/pitot_heat0_off
+bind 17 6 press "Zoom in" cmd:sim/general/zoom_in
+bind 18 6 press "Zoom out" cmd:sim/general/zoom_out
+bind 24 6 press "Landing lights" save:sim/cockpit2/switches/landing_lights_switch[0] ; restoreif:sim/cockpit2/switches/landing_lights_switch[0]=0,0.5,sim/lights/landing_01_light_on ; restoreif:sim/cockpit2/switches/landing_lights_switch[0]=0,0.5,sim/lights/landing_02_light_on ; restoreif:sim/cockpit2/switches/landing_lights_switch[0]=0.5,1,sim/lights/landing_01_light_off ; restoreif:sim/cockpit2/switches/landing_lights_switch[0]=0.5,1,sim/lights/landing_02_light_off
+bind 25 6 press "Wing lights" cmd:laminar/CitX/ice/cmd_wing_light_toggle
+bind 26 6 press "Recognition" cmd:laminar/CitX/lights/cmd_recognition_toggle
+bind 27 6 press "Nav lights" cmd:laminar/CitX/lights/cmd_navigation_toggle

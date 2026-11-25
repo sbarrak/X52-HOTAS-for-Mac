@@ -30,8 +30,10 @@ def profile_text(ac, acf):
     if f.get("f14"):   # the F-14: the pinkie is the shift in combat (mode 2) only, for the trims on hat 2; a plain button (brakes) elsewhere
         o.append("pinkie_shift = 1")
         o.append("pinkie_shift_modes = 2")
-    else:
+    elif f["kind"] == "fighter":
         o.append("pinkie_shift = 0")
+    else:   # civil (issue #121): the pinkie is the Shift in every mode (zoom on the wheel, extra lights, VS)
+        o.append("pinkie_shift = 1")
     o.append("shift_button = 6")
     o.append("mode_buttons = 28 29 30")
     o.append("clutch_safe = 1")
@@ -73,15 +75,17 @@ def profile_text(ac, acf):
     L = layout(f)
     H = holds(f)
     R = releases(f)
-    for layer in (ANY, 1, 2, 3, 5):
-        for button in sorted(L.get(layer, {})):
-            label, steps = L[layer][button]
-            o.append('bind %d %s press "%s" %s' % (button, "any" if layer == ANY else layer, label, steps))
-            if layer in H and button in H[layer]:
+    for layer in range(7):   # any, modes 1-3, modes 1-3 with the pinkie held
+        name = "any" if layer == ANY else str(layer)
+        for button in sorted(set(L.get(layer, {})) | set(H.get(layer, {}))):
+            if button in L.get(layer, {}):
+                label, steps = L[layer][button]
+                o.append('bind %d %s press "%s" %s' % (button, name, label, steps))
+            if button in H.get(layer, {}):   # also alone: a tap then does nothing (A on fixed gear)
                 hl, hs = H[layer][button]
-                o.append('bind %d %s hold "%s" %s' % (button, layer, hl, hs))
+                o.append('bind %d %s hold "%s" %s' % (button, name, hl, hs))
             if layer in R and button in R[layer]:
-                o.append('bind %d %s release "" %s' % (button, "any" if layer == ANY else layer, R[layer][button]))
+                o.append('bind %d %s release "" %s' % (button, name, R[layer][button]))
     return "\n".join(o) + "\n"
 
 
