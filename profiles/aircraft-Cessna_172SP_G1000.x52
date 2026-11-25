@@ -100,8 +100,8 @@ bind 51 any press "Pan left fast" cmd:sim/general/left_fast
 bind 3 1 hold "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
 bind 5 1 press "Flight director" cmd:sim/autopilot/fdir_toggle
 bind 7 1 press "Beacon" cmd:sim/lights/beacon_lights_toggle
-bind 9 1 press "Battery on" cmd:sim/electrical/battery_1_on
-bind 10 1 press "Battery off" cmd:sim/electrical/battery_1_off
+bind 9 1 press "Battery on" cmd:sim/electrical/battery_1_on ; cmd:sim/electrical/battery_2_on
+bind 10 1 press "Battery off" cmd:sim/electrical/battery_1_off ; cmd:sim/electrical/battery_2_off
 bind 11 1 press "Avionics on" cmd:sim/systems/avionics_on
 bind 12 1 press "Avionics off" cmd:sim/systems/avionics_off
 bind 17 1 press "Zoom in" cmd:sim/general/zoom_in
@@ -144,8 +144,8 @@ bind 27 3 press "Nav lights" cmd:sim/lights/nav_lights_toggle
 bind 3 4 hold "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
 bind 5 4 press "Flight director" cmd:sim/autopilot/fdir_toggle
 bind 7 4 press "Beacon" cmd:sim/lights/beacon_lights_toggle
-bind 9 4 press "Battery on" cmd:sim/electrical/battery_1_on
-bind 10 4 press "Battery off" cmd:sim/electrical/battery_1_off
+bind 9 4 press "Battery on" cmd:sim/electrical/battery_1_on ; cmd:sim/electrical/battery_2_on
+bind 10 4 press "Battery off" cmd:sim/electrical/battery_1_off ; cmd:sim/electrical/battery_2_off
 bind 11 4 press "Avionics on" cmd:sim/systems/avionics_on
 bind 12 4 press "Avionics off" cmd:sim/systems/avionics_off
 bind 17 4 press "Zoom in" cmd:sim/general/zoom_in

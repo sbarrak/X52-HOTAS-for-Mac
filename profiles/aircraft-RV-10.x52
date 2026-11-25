@@ -98,10 +98,10 @@ bind 48 any press "Pan up fast" cmd:sim/general/up_fast
 bind 49 any press "Pan right fast" cmd:sim/general/right_fast
 bind 50 any press "Pan down fast" cmd:sim/general/down_fast
 bind 51 any press "Pan left fast" cmd:sim/general/left_fast
-bind 3 1 hold "Parking brake" cmd:sim/flight_controls/park_brake_valve_toggle
+bind 3 1 hold "Parking brake" cmd:sim/flight_controls/park_brake_toggle
 bind 5 1 press "Flight director" cmd:sim/autopilot/fdir_toggle
-bind 9 1 press "Battery on" cmd:sim/electrical/battery_1_on
-bind 10 1 press "Battery off" cmd:sim/electrical/battery_1_off
+bind 9 1 press "Battery on" cmd:sim/electrical/battery_1_on ; cmd:sim/electrical/battery_2_on
+bind 10 1 press "Battery off" cmd:sim/electrical/battery_1_off ; cmd:sim/electrical/battery_2_off
 bind 11 1 press "Avionics on" cmd:sim/systems/avionics_on
 bind 12 1 press "Avionics off" cmd:sim/systems/avionics_off
 bind 17 1 press "Zoom in" cmd:sim/general/zoom_in
@@ -111,7 +111,7 @@ bind 24 1 press "Landing lights" save:sim/cockpit2/switches/landing_lights_switc
 bind 25 1 press "Taxi light" cmd:sim/lights/taxi_lights_toggle
 bind 26 1 press "Strobes" cmd:sim/lights/strobe_lights_toggle
 bind 27 1 press "Nav lights" cmd:sim/lights/nav_lights_toggle
-bind 3 2 hold "Parking brake" cmd:sim/flight_controls/park_brake_valve_toggle
+bind 3 2 hold "Parking brake" cmd:sim/flight_controls/park_brake_toggle
 bind 5 2 press "AP approach" cmd:sim/autopilot/approach
 bind 7 2 press "AP wing leveler" cmd:sim/autopilot/wing_leveler
 bind 9 2 press "AP HDG" cmd:sim/autopilot/heading
@@ -126,7 +126,7 @@ bind 24 2 press "ALT select +" cmd:sim/autopilot/altitude_up
 bind 25 2 press "VS +" cmd:sim/autopilot/vertical_speed_up
 bind 26 2 press "ALT select -" cmd:sim/autopilot/altitude_down
 bind 27 2 press "VS -" cmd:sim/autopilot/vertical_speed_down
-bind 3 3 hold "Parking brake" cmd:sim/flight_controls/park_brake_valve_toggle
+bind 3 3 hold "Parking brake" cmd:sim/flight_controls/park_brake_toggle
 bind 5 3 press "AP approach" cmd:sim/autopilot/approach
 bind 9 3 press "AP HDG" cmd:sim/autopilot/heading
 bind 10 3 press "AP NAV" cmd:sim/autopilot/NAV
@@ -141,10 +141,10 @@ bind 24 3 press "Landing lights" save:sim/cockpit2/switches/landing_lights_switc
 bind 25 3 press "Taxi light" cmd:sim/lights/taxi_lights_toggle
 bind 26 3 press "Strobes" cmd:sim/lights/strobe_lights_toggle
 bind 27 3 press "Nav lights" cmd:sim/lights/nav_lights_toggle
-bind 3 4 hold "Parking brake" cmd:sim/flight_controls/park_brake_valve_toggle
+bind 3 4 hold "Parking brake" cmd:sim/flight_controls/park_brake_toggle
 bind 5 4 press "Flight director" cmd:sim/autopilot/fdir_toggle
-bind 9 4 press "Battery on" cmd:sim/electrical/battery_1_on
-bind 10 4 press "Battery off" cmd:sim/electrical/battery_1_off
+bind 9 4 press "Battery on" cmd:sim/electrical/battery_1_on ; cmd:sim/electrical/battery_2_on
+bind 10 4 press "Battery off" cmd:sim/electrical/battery_1_off ; cmd:sim/electrical/battery_2_off
 bind 11 4 press "Avionics on" cmd:sim/systems/avionics_on
 bind 12 4 press "Avionics off" cmd:sim/systems/avionics_off
 bind 17 4 press "Zoom in" cmd:sim/general/zoom_in
@@ -153,7 +153,7 @@ bind 24 4 press "Landing lights" save:sim/cockpit2/switches/landing_lights_switc
 bind 25 4 press "Taxi light" cmd:sim/lights/taxi_lights_toggle
 bind 26 4 press "Strobes" cmd:sim/lights/strobe_lights_toggle
 bind 27 4 press "Nav lights" cmd:sim/lights/nav_lights_toggle
-bind 3 5 hold "Parking brake" cmd:sim/flight_controls/park_brake_valve_toggle
+bind 3 5 hold "Parking brake" cmd:sim/flight_controls/park_brake_toggle
 bind 5 5 press "Flight director" cmd:sim/autopilot/fdir_toggle
 bind 7 5 press "AP wing leveler" cmd:sim/autopilot/wing_leveler
 bind 9 5 press "AP HDG" cmd:sim/autopilot/heading
@@ -167,7 +167,7 @@ bind 24 5 press "ALT select +" cmd:sim/autopilot/altitude_up
 bind 25 5 press "VS +" cmd:sim/autopilot/vertical_speed_up
 bind 26 5 press "ALT select -" cmd:sim/autopilot/altitude_down
 bind 27 5 press "VS -" cmd:sim/autopilot/vertical_speed_down
-bind 3 6 hold "Parking brake" cmd:sim/flight_controls/park_brake_valve_toggle
+bind 3 6 hold "Parking brake" cmd:sim/flight_controls/park_brake_toggle
 bind 5 6 press "AP approach" cmd:sim/autopilot/approach
 bind 9 6 press "AP HDG" cmd:sim/autopilot/heading
 bind 10 6 press "AP NAV" cmd:sim/autopilot/NAV

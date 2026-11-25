@@ -37,7 +37,8 @@ aircraft does not have it, the button is left empty rather than given something 
   the airbrakes. The Aerolite has no lights; A held is its parking brake, T1 its master switch.
 - **Light selectors** with three positions (737 position and taxi, MD-82 nav/strobe, nose and landing lights, A330
   strobe, nav & logo and nose, Citation X anti-collision): a tap moves the selector one position up, a hold one down.
-  Landing lights made of several lamps go on or off together.
+  Landing lights made of several lamps go on or off together; where the lamps only have toggle commands (Citation X,
+  737 runway turnoff) a tap turns them all on and a hold all off.
 - **The pinkie is the Shift** in every mode: each shifted mode is the same as the mode, except the scroll wheel, which
   zooms, and these:
 

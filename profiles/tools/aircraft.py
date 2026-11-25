@@ -117,18 +117,22 @@ def _landing_group(*lamps, first=None):
             ["sim/lights/landing_%02d_light_on" % n for n in lamps], ["sim/lights/landing_%02d_light_off" % n for n in lamps])
 
 
+# Autothrottle: arm the A/T switch first (nothing happens when it is armed), then engage / disengage (tested in the 737).
+ARM_TOGGLE = ["sim/autopilot/autothrottle_arm", "sim/autopilot/autothrottle_toggle"]
+
 CIVIL = {
+    # The KAP140 autopilot (the classic and the seaplane) has no FLC; the G1000's GFC700 has (tested).
     "Cessna 172 SP Skyhawk": dict(lights=_lights(), park="sim/flight_controls/brakes_toggle_max", avionics=True,
-                                  dial_e="mixture"),
+                                  no_flc=("Cessna_172SP", "Cessna_172SP_seaplane"), dial_e="mixture"),
     "Piper PA-18 Super Cub": dict(lights=_lights(drop=("down",)), park="sim/flight_controls/brakes_toggle_max",
                                   avionics=True, dial_i="carb", dial_e="mixture"),
     "Stinson L-5 Sentinel": dict(lights=_lights(drop=("right",)), park="sim/flight_controls/brakes_toggle_max",
                                  dial_i="carb", dial_e="mixture"),
-    "Van's RV-10": dict(lights=_lights(drop=("beacon",), up=_landing_group(1)), park="sim/flight_controls/park_brake_valve_toggle",
+    "Van's RV-10": dict(lights=_lights(drop=("beacon",), up=_landing_group(1)), park="sim/flight_controls/park_brake_toggle",
                         avionics=True, dial_i="prop", dial_e="mixture"),
     "Cirrus SR22": dict(lights=_lights(drop=("right", "beacon"), up=_landing_group(1),
                                        x_right=_tog("Wing inspection", "generic_13_light_tog")),
-                        park="sim/flight_controls/park_brake_valve_toggle", avionics=True, dial_e="mixture"),
+                        park="sim/flight_controls/park_brake_toggle", avionics=True, dial_e="mixture"),
     # No exterior lights and no parking-brake control in the cockpit; its master switch has its own commands.
     "Aero-Works Aerolite 103": dict(lights={}, park="sim/flight_controls/brakes_toggle_max",
                                     battery=("laminar/aerolite/switch/master_on", "laminar/aerolite/switch/master_off", "Master"),
@@ -136,28 +140,32 @@ CIVIL = {
     "BETA Technologies Alia-250": dict(lights=_lights(drop=("right",), x_up=_tog("Search light", "generic_01_light_tog")),
                                        park="sim/flight_controls/brakes_toggle_max"),
     "Beechcraft Baron 58": dict(lights=_lights(up=_landing_group(1, 2), x_right=_tog("Wing ice light", "generic_01_light_tog")),
-                                park="sim/flight_controls/park_brake_valve_toggle", avionics=True, dial_i="prop", dial_e="mixture"),
+                                park="sim/flight_controls/park_brake_toggle", avionics=True, dial_i="prop", dial_e="mixture"),
     "Beechcraft King Air C90B": dict(lights=_lights(up=_landing_group(1, 2), x_right=_tog("Wing ice light", "generic_02_light_tog"),
                                                     x_down=_tog("Recognition", "generic_03_light_tog")),
-                                     park="sim/flight_controls/park_brake_valve_toggle", avionics=True, dial_i="prop", dial_e="rudder"),
+                                     park="sim/flight_controls/park_brake_toggle", avionics=True, dial_i="prop", dial_e="rudder"),
     "Lancair Evolution": dict(lights=_lights(drop=("right", "beacon"), up=_landing_group(1)),
                               park="sim/flight_controls/brakes_toggle_max", dial_i="prop"),
-    "Cirrus Vision SF50": dict(lights=_lights(drop=("right", "beacon")), park="sim/flight_controls/park_brake_valve_toggle"),
+    "Cirrus Vision SF50": dict(lights=_lights(drop=("right", "beacon")), park="sim/flight_controls/park_brake_toggle"),
     # Ground recognition / off / anti-collision is one selector (so no separate beacon on D).
-    "Cessna Citation X": dict(lights=dict(up=_landing_group(1, 2),
+    # Tested: its landing lights follow only its own L / R toggles; the park handle is a lever (no command);
+    # the autothrottle and spoiler arm commands do nothing in this model.
+    "Cessna Citation X": dict(lights=dict(up=("pair", "Landing lights", [(SW + "landing_lights_switch[0]", "laminar/CitX/lights/cmd_landing_left_toggle"),
+                                                                        (SW + "landing_lights_switch[1]", "laminar/CitX/lights/cmd_landing_right_toggle")]),
                                           right=_tog("Taxi light", "laminar/CitX/lights/cmd_taxi_toggle"),
                                           down=("step", "Anti-coll sel up", "laminar/CitX/lights/cmd_gnd_rec_anti_coll_up",
                                                 "Anti-coll sel down", "laminar/CitX/lights/cmd_gnd_rec_anti_coll_dwn"),
                                           left=_tog("Nav lights", "laminar/CitX/lights/cmd_navigation_toggle"),
                                           x_down=_tog("Recognition", "laminar/CitX/lights/cmd_recognition_toggle"),
                                           x_right=_tog("Wing lights", "laminar/CitX/ice/cmd_wing_light_toggle")),
-                              park="laminar/CitX/brakes/park_handle", avionics=True, dial_i="speedbrake", dial_e="rudder"),
+                              park="sim/flight_controls/park_brake_toggle", avionics=True, athr=None, spoiler_arm=False,
+                              dial_i="speedbrake", dial_e="rudder"),
     # Four landing lights (wing root L/R, belly L/R) with an all-on spring switch; position (STROBE & STEADY / OFF /
     # STEADY) and taxi are selectors; generic lights 1 wing, 2 logo, 3/4 runway turnoff L/R.
     "Boeing 737-800": dict(lights=dict(up=("grp", "Landing lights", SW + "landing_lights_switch[0]",
                                            ["laminar/B738/spring_switch/landing_lights_all"], ["sim/lights/landing_lights_off"]),
-                                       right=("step", "Taxi sel up", "laminar/B738/toggle_switch/taxi_light_brightness_pos_up",
-                                              "Taxi sel down", "laminar/B738/toggle_switch/taxi_light_brightness_pos_dn"),
+                                       right=("step", "Taxi light +", "laminar/B738/toggle_switch/taxi_light_brightness_pos_dn",
+                                              "Taxi light -", "laminar/B738/toggle_switch/taxi_light_brightness_pos_up"),
                                        left=("step", "Position sel up", "laminar/B738/toggle_switch/position_light_up",
                                              "Position sel down", "laminar/B738/toggle_switch/position_light_down"),
                                        beacon=_tog("Beacon", "beacon_lights_toggle"),
@@ -165,7 +173,7 @@ CIVIL = {
                                                                          (SW + "generic_lights_switch[3]", "sim/lights/generic_04_light_tog")]),
                                        x_right=_tog("Wing lights", "generic_01_light_tog"),
                                        x_left=_tog("Logo light", "generic_02_light_tog")),
-                           park="sim/flight_controls/park_brake_valve_toggle", dial_i="speedbrake", dial_e="rudder"),
+                           park="sim/flight_controls/park_brake_toggle", athr=ARM_TOGGLE, dial_i="speedbrake", dial_e="rudder"),
     # Strobe OFF / AUTO / ON, NAV & LOGO and nose OFF / TAXI / TO are selectors; generic 1 runway turnoff, 2 wing.
     "Airbus A330-300": dict(lights=dict(up=_landing_group(1),
                                         right=("step", "Nose sel up", "laminar/A333/switch/lighting/taxi_light_up",
@@ -177,21 +185,23 @@ CIVIL = {
                                         beacon=_tog("Beacon", "beacon_lights_toggle"),
                                         x_up=_tog("Runway turnoff", "generic_01_light_tog"),
                                         x_right=_tog("Wing lights", "generic_02_light_tog")),
-                            park="sim/flight_controls/brakes_toggle_max", dial_i="speedbrake", dial_e="rudder"),
+                            park="sim/flight_controls/brakes_toggle_max", fd="sim/autopilot/fdir_command_bars_toggle",
+                            athr="laminar/A333/autopilot/a_thr_toggle", dial_i="speedbrake", dial_e="rudder"),
     # Wing landing lights L/R and the nose light are selectors (up / down); nav and strobe are one selector;
     # generic 1 tail logo, 4 wings and engines.
-    "McDonnell Douglas MD-82": dict(lights=dict(up=("step", "Landing lts up", ["laminar/md82cmd/switches/landing_lights_switch_L_up",
-                                                                          "laminar/md82cmd/switches/landing_lights_switch_R_up"],
-                                                     "Landing lts down", ["laminar/md82cmd/switches/landing_lights_switch_L_dwn",
-                                                                          "laminar/md82cmd/switches/landing_lights_switch_R_dwn"]),
-                                                right=("step", "Nose light up", "laminar/md82cmd/switches/landing_lights_switch_nose_up",
-                                                       "Nose light down", "laminar/md82cmd/switches/landing_lights_switch_nose_dwn"),
-                                                left=("step", "Nav/strobe up", "laminar/md82cmd/switches/navstrobe_lights_switch_up",
-                                                      "Nav/strobe down", "laminar/md82cmd/switches/navstrobe_lights_switch_dwn"),
+    # Tested: their "up" commands move towards OFF / RETRACT, so a tap uses "dwn" (lights on) and a hold "up".
+    "McDonnell Douglas MD-82": dict(lights=dict(up=("step", "Landing lts +", ["laminar/md82cmd/switches/landing_lights_switch_L_dwn",
+                                                                         "laminar/md82cmd/switches/landing_lights_switch_R_dwn"],
+                                                     "Landing lts -", ["laminar/md82cmd/switches/landing_lights_switch_L_up",
+                                                                       "laminar/md82cmd/switches/landing_lights_switch_R_up"]),
+                                                right=("step", "Nose light +", "laminar/md82cmd/switches/landing_lights_switch_nose_dwn",
+                                                       "Nose light -", "laminar/md82cmd/switches/landing_lights_switch_nose_up"),
+                                                left=("step", "Nav/strobe +", "laminar/md82cmd/switches/navstrobe_lights_switch_dwn",
+                                                      "Nav/strobe -", "laminar/md82cmd/switches/navstrobe_lights_switch_up"),
                                                 beacon=_tog("Beacon", "beacon_lights_toggle"),
                                                 x_right=_tog("Wing lights", "generic_04_light_tog"),
                                                 x_left=_tog("Logo light", "generic_01_light_tog")),
-                                    park="sim/flight_controls/brakes_toggle_max", dial_i="speedbrake", dial_e="rudder"),
+                                    park="sim/flight_controls/brakes_toggle_max", athr=ARM_TOGGLE, dial_i="speedbrake", dial_e="rudder"),
     "Robinson R22 Beta II": dict(lights=_lights(drop=("right", "beacon")), park=None, dial_e="carb"),
     "Sikorsky S-76C": dict(lights=_lights(up=_landing_group(2, 3), x_right=_tog("Search light", "generic_01_light_tog")),
                            park="sim/flight_controls/brakes_toggle_max", avionics=True),
@@ -358,7 +368,9 @@ def civil(f):
     # ---- Mode 1: ground & takeoff
     put(1, D, lt.get("beacon"))
     if k != "glider" or c.get("avionics"):
-        on, off, name = c.get("battery", ("sim/electrical/battery_1_on", "sim/electrical/battery_1_off", "Battery"))
+        # Batteries 1 and 2 together (the S-76 has two; a second one that does not exist is left alone).
+        on, off, name = c.get("battery", (["sim/electrical/battery_1_on", "sim/electrical/battery_2_on"],
+                                          ["sim/electrical/battery_1_off", "sim/electrical/battery_2_off"], "Battery"))
         m1[T1U] = (name + " on", _steps(on))
         m1[T1D] = (name + " off", _steps(off))
     if c.get("avionics"):
@@ -376,7 +388,7 @@ def civil(f):
         m1[T3U] = ("Rotor RPM +", S("flight_controls/rotor_rpm_trim_up"))
         m1[T3D] = ("Rotor RPM -", S("flight_controls/rotor_rpm_trim_down"))
     if f["ap"]:
-        m1[C] = ("Flight director", S("autopilot/fdir_toggle"))
+        m1[C] = ("Flight director", _steps(c.get("fd", "sim/autopilot/fdir_toggle")))
     light_hat(1)
     m1[SCROLL_F] = ("Zoom in", S("general/zoom_in"))
     m1[SCROLL_B] = ("Zoom out", S("general/zoom_out"))
@@ -391,9 +403,11 @@ def civil(f):
         m2[T2U] = ("AP ALT hold", S("autopilot/altitude_hold"))
         m2[T2D] = ("AP VS", S("autopilot/vertical_speed"))
         if airliner:
-            m2[T3U] = ("Autothrottle", S("autopilot/autothrottle_toggle"))
+            athr = c.get("athr", "sim/autopilot/autothrottle_toggle")
+            if athr:
+                m2[T3U] = ("Autothrottle", _steps(athr))
             m2[T3D] = ("AP level change", S("autopilot/level_change"))
-        else:
+        elif f.get("acf") not in c.get("no_flc", ()):
             m2[T3U] = ("AP FLC", S("autopilot/level_change"))
         m2[THAT_U] = ("ALT select +", S("autopilot/altitude_up"))
         m2[THAT_D] = ("ALT select -", S("autopilot/altitude_down"))
@@ -431,7 +445,7 @@ def civil(f):
     elif f["ap"]:
         m3[T1U] = ("AP HDG", S("autopilot/heading"))
         m3[T1D] = ("AP NAV", S("autopilot/NAV"))
-    if f["speedbrake"]:
+    if f["speedbrake"] and c.get("spoiler_arm", True):
         m3[T2U] = ("Spoilers arm", S("flight_controls/speed_brakes_arm_toggle"))
         m3[T2D] = ("Spoilers retract", S("flight_controls/speed_brakes_up_all"))
     elif k in ("piston", "turboprop", "heli", "jet"):
@@ -459,7 +473,7 @@ def civil(f):
                     put(mode + 3, b, lt[d])
         else:
             if f["ap"]:
-                L[5][C] = ("Flight director", S("autopilot/fdir_toggle"))
+                L[5][C] = ("Flight director", _steps(c.get("fd", "sim/autopilot/fdir_toggle")))
             if airliner:
                 L[5][THAT_R] = ("VS +", S("autopilot/vertical_speed_up"))
                 L[5][THAT_L] = ("VS -", S("autopilot/vertical_speed_down"))

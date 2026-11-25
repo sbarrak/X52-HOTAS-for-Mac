@@ -2608,8 +2608,7 @@ TEST(the_ready_made_profiles_light_the_throttle_and_let_the_plugin_drive_it) {
                 CHECK_EQ(a->hold.size(), (size_t)1);
                 if (!a->hold.empty())
                     CHECK(a->hold[0].text == "sim/flight_controls/brakes_toggle_max" ||
-                          a->hold[0].text == "sim/flight_controls/park_brake_valve_toggle" ||
-                          a->hold[0].text == "laminar/CitX/brakes/park_handle");
+                          a->hold[0].text == "sim/flight_controls/park_brake_toggle");   // the valve command cannot set it (tested)
             }
         }
         if (n == "aircraft-F-14D.x52") {   // the F-14's own weapon select switch on the throttle hat
