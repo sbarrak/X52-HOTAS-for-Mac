@@ -366,6 +366,10 @@ TEST(each_throttle_dials_job_is_picked_in_the_app_and_saved) {
     x52_set("rotary_zoom_steps", 5000);                      // kept inside the allowed range
     CHECK_EQ(x52_get("rotary_zoom_steps"), 480);
     CHECK(has(slurp(dir + "/default.x52"), "rotary_zoom_steps = 480"));
+    CHECK_EQ(x52_get("wheel_zoom_steps"), 1);                // the scroll wheel's zoom steps per notch
+    x52_set("wheel_zoom_steps", 99);                         // kept inside the allowed range
+    CHECK_EQ(x52_get("wheel_zoom_steps"), 24);
+    CHECK(has(slurp(dir + "/default.x52"), "wheel_zoom_steps = 24"));
     // The mode names and how long the screen shows them (profile keys mode_name_N and mode_banner_ms).
     CHECK_EQ(std::string(x52_mode_name(2)), std::string("Cruise"));
     x52_set_mode_name(2, "Cruise \"x\" and a very long name");

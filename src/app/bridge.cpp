@@ -62,6 +62,7 @@ int* field(Profile& p, const std::string& n, int& lo, int& hi) {
     if (n == "steady_upper") { lo = 0; hi = 20; return &p.axes.upperRotary.deadzone; }
     if (n == "steady_slider") { lo = 0; hi = 20; return &p.axes.slider.deadzone; }
     if (n == "rotary_zoom_steps") { lo = 12; hi = 480; return &p.axes.zoomSteps; }
+    if (n == "wheel_zoom_steps") { lo = 1; hi = 24; return &p.axes.wheelZoomSteps; }
     if (n == "rotary_lower_from") { lo = 0; hi = 100; return &p.axes.lowerFrom; }
     if (n == "rotary_lower_to") { lo = 0; hi = 100; return &p.axes.lowerTo; }
     if (n == "rotary_upper_from") { lo = 0; hi = 100; return &p.axes.upperFrom; }
@@ -851,6 +852,10 @@ const char* x52_axes(void) {
         out += std::string(controlName(a.usagePage, a.usage)) + "\t" + std::to_string(pc) + "\t" +
                controlValueText(a.usagePage, a.usage, a.value, a.min, a.max) + "\t" + std::to_string(a.value) + "\t" +
                (a.moving ? "1" : "0") + "\t" + std::to_string(a.usage) + "\n";
+    }
+    if (!out.empty()) {   // the scroll wheel is buttons, so it is added by hand (usage 9999: no raw value to show)
+        const WheelMeter& w = agent->wheel();
+        out += std::string("Scroll wheel\t50\t") + w.text() + "\t-\t" + (w.moving(agent->wheelClock()) ? "1" : "0") + "\t9999\n";
     }
     return out.c_str();
 }

@@ -144,6 +144,7 @@ public:
     std::map<std::pair<int, int>, AxisLive> axisLive;
     std::pair<int, int> axisMoved{0, 0};   // usage page / usage of the control that moved last
     double axisMovedAt = 0;
+    WheelMeter wheelMeter;                 // the scroll wheel (buttons 17..19), for the controls list
     void trackAxes(double now);            // updates axisLive / axisMoved from the stick (every frame)
     // Writes the shaped flight axes into X-Plane while the override is on; dt is the frame time (for the smoothing).
     void applyAxes(double dt = 0);

@@ -48,9 +48,23 @@ struct AxisSettings {
     DialUse lowerUse = DialUse::SpeedBrake, upperUse = DialUse::Zoom;
     // Zoom strength: steps of X-Plane's own zoom (sim/general/zoom_in / zoom_out) per full turn of a dial, 12..480.
     int zoomSteps = 96;
+    // The scroll wheel behind the throttle (buttons 17 forward, 18 back): when a notch runs X-Plane's zoom in or zoom
+    // out, it zooms this many steps instead of one (1..24; 1 is what it always did).
+    int wheelZoomSteps = 1;
     // A dial set to a lever job covers From..To percent of the job's range (after the aircraft's limits) in one full
     // turn. From above To turns it the other way.
     int lowerFrom = 0, lowerTo = 100, upperFrom = 0, upperTo = 100;
+};
+
+// The scroll wheel behind the throttle is three buttons (17 forward, 18 back, 19 click), so it has no value of its
+// own: the meter remembers the last notch and how many net notches forward it has been turned, for the controls list.
+struct WheelMeter {
+    int net = 0;                // forward notches minus back notches since it was reset
+    int last = 0;               // 17, 18 or 19: the last thing the wheel did (0: nothing yet)
+    double at = -1e9;           // when (seconds)
+    void notch(int button, double now);   // a press of button 17, 18 or 19 (anything else is ignored)
+    bool moving(double now) const { return now - at < 1.5; }
+    std::string text() const;   // "forward  net +3", "back  net -1", "click", or "turn it" before anything happened
 };
 
 // The X-Plane value a stick axis replaces.

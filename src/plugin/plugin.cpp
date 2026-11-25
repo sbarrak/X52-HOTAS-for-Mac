@@ -327,6 +327,7 @@ float flightLoop(float elapsed, float, int, void*) {
     for (const ButtonEvent& e : events) {
         if (e.down && e.button >= kPov1Up && e.button < kPov1Up + 4 && a.engine.clutch()) continue;   // with the clutch held POV 1 picks the profile
         if (e.down && e.button >= 1 && e.button <= kMaxButton) {
+            a.wheelMeter.notch(e.button, now);
             a.lastPressed = e.button;
             ++a.pressSerial;
             if (!a.profile.isReserved(e.button)) a.learner.pressed(e.button, now);

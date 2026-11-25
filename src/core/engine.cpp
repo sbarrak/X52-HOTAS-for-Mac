@@ -35,6 +35,14 @@ void Engine::setProfile(const Profile& p) {
 
 // A lone command or key follows the button (down = begin, up = end); anything longer is a macro.
 void Engine::startHeld(Button& b, const Action& a, double now) {
+    // A notch of the scroll wheel (17 forward, 18 back) that zooms zooms as many steps as the profile says.
+    int button = (int)(&b - buttons_);
+    if ((button == 17 || button == 18) && profile_.axes.wheelZoomSteps > 1 && a.size() == 1 &&
+        a[0].kind == StepKind::Command && (a[0].text == "sim/general/zoom_in" || a[0].text == "sim/general/zoom_out")) {
+        for (int i = 0; i < profile_.axes.wheelZoomSteps; ++i) host_.commandOnce(a[0].text);
+        b.state = State::Held;
+        return;
+    }
     if (a.size() == 1 && (a[0].kind == StepKind::Command || a[0].kind == StepKind::Key)) {
         b.held = a[0];
         b.hasHeld = true;
