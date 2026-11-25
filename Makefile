@@ -83,10 +83,10 @@ $(XPL): $(PLUGIN) $(CORE) $(MAC) $(HEADERS) VERSION
 
 # The menu bar app: C++ compiled to one object, linked with the Swift window code.
 app: $(APPBIN)
-build/AppIcon.icns: tools/make_icon.swift
+build/AppIcon.icns: tools/make_icon.swift assets/AppIcon.png
 	@mkdir -p build
 	rm -rf build/AppIcon.iconset
-	swift tools/make_icon.swift build/AppIcon.iconset
+	swift tools/make_icon.swift assets/AppIcon.png build/AppIcon.iconset
 	iconutil -c icns build/AppIcon.iconset -o $@
 
 $(APPBIN): src/app/main.swift src/app/Info.plist $(APPSRC) $(HEADERS) $(XPL) build/AppIcon.icns VERSION templates/X52-Manual-Template.docx $(wildcard templates/light-icons/*.png)
