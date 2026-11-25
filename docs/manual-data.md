@@ -55,7 +55,7 @@ assigned shows an em dash.
 | Tag | Contains |
 |---|---|
 | `pages.<1..12>.m<1..3>` | The page the left wheel reaches in that position and mode (hidden pages left out); empty after the last. |
-| `light.<fire, a, b, d, e, t1, t2, t3, pov, clutch, throttle>.m<1..3>` | The light's colour in that mode as an icon (a hollow disc when off), with ` Pinkie ` and a second icon after it when the colour differs while the Pinkie is held. `...m<n>.name` is the same in words (`green`, `red (Pinkie: amber)`). |
+| `light.<fire, a, b, d, e, t1, t2, t3, pov, clutch, throttle>.m<1..3>` | The light's colour in that mode as an icon (a hollow disc when off), with ` / Pinkie: ` and a second icon after it when the colour differs while the Pinkie is held. `...m<n>.name` is the same in words (`green`, `red (Pinkie: amber)`). |
 | `alarm.<1..8>.name`, `.light`, `.m1`, `.m2`, `.m3`, `.rate` | An alarm: its name, its light, and in each mode an icon for its colour: a full disc when steady, black rays when flashing, a split disc (primary colour left, secondary right) when alternating, three colours when it uses the mode light. The rate is `Steady`, `Slow` or `Fast`. Rows without an alarm are empty. |
 
 **The light icons** are 21 PNG files in `templates/light-icons/` (drawn by `tools/make_light_icons.py`), bundled with the app

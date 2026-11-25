@@ -452,8 +452,8 @@ TEST(manual_dashboard_values_pages_lights_rules_and_alarms) {
     CHECK_EQ(d.value("light.a.m2.name"), std::string("green"));
     CHECK_EQ(d.value("light.pov.m1.name"), std::string("green"));
     CHECK_EQ(d.value("light.a.m2"), std::string("\x04g\x05"));                          // a steady green icon
-    CHECK_EQ(d.value("light.a.m1"), std::string("\x04r\x05 Pinkie \x04" "a\x05"));        // red, and the Pinkie colour when it differs
-    CHECK_EQ(stripStyle(d.value("light.a.m1")), std::string(" Pinkie "));
+    CHECK_EQ(d.value("light.a.m1"), std::string("\x04r\x05 / Pinkie: \x04" "a\x05"));        // red, and the Pinkie colour when it differs
+    CHECK_EQ(stripStyle(d.value("light.a.m1")), std::string(" / Pinkie: "));
     CHECK_EQ(d.lists.at("rules").size(), (size_t)3);                       // a table never has fewer than 3 rows
     CHECK_EQ(d.lists.at("rules")[0].at("rule.light"), std::string("B"));
     CHECK_EQ(d.lists.at("rules")[0].at("rule.condition"), std::string("sim/x/gear > 0.5"));
@@ -506,6 +506,7 @@ TEST(fill_puts_light_icons_into_the_file_with_their_parts_and_relationships) {
     CHECK(xml.find("r:embed=\"rId901\"") != std::string::npos);
     CHECK(xml.find("r:embed=\"rId902\"") != std::string::npos);
     CHECK(xml.find(" and ") != std::string::npos);                                     // text between pictures stays
+    CHECK(xml.find("<w:position w:val=\"-6\"/>") != std::string::npos);                // a picture beside text is lowered to line up
     CHECK_EQ(partOf(r.bytes, "word/media/light_g.png"), std::string("PNG-G"));
     CHECK_EQ(partOf(r.bytes, "word/media/light_ra_flash.png"), std::string("PNG-RA"));
     std::string rels = partOf(r.bytes, "word/_rels/document.xml.rels");

@@ -179,9 +179,9 @@ std::string styledProps(const std::string& props, const Seg& s) {
 // The relationship of the n-th picture used: rId901, rId902, ...
 std::string iconRelId(int n) { return "rId" + std::to_string(901 + n); }
 
-std::string pictureRun(const std::string& name, int id, const std::string& rid) {
+std::string pictureRun(const std::string& name, int id, const std::string& rid, bool withText) {
     const std::string emu = "139700";   // 11 pt
-    return "<w:r><w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" "
+    return std::string("<w:r>") + (withText ? "<w:rPr><w:position w:val=\"-6\"/></w:rPr>" : "") + "<w:drawing><wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\" "
            "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" "
            "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><wp:extent cx=\"" + emu + "\" cy=\"" + emu + "\"/>"
            "<wp:docPr id=\"" + std::to_string(id) + "\" name=\"Light icon " + name + "\"/>"
@@ -207,7 +207,10 @@ std::string render(const std::string& content, const std::string& value, const S
     std::string props = runProps(content, from);
     std::string runs;
     static int pictureId = 9000;
-    for (const Seg& seg : parseStyled(value)) {
+    std::vector<Seg> segs = parseStyled(value);
+    bool hasText = false;   // a picture beside text sits 3 pt lower, so it lines up with the letters
+    for (const Seg& s : segs) hasText = hasText || (s.icon.empty() && s.text.find_first_not_of(' ') != npos);
+    for (const Seg& seg : segs) {
         if (!seg.icon.empty()) {
             bool have = false;
             if (scope.icons) have = scope.icons->find(seg.icon) != scope.icons->end();
@@ -218,7 +221,7 @@ std::string render(const std::string& content, const std::string& value, const S
             }
             auto at = std::find(scope.iconsUsed->begin(), scope.iconsUsed->end(), seg.icon);
             if (at == scope.iconsUsed->end()) at = scope.iconsUsed->insert(scope.iconsUsed->end(), seg.icon);
-            runs += pictureRun(seg.icon, ++pictureId, iconRelId((int)(at - scope.iconsUsed->begin())));
+            runs += pictureRun(seg.icon, ++pictureId, iconRelId((int)(at - scope.iconsUsed->begin())), hasText);
             continue;
         }
         runs += "<w:r>" + styledProps(props, seg);

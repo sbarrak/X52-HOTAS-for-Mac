@@ -297,7 +297,7 @@ ManualData buildManualData(const Profile& p, const std::string& appVersion, cons
         for (int m = 1; m <= 3; ++m) {
             Color plain = p.leds[m - 1][l], held = p.ledsPinkie[m - 1][l];
             std::string key = std::string("light.") + ledName(l) + ".m" + std::to_string(m);
-            d.values[key] = dot((int)plain) + (plain == held ? "" : " Pinkie " + dot((int)held));
+            d.values[key] = dot((int)plain) + (plain == held ? "" : " / Pinkie: " + dot((int)held));
             d.values[key + ".name"] = plain == held ? std::string(colorName(plain)) : std::string(colorName(plain)) + " (Pinkie: " + colorName(held) + ")";
         }
     for (const LightRule& r : p.rules) {
