@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
-"""Makes the first version of the manual template: templates/X52-Manual-Template.docx.
+"""Makes the manual template, templates/X52-Manual-Template.docx, from the empty aircraft profile template.
 
-Standard library only (no packages). Run it once to start a template; after that the .docx is the file you edit in
-Word and this script is not needed again. Every spot the app fills is a Word content control with a Tag (Developer
-tab > Properties); the tags are listed in docs/manual-data.md.
+The empty template (docs/mapping/X52 Pro - Empty aircraft profile template.docx) is the manual's layout: the page
+header, the joystick and throttle pictures, the assignment tables with their fixed rows, the display and lights
+dashboard. This script turns its blank spots into Word content controls with tags (Developer tab > Properties), which
+the app's Export manual fills in. Layout, pictures and fonts are not touched.
 
-    python3 tools/make_manual_template.py [output.docx]
+Standard library only (no packages). After the first run the .docx is the file you edit in Word; run this again only to
+start over from the empty template. The tags are listed in docs/manual-data.md.
+
+    python3 tools/make_manual_template.py [source.docx] [output.docx]
 """
+import re
 import sys
 import zipfile
 from xml.sax.saxutils import escape
 
-NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' \
-     'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+SOURCE = "docs/mapping/X52 Pro - Empty aircraft profile template.docx"
+OUTPUT = "templates/X52-Manual-Template.docx"
 SCHEMA = 1   # the lowest manual data schema this template needs (docs/manual-data.md)
 
-_ids = [1000]
+_ids = [4000]
 
 
 def next_id():
@@ -23,125 +28,167 @@ def next_id():
     return _ids[0]
 
 
-def run(text, size=None, bold=False, color=None):
-    props = ""
-    if bold:
-        props += "<w:b/>"
-    if color:
-        props += '<w:color w:val="%s"/>' % color
-    if size:
-        props += '<w:sz w:val="%d"/><w:szCs w:val="%d"/>' % (size, size)
-    return '<w:r>%s<w:t xml:space="preserve">%s</w:t></w:r>' % ("<w:rPr>%s</w:rPr>" % props if props else "", escape(text))
+def slug(label):
+    return re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
 
 
-def control(tag, size=None, bold=False, alias=None):
-    """An inline content control the app replaces with text."""
+def text_of(xml):
+    return "".join(re.findall(r"<w:t[^>]*>([^<]*)</w:t>", xml))
+
+
+def control(tag, rpr="", placeholder="—"):
+    """An inline content control the app replaces with text; rpr is the formatting the text keeps."""
     return ('<w:sdt><w:sdtPr><w:alias w:val="%s"/><w:tag w:val="%s"/><w:id w:val="%d"/><w:text/></w:sdtPr>'
-            '<w:sdtContent>%s</w:sdtContent></w:sdt>') % (escape(alias or tag), tag, next_id(), run("[%s]" % tag, size, bold))
+            '<w:sdtContent><w:r>%s<w:t>%s</w:t></w:r></w:sdtContent></w:sdt>') % (escape(tag), tag, next_id(), rpr, placeholder)
 
 
-def para(inner, style=None, jc=None, keep=False):
-    ppr = ""
-    if style:
-        ppr += '<w:pStyle w:val="%s"/>' % style
-    if keep:
-        ppr += "<w:keepNext/>"
-    if jc:
-        ppr += '<w:jc w:val="%s"/>' % jc
-    return "<w:p>%s%s</w:p>" % ("<w:pPr>%s</w:pPr>" % ppr if ppr else "", inner)
+def text_run(rpr, text):
+    return '<w:r>%s<w:t xml:space="preserve">%s</w:t></w:r>' % (rpr, escape(text))
 
 
-def cell(inner_para, width, shade=None):
-    tcpr = '<w:tcW w:w="%d" w:type="dxa"/>' % width
-    if shade:
-        tcpr += '<w:shd w:val="clear" w:color="auto" w:fill="%s"/>' % shade
-    return "<w:tc><w:tcPr>%s</w:tcPr>%s</w:tc>" % (tcpr, inner_para)
+RPR = r"<w:rPr>(?:(?!</w:rPr>).)*</w:rPr>"   # one run's properties, never across two runs
+RUN = re.compile(r"<w:r>(" + RPR + r")?(?:<w:t[^>]*>[^<]*</w:t>)?</w:r>", re.S)
 
 
-BORDERS = "".join('<w:%s w:val="single" w:sz="4" w:space="0" w:color="A6A6A6"/>' % s for s in ("top", "left", "bottom", "right", "insideH", "insideV"))
-WIDTHS = [2600, 2320, 2320, 2320]   # button name, then one column per mode (A4 text width with 2 cm margins is 9560)
+def cell_control(cell, tag):
+    """The first run of a table cell (empty or with its label) becomes a control that keeps the run's formatting."""
+    m = RUN.search(cell)
+    if not m:
+        raise SystemExit("no run in cell for " + tag)
+    return cell[:m.start()] + control(tag, m.group(1) or "") + cell[m.end():]
 
 
-def table(header_cells, row_tags, list_name, only=""):
-    grid = "".join('<w:gridCol w:w="%d"/>' % w for w in WIDTHS)
-    head = '<w:tr><w:trPr><w:cantSplit/><w:tblHeader/></w:trPr>%s</w:tr>' % "".join(
-        cell(para(c, keep=True), w, "D9E2F3") for c, w in zip(header_cells, WIDTHS))
-    body_cells = "".join(cell(para(control(t, 16, alias=t)), w) for t, w in zip(row_tags, WIDTHS))
-    body = ('<w:sdt><w:sdtPr><w:alias w:val="Rows: %s"/><w:tag w:val="repeat:%s"/><w:id w:val="%d"/></w:sdtPr>'
-            '<w:sdtContent><w:tr><w:trPr><w:cantSplit/></w:trPr>%s</w:tr></w:sdtContent></w:sdt>') % (list_name, list_name + (":" + only if only else ""), next_id(), body_cells)
-    return ('<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="%d" w:type="dxa"/><w:tblBorders>%s</w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr>'
-            '<w:tblGrid>%s</w:tblGrid>%s%s</w:tbl>') % (sum(WIDTHS), BORDERS, grid, head, body)
+def cells_of(row):
+    return list(re.finditer(r"<w:tc>.*?</w:tc>", row, re.S))
 
 
-def mode_header(first, pinkie=False):
-    cols = [run(first, 16, True)]
-    for m in (1, 2, 3):
-        c = control("mode.%d.name" % m, 16, True)
-        cols.append(c + (run(" + Pinkie", 16, True) if pinkie else ""))
-    return cols
+def rows_of(table):
+    return list(re.finditer(r"<w:tr[ >].*?</w:tr>", table, re.S))
 
 
-def body():
-    out = [para(run("X52 Pro button map"), "Title"),
-           para(control("profile.name", 28, True), "Subtitle")]
-    out.append(para(run("Modes: ", 18, True) + control("mode.1.name", 18) + run("  /  ", 18) +
-                    control("mode.2.name", 18) + run("  /  ", 18) + control("mode.3.name", 18)))
-    for title, lst in (("Stick", "stick_buttons"), ("Throttle", "throttle_buttons")):
-        out.append(para(run(title), "Heading1", keep=True))
-        out.append(table(mode_header("Button"), ["button.name", "button.m1", "button.m2", "button.m3"], lst, "used_plain"))
-    out.append('<w:p><w:r><w:br w:type="page"/></w:r></w:p>')
-    out.append(para(run("With the Pinkie held"), "Heading1", keep=True))
-    for title, lst in (("Stick", "stick_buttons"), ("Throttle", "throttle_buttons")):
-        out.append(para(run(title, 20, True), keep=True))
-        out.append(table(mode_header("Button", True), ["button.name", "button.p1", "button.p2", "button.p3"], lst, "used_pinkie"))
-    sect = ('<w:sectPr><w:footerReference w:type="default" r:id="rId2"/><w:pgSz w:w="11906" w:h="16838"/>'
-            '<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr>')
-    return "".join(out) + sect
+def replace_cells(row, tags):
+    """tags: one tag (or None to keep the cell) for each cell of the row."""
+    out, pos = [], 0
+    for m, tag in zip(cells_of(row), tags):
+        out.append(row[pos:m.start()])
+        out.append(m.group(0) if tag is None else cell_control(m.group(0), tag))
+        pos = m.end()
+    out.append(row[pos:])
+    return "".join(out)
 
 
-def footer():
-    p = para(run("X52 Pro ", 16, color="808080") + control("app.version", 16) + run("  -  ", 16, color="808080") +
-             control("profile.name", 16), jc="center")
-    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr %s>%s</w:ftr>' % (NS, p)
+def map_rows(table, tags_for_row):
+    """Calls tags_for_row(first cell's text, number of cells) for every body row; it returns the tags of that row."""
+    out, pos = [], 0
+    for r in rows_of(table)[1:]:
+        cells = cells_of(r.group(0))
+        row = replace_cells(r.group(0), tags_for_row(text_of(cells[0].group(0)), len(cells)))
+        out.append(table[pos:r.start()])
+        out.append(row)
+        pos = r.end()
+    out.append(table[pos:])
+    return "".join(out)
 
 
-STYLES = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
-          '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial" w:eastAsia="Arial"/>'
-          '<w:sz w:val="20"/><w:szCs w:val="20"/><w:lang w:val="en-GB"/></w:rPr></w:rPrDefault>'
-          '<w:pPrDefault><w:pPr><w:spacing w:after="80" w:line="259" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>'
-          '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial" w:eastAsia="Arial"/></w:rPr></w:style>'
-          '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/>'
-          '<w:pPr><w:spacing w:after="0"/></w:pPr><w:rPr><w:b/><w:sz w:val="48"/><w:szCs w:val="48"/></w:rPr></w:style>'
-          '<w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Subtitle"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/>'
-          '<w:rPr><w:color w:val="404040"/><w:sz w:val="28"/><w:szCs w:val="28"/></w:rPr></w:style>'
-          '<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/>'
-          '<w:pPr><w:keepNext/><w:spacing w:before="240" w:after="80"/><w:outlineLvl w:val="0"/></w:pPr><w:rPr><w:b/><w:sz w:val="28"/><w:szCs w:val="28"/></w:rPr></w:style>'
-          '<w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/><w:uiPriority w:val="99"/><w:semiHidden/>'
-          '<w:tblPr><w:tblInd w:w="0" w:type="dxa"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="108" w:type="dxa"/>'
-          '<w:bottom w:w="0" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style>'
-          '<w:style w:type="table" w:styleId="TableGrid"><w:name w:val="Table Grid"/><w:basedOn w:val="TableNormal"/><w:uiPriority w:val="39"/>'
-          '<w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:tblPr><w:tblBorders>'
-          + "".join('<w:%s w:val="single" w:sz="4" w:space="0" w:color="A6A6A6"/>' % s for s in ("top", "left", "bottom", "right", "insideH", "insideV"))
-          + '</w:tblBorders></w:tblPr></w:style></w:styles>')
+def control_table(table, prefix):
+    """Rows labelled with a control ('A tap'): each of the three mode cells gets <prefix>.<label slug>.m<n>."""
+    return map_rows(table, lambda label, n: [None] + ["%s.%s.m%d" % (prefix, slug(label), m) for m in (1, 2, 3)])
 
-CONTENT_TYPES = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-                 '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-                 '<Default Extension="xml" ContentType="application/xml"/>'
-                 '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
-                 '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
-                 '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>'
-                 '<Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-properties+xml"/>'
-                 '</Types>')
 
-ROOT_RELS = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-             '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
-             '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" Target="docProps/custom.xml"/>'
-             '</Relationships>')
+def numbered_table(table, tag_for):
+    """Rows labelled 1, 2, 3...: tag_for(number, index of the cell after the number, starting at 1)."""
+    return map_rows(table, lambda label, n: [None] + [tag_for(int(label), c) for c in range(1, n)])
 
-DOC_RELS = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
-            '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>'
-            '</Relationships>')
+
+def repeat_table(table, list_name, tags):
+    """The first body row is the pattern: its cells take the tags, it is wrapped in a repeat control, the other body rows go."""
+    rows = rows_of(table)
+    first = replace_cells(rows[1].group(0), tags)
+    wrapped = ('<w:sdt><w:sdtPr><w:alias w:val="Rows: %s"/><w:tag w:val="repeat:%s"/><w:id w:val="%d"/></w:sdtPr>'
+               '<w:sdtContent>%s</w:sdtContent></w:sdt>') % (list_name, list_name, next_id(), first)
+    return table[:rows[1].start()] + wrapped + table[rows[-1].end():]
+
+
+LIGHTS = {"Fire": "fire", "A": "a", "B": "b", "D": "d", "E": "e", "T1": "t1", "T2": "t2", "T3": "t3",
+          "H2 lit hat": "pov", "i clutch": "clutch", "Throttle": "throttle"}
+
+
+def light_table(table):
+    return map_rows(table, lambda label, n: [None] + ["light.%s.m%d" % (LIGHTS[label], m) for m in (1, 2, 3)])
+
+
+def leaf_tables(xml):
+    """(start, end) of every table that holds no other table, in order."""
+    spans, stack = [], []
+    for m in re.finditer(r"<w:tbl>|</w:tbl>", xml):
+        if m.group(0) == "<w:tbl>":
+            stack.append([m.start(), False])
+            if len(stack) > 1:
+                stack[-2][1] = True
+        else:
+            start, has_inner = stack.pop()
+            if not has_inner:
+                spans.append((start, m.end()))
+    return sorted(spans)
+
+
+def split_run(xml, old, pieces):
+    """Replaces the text run holding `old` by runs and controls (pieces: ('t', text) or ('c', tag)), same formatting."""
+    m = re.search(r"<w:r>(" + RPR + r")<w:t xml:space=\"preserve\">%s</w:t></w:r>" % re.escape(old), xml, re.S)
+    if not m:
+        raise SystemExit("not found in the empty template: " + old)
+    rpr = m.group(1)
+    new = "".join(text_run(rpr, v) if k == "t" else control(v, rpr) for k, v in pieces)
+    return xml[:m.start()] + new + xml[m.end():]
+
+
+def transform_document(xml):
+    spans = leaf_tables(xml)
+    if len(spans) != 9:
+        raise SystemExit("the empty template has %d tables, expected 9; update this script" % len(spans))
+    kinds = ["ControlMode", "ControlMode", "ControlMode", "ControlMode", "No.Mode", "PageFields", "LightMode", "LightCondition", "No.Alarm"]
+    for (a, b), want in zip(spans, kinds):
+        first = text_of(rows_of(xml[a:b])[0].group(0))
+        if not first.startswith(want):
+            raise SystemExit("table starting '%s' found where '%s' was expected" % (first[:30], want))
+    new = {}
+    for i, (a, b) in enumerate(spans):
+        t = xml[a:b]
+        if i == 0: t = control_table(t, "stick")
+        elif i == 1: t = control_table(t, "throttle")
+        elif i == 2: t = control_table(t, "pinkie_stick")
+        elif i == 3: t = control_table(t, "pinkie_throttle")
+        elif i == 4: t = numbered_table(t, lambda n, c: "pages.%d.m%d" % (n, c))
+        elif i == 5: t = repeat_table(t, "user_pages", ["page.title", "page.fields"])
+        elif i == 6: t = light_table(t)
+        elif i == 7: t = repeat_table(t, "rules", ["rule.light", "rule.condition", "rule.active", "rule.otherwise"])
+        else: t = numbered_table(t, lambda n, c: "alarm.%d.%s" % (n, ["name", "light", "m1", "m2", "m3", "rate"][c - 1]))
+        new[(a, b)] = t
+    for (a, b) in sorted(new, reverse=True):
+        xml = xml[:a] + new[(a, b)] + xml[b:]
+
+    # The mode names in the column headings: "Mode 1 / Takeoff" -> "Mode 1 / " + the mode's name.
+    def mode_head(m):
+        return text_run(m.group(1), "Mode %s / " % m.group(2)) + control("mode.%s.name" % m.group(2), m.group(1))
+    xml = re.sub(r"<w:r>(" + RPR + r")<w:t xml:space=\"preserve\">Mode (\d) / \w+</w:t></w:r>", mode_head, xml, flags=re.S)
+    xml = split_run(xml, "Shift enabled in each mode:  Mode 1 ________   Mode 2 ________   Mode 3 ________.   Record the actual shifted assignments and the Any mode actions that remain available.",
+                    [("t", "Shift enabled in each mode:  Mode 1 "), ("c", "shift.m1"), ("t", "   Mode 2 "), ("c", "shift.m2"),
+                     ("t", "   Mode 3 "), ("c", "shift.m3"), ("t", ".   Record the actual shifted assignments and the Any mode actions that remain available.")])
+    xml = split_run(xml, "Hold threshold: __________   Release action: ______________________________________________",
+                    [("t", "Hold threshold: "), ("c", "profile.hold_ms"), ("t", "   Release action: "), ("c", "profile.release_actions")])
+    xml = split_run(xml, "Screen and light power conditions: ____________________________________________",
+                    [("t", "Screen and light power conditions: "), ("c", "profile.power_conditions")])
+    return xml
+
+
+def transform_header(xml):
+    for old, tag in (("[Aircraft name]", "profile.name"), ("[Profile filename]", "profile.file")):
+        m = re.search(r"<w:r>(" + RPR + r")<w:t>%s</w:t></w:r>" % re.escape(old), xml, re.S)
+        if not m:
+            raise SystemExit("not found in the header: " + old)
+        xml = xml[:m.start()] + control(tag, m.group(1)) + xml[m.end():]
+    return xml
+
 
 CUSTOM = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties" '
           'xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">'
@@ -149,13 +196,26 @@ CUSTOM = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xm
 
 
 def main():
-    out = sys.argv[1] if len(sys.argv) > 1 else "templates/X52-Manual-Template.docx"
-    document = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document %s><w:body>%s</w:body></w:document>' % (NS, body())
-    parts = [("[Content_Types].xml", CONTENT_TYPES), ("_rels/.rels", ROOT_RELS), ("word/document.xml", document),
-             ("word/_rels/document.xml.rels", DOC_RELS), ("word/styles.xml", STYLES), ("word/footer1.xml", footer()),
-             ("docProps/custom.xml", CUSTOM)]
+    src = sys.argv[1] if len(sys.argv) > 1 else SOURCE
+    out = sys.argv[2] if len(sys.argv) > 2 else OUTPUT
+    with zipfile.ZipFile(src) as z:
+        parts = [(i.filename, z.read(i.filename)) for i in z.infolist()]
+    if "docProps/custom.xml" in [n for n, _ in parts]:
+        raise SystemExit("the source already has custom properties; update this script")
+    result = []
+    for name, data in parts:
+        if name == "word/document.xml":
+            data = transform_document(data.decode("utf-8")).encode("utf-8")
+        elif name == "word/header1.xml":
+            data = transform_header(data.decode("utf-8")).encode("utf-8")
+        elif name == "[Content_Types].xml":
+            data = data.decode("utf-8").replace("</Types>", '<Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-properties+xml"/></Types>').encode("utf-8")
+        elif name == "_rels/.rels":
+            data = data.decode("utf-8").replace("</Relationships>", '<Relationship Id="rId90" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" Target="docProps/custom.xml"/></Relationships>').encode("utf-8")
+        result.append((name, data))
+    result.append(("docProps/custom.xml", CUSTOM.encode("utf-8")))
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
-        for name, data in parts:
+        for name, data in result:
             info = zipfile.ZipInfo(name, (1980, 1, 1, 0, 0, 0))   # the same bytes every time
             info.compress_type = zipfile.ZIP_DEFLATED
             z.writestr(info, data)

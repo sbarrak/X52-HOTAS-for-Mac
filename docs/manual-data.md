@@ -17,13 +17,57 @@ All values are plain text. A field with nothing to say is an empty string, never
 | `manual.schema` | The schema number (`1`). |
 | `app.version` | Version of the app that made the export, such as `1.5.0`. |
 | `profile.name` | The profile's name. |
+| `profile.file` | The profile's file name, such as `aircraft-F-14D.x52`. |
+| `profile.hold_ms` | How long a button is held before it counts as a hold, such as `400 ms`. |
+| `profile.release_actions` | The buttons that do something when let go, or `none`. |
+| `profile.power_conditions` | When the screen and the lights are on (`Screen: always on; lights: always on`). |
+| `shift.m1`, `shift.m2`, `shift.m3` | `yes` when the Pinkie is a shift in that mode. |
 | `profile.based_on` | The profile it was copied from, or empty. |
 | `profile.standard` | `yes` for a ready-made profile, otherwise `no`. |
 | `profile.pinkie_shift` | `yes` when the pinkie switch is a shift, `no` when it is a normal button. |
 | `profile.shift_button` | The name of the shift button, such as `Pinkie`. |
 | `mode.1.name`, `mode.2.name`, `mode.3.name` | The names of the three modes (Takeoff, Cruise, Landing by default). |
 
-## Lists (repeating rows)
+## The fixed assignment tables
+
+The manual lists the same controls in the same order for every profile, so a table has a row for each control and a cell
+for each mode. A cell's tag is `<table>.<control>.m<mode>`, for example `stick.a_tap.m2`. A control with nothing
+assigned shows an em dash.
+
+| Table | Tag prefix | Controls (the `<control>` part of the tag) |
+|---|---|---|
+| Joystick assignments | `stick` | `tr1`, `tr2`, `f_covered_fire`, `a_tap`, `a_hold`, `b`, `c`, `p_pinkie`, `h1_main_hat`, `h2_up`, `h2_right`, `h2_down`, `h2_left`, `t1_up`, `t1_down`, `t2_up`, `t2_down`, `t3_up`, `t3_down`, `roll_pitch_twist` |
+| Throttle assignments | `throttle` | `d`, `e_press`, `i_press`, `mb_mouse_button`, `mw_forward`, `mw_aft`, `mw_press`, `th_up`, `th_right`, `th_down`, `th_left`, `ms_mouse_nub`, `l_turn`, `r_turn_press`, `e_upper_ring`, `i_lower_ring`, `ax_lever`, `sl_slider` |
+| Joystick, Pinkie held | `pinkie_stick` | the same as `stick` |
+| Throttle, Pinkie held | `pinkie_throttle` | the same as `throttle` |
+
+- `a_tap` is what a tap on A does and `a_hold` what holding it does. The other buttons show their press, and
+  ` (hold: ...)` when a hold does something else.
+- `h1_main_hat` and `ms_mouse_nub` sum up four (or eight) buttons: `Look in direction` and `Pan / far: fast pan` when they
+  have the usual look and pan commands, otherwise the labels one after another.
+- `p_pinkie` shows `Shift` in the modes where the Pinkie is a shift.
+- `i_press` is `Safe mode / picker`; `l_turn` and `r_turn_press` are the screen's wheels (`Change page`, `Cursor / select`);
+  the two rings show what the dial is set to; `ax_lever`, `sl_slider` and `roll_pitch_twist` say whether the plugin drives them.
+  These rows show an em dash in the Pinkie tables.
+
+## The display and lights
+
+| Tag | Contains |
+|---|---|
+| `pages.<1..12>.m<1..3>` | The page the left wheel reaches in that position and mode (hidden pages left out); empty after the last. |
+| `light.<fire, a, b, d, e, t1, t2, t3, pov, clutch, throttle>.m<1..3>` | The light's colour in that mode: `off`, `green`, `amber` or `red`, with ` (Pinkie: colour)` when it differs while the Pinkie is held. |
+| `alarm.<1..8>.name`, `.light`, `.m1`, `.m2`, `.m3`, `.rate` | An alarm: its name, its light, its colour in each mode (`red / amber` when it alternates) and its rate (`steady`, `blink slow`, `blink fast`, `alternate slow`...). Rows without an alarm are empty. |
+
+Two lists have no fixed size, but never fewer than 3 rows (padded with empty rows):
+
+| List | Row fields |
+|---|---|
+| `user_pages` | `page.title`, `page.fields` (the labels of the page's rows) |
+| `rules` | `rule.light`, `rule.condition`, `rule.active`, `rule.otherwise` (the live lights) |
+
+## Plain lists of buttons (optional)
+
+For a simpler layout than the manual's, a template can repeat one table row for every button.
 
 A template repeats a table row once per entry of a list.
 
@@ -51,7 +95,7 @@ buttons with nothing bound are left out. Without the part after the second colon
 
 ## Making and changing a template
 
-The shipped template is `templates/X52-Manual-Template.docx`. Open it in Word and restyle it freely: fonts, colours,
+The shipped template is `templates/X52-Manual-Template.docx`: the layout of the standard aircraft maps (pictures, fixed tables, display and lights dashboard). Open it in Word and restyle it freely: fonts, colours,
 page layout, extra text and pictures are all yours.
 
 - **Show a value:** Developer tab > Plain Text Content Control, then Properties > Tag: the tag from the tables above.
@@ -60,9 +104,9 @@ page layout, extra text and pictures are all yours.
   `repeat:throttle_buttons`), and use the row tags (`button.name`, `button.m1`, ...) in its cells.
 - **Needs a newer app?** File > Info > Properties > Advanced > Custom: add a number property `X52TemplateSchema` with
   the schema the template needs. An app that knows an older schema will refuse it.
-- **Start over:** `python3 tools/make_manual_template.py` writes a fresh basic template (standard library only).
+- **Start over:** `python3 tools/make_manual_template.py` rebuilds the template from the empty aircraft profile template in `docs/mapping/` (standard library only). The pictures, the header and the layout come from that file; the aircraft picture in the header is a placeholder you replace in Word.
 - **Try a template without the app:** `bin/x52manual profile.x52 template.docx out.docx` (built by `make`).
 
 ## Planned (not in schema 1 yet)
 
-Lights, alarms, screen pages and the axes. They will be added without changing the schema number.
+The aircraft picture and the per-aircraft systems pages of the standard maps. They will be added without changing the schema number.

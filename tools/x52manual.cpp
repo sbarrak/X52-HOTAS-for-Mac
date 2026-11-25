@@ -30,7 +30,11 @@ int main(int argc, char** argv) {
     Profile p;
     std::string err;
     if (!parse(text, p, &err)) { std::cerr << "profile: " << err << "\n"; return 1; }
-    FillResult r = fillDocx(tmpl, buildManualData(p, X52_VERSION));
+    std::string key = argv[1];   // the file name without its folder and ".x52"
+    size_t slash = key.find_last_of('/');
+    if (slash != std::string::npos) key = key.substr(slash + 1);
+    if (key.size() > 4 && key.compare(key.size() - 4, 4, ".x52") == 0) key.resize(key.size() - 4);
+    FillResult r = fillDocx(tmpl, buildManualData(p, X52_VERSION, key));
     if (!r.ok) { std::cerr << r.error << "\n"; return 1; }
     std::ofstream o(argv[3], std::ios::binary);
     o << r.bytes;

@@ -353,4 +353,114 @@ TEST(fill_repeat_with_a_filter_keeps_only_the_rows_that_say_yes) {
     CHECK(pinkie.find(">Trigger</w:t>") != std::string::npos);
 }
 
+// ---------------------------------------------------------------- the shipped template and the fixed assignment tables
+namespace {
+std::string slurpFile(const std::string& path) {
+    std::ifstream f(path, std::ios::binary);
+    std::stringstream ss;
+    ss << f.rdbuf();
+    return ss.str();
+}
+}  // namespace
+
+TEST(the_shipped_template_only_uses_tags_the_manual_data_has) {
+    std::string tmpl = slurpFile("templates/X52-Manual-Template.docx");
+    CHECK(tmpl.size() > 1000);
+    CHECK_EQ(templateSchema(tmpl), kManualSchema);
+    for (const char* profile : {"", "profiles/aircraft-F-14D.x52"}) {
+        Profile p;
+        if (*profile) {
+            std::string err;
+            CHECK(parse(slurpFile(profile), p, &err));
+        }
+        FillResult r = fillDocx(tmpl, buildManualData(p, "1.5.0", "some-profile"));
+        CHECK(r.ok);
+        std::string unknown;
+        for (const std::string& u : r.unknownTags) unknown += u + " ";
+        CHECK_EQ(unknown, std::string(""));
+        std::vector<ZipEntry> parts;
+        std::string err;
+        CHECK(readZip(r.bytes, parts, &err));
+        for (const ZipEntry& e : parts)
+            if (e.name == "word/document.xml" || e.name == "word/header1.xml") CHECK(e.data.find("<w:sdt") == std::string::npos);
+        std::string header = partOf(r.bytes, "word/header1.xml");
+        CHECK(header.find("some-profile.x52") != std::string::npos);
+        std::string doc = partOf(r.bytes, "word/document.xml");
+        CHECK(doc.find("A tap") != std::string::npos);                          // the fixed rows are still there
+        CHECK(doc.find("Roll / pitch / twist") != std::string::npos);
+        CHECK(doc.find("Display and lights dashboard") != std::string::npos);
+    }
+}
+
+TEST(manual_fixed_tables_show_taps_holds_hats_and_the_fixed_functions) {
+    Profile p;
+    Binding& a = bindAs(p, 3, kLayerAny, "Gear", "sim/flight_controls/landing_gear_toggle");
+    a.holdLabel = "Parking brake";
+    std::string err;
+    actionFromText("cmd:sim/flight_controls/brakes_toggle_max", a.hold, &err);
+    for (int i = 0; i < 4; ++i) bindAs(p, kPov1Up + i, kLayerAny, std::string("Look ") + (i == 0 ? "up" : i == 1 ? "right" : i == 2 ? "down" : "left"), "sim/view/x");
+    for (int i = 0; i < 8; ++i) bindAs(p, kNubUp + i, kLayerAny, i < 4 ? "Pan up" : "Pan up fast", "sim/general/up");
+    bindAs(p, 1, 2, "Gun", "sim/weapons/fire_guns");
+    bindAs(p, 20, 5, "Trim", "sim/flight_controls/pitch_trim_up");
+    p.axes.overrideXPlane = true;
+    p.axes.pluginThrottle = true;
+    p.axes.sliderFlaps = true;
+    p.axes.upperUse = DialUse::Zoom;
+    p.axes.lowerUse = DialUse::None;
+    ManualData d = buildManualData(p, "1.5.0");
+    CHECK_EQ(d.value("stick.a_tap.m1"), std::string("Gear"));              // a tap is the press only
+    CHECK_EQ(d.value("stick.a_hold.m1"), std::string("Parking brake"));    // a hold is the hold only
+    CHECK_EQ(d.value("stick.tr1.m2"), std::string("Gun"));
+    CHECK_EQ(d.value("stick.tr1.m1"), std::string("\xE2\x80\x94"));        // nothing bound: an em dash
+    CHECK_EQ(d.value("stick.h1_main_hat.m1"), std::string("Look in direction"));
+    CHECK_EQ(d.value("throttle.ms_mouse_nub.m3"), std::string("Pan / far: fast pan"));
+    CHECK_EQ(d.value("pinkie_stick.h2_up.m2"), std::string("Trim"));
+    CHECK_EQ(d.value("pinkie_stick.h2_up.m1"), std::string("\xE2\x80\x94"));
+    CHECK_EQ(d.value("stick.roll_pitch_twist.m1"), std::string("Plugin axes"));
+    CHECK_EQ(d.value("throttle.ax_lever.m1"), std::string("Engine power"));
+    CHECK_EQ(d.value("throttle.sl_slider.m2"), std::string("Flap detents"));
+    CHECK_EQ(d.value("throttle.e_upper_ring.m1"), std::string("View zoom"));
+    CHECK_EQ(d.value("throttle.i_lower_ring.m1"), std::string("X-Plane joystick setup"));
+    CHECK_EQ(d.value("throttle.l_turn.m1"), std::string("Change page"));
+    CHECK_EQ(d.value("throttle.r_turn_press.m3"), std::string("Cursor / select"));
+    CHECK_EQ(d.value("throttle.i_press.m1"), std::string("Safe mode / picker"));
+    CHECK_EQ(d.value("pinkie_throttle.l_turn.m1"), std::string("\xE2\x80\x94"));
+}
+
+TEST(manual_dashboard_values_pages_lights_rules_and_alarms) {
+    Profile p;
+    p.leds[0][LedA] = Color::Red;
+    p.ledsPinkie[0][LedA] = Color::Amber;
+    LightRule r;
+    r.led = LedB;
+    r.dataref = "sim/x/gear";
+    r.op = Compare::Greater;
+    r.value = 0.5;
+    r.thenColor = (int)Color::Amber;
+    r.elseColor = kRuleMode;
+    p.rules.push_back(r);
+    Alarm a;
+    a.name = "Stall";
+    a.led = LedPov;
+    a.dataref = "sim/x/stall";
+    a.effect = Effect::Blink;
+    a.fast = true;
+    p.alarms.push_back(a);
+    ManualData d = buildManualData(p, "1.5.0");
+    CHECK_EQ(d.value("light.a.m1"), std::string("red (Pinkie: amber)"));
+    CHECK_EQ(d.value("light.a.m2"), std::string("green"));
+    CHECK_EQ(d.value("light.pov.m1"), std::string("green"));
+    CHECK_EQ(d.lists.at("rules").size(), (size_t)3);                       // a table never has fewer than 3 rows
+    CHECK_EQ(d.lists.at("rules")[0].at("rule.light"), std::string("B"));
+    CHECK_EQ(d.lists.at("rules")[0].at("rule.condition"), std::string("sim/x/gear > 0.5"));
+    CHECK_EQ(d.lists.at("rules")[0].at("rule.active"), std::string("amber"));
+    CHECK_EQ(d.lists.at("rules")[0].at("rule.otherwise"), std::string("mode light"));
+    CHECK_EQ(d.value("alarm.1.name"), std::string("Stall"));
+    CHECK_EQ(d.value("alarm.1.light"), std::string("H2 lit hat"));
+    CHECK_EQ(d.value("alarm.1.rate"), std::string("blink fast"));
+    CHECK_EQ(d.value("alarm.2.name"), std::string(""));                    // 8 alarm rows, always
+    CHECK(!d.value("pages.1.m1").empty());                                  // the built-in pages come first
+    CHECK_EQ(d.lists.at("user_pages").size(), (size_t)3);
+}
+
 int main() { return runAllTests(); }

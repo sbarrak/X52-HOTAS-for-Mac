@@ -22,7 +22,8 @@ struct ManualData {
 };
 
 // The data of one profile. appVersion is the version of the program that exports (the VERSION file).
-ManualData buildManualData(const Profile& p, const std::string& appVersion);
+// key is the profile's file name without ".x52" ("" when it has none yet).
+ManualData buildManualData(const Profile& p, const std::string& appVersion, const std::string& key = "");
 
 // The lists a template may repeat rows of, and the fields of their rows, are in docs/manual-data.md.
 // Which device a button belongs to: "stick" or "throttle" ("" when out of range).

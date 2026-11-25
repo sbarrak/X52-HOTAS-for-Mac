@@ -901,7 +901,7 @@ int x52_export_manual(const char* key, const char* templatePath, const char* out
         exportMessage = "The template could not be read: " + std::string(templatePath);
         return 0;
     }
-    FillResult r = fillDocx(tmpl, buildManualData(p, X52_VERSION));
+    FillResult r = fillDocx(tmpl, buildManualData(p, X52_VERSION, key));
     if (!r.ok) {
         exportMessage = r.error;
         return 0;
