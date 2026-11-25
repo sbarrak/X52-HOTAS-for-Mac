@@ -462,6 +462,7 @@ void Agent::tick() {
     for (const ButtonEvent& e : events) {
         if (e.down) {
             pressButton_ = e.button;
+            pressLayer_ = std::max(1, std::min(3, engine_.mode())) + (engine_.shift() ? 3 : 0);   // as it was when pressed
             ++pressSeq_;
         }
         engine_.buttonEvent(e.button, e.down, t);

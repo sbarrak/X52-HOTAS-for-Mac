@@ -79,6 +79,7 @@ public:
     const Lines& screen() const { return screen_; }
     int pressSeq() const { return pressSeq_; }      // counts every press of a stick button
     int pressButton() const { return pressButton_; }   // the button of the latest press
+    int pressLayer() const { return pressLayer_; }     // its layer: 1..3 the mode, 4..6 the mode with the pinkie held
     std::string held() const;                       // names of the buttons held right now
     const std::string& moved() const { return moved_; }
 
@@ -167,6 +168,7 @@ private:
     X52Input input_;
     int pressSeq_ = 0;
     int pressButton_ = 0;
+    int pressLayer_ = 1;
     bool started_ = false;
     bool pluginActive_ = false;
     bool deviceRunning_ = false;
