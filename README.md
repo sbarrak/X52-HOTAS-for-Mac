@@ -47,6 +47,12 @@ Radios. Autopilot. Heading. The little screen becomes your panel, tuned with two
 
 Macros, tap and hold, any X-Plane command. Make the stick yours.
 
+## Every aircraft. Documented.
+
+Each ready-made profile comes with a printable button map and a full [guide](profiles/README.md): what every button does, in every mode.
+
+Want it your way? Start a new profile from any of them, change what you like, and keep it as your own **Signature Blueprint**. The originals never change, so you can always go back.
+
 <br>
 
 ## Install
