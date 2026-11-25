@@ -312,6 +312,24 @@ ManualData buildManualData(const Profile& p, const std::string& appVersion, cons
     }
     while (d.lists["rules"].size() < 3)
         d.lists["rules"].push_back(ManualRow{{"rule.light", ""}, {"rule.condition", ""}, {"rule.active", ""}, {"rule.otherwise", ""}, {"rule.active_name", ""}, {"rule.otherwise_name", ""}});
+    // The alarms as a list that grows (never fewer than 8 rows, as in the manual's form) ...
+    for (size_t i = 0; i < std::max<size_t>(8, p.alarms.size()); ++i) {
+        const Alarm* a = i < p.alarms.size() ? &p.alarms[i] : nullptr;
+        ManualRow row;
+        row["alarm.no"] = std::to_string(i + 1);
+        row["alarm.name"] = a ? (a->name.empty() ? triggerText(*a) : a->name) : "";
+        row["alarm.light"] = a ? kLightLabels[a->led >= 0 && a->led < kLedCount ? a->led : 0] : "";
+        std::string cell;
+        if (a) {
+            if (a->color == kRuleMode) cell = modeDot(a->effect == Effect::Blink);
+            else if (a->effect == Effect::Alternate) cell = pairDot(a->color, a->color2);
+            else cell = dot(a->color, a->effect == Effect::Blink);
+        }
+        for (int m = 1; m <= 3; ++m) row["alarm.m" + std::to_string(m)] = cell;
+        row["alarm.rate"] = !a ? "" : a->effect == Effect::Steady ? "Steady" : a->fast ? "Fast" : "Slow";
+        d.lists["alarms"].push_back(row);
+    }
+    // ... and the first eight also one by one, for a template with a fixed form.
     for (int n = 1; n <= 8; ++n) {
         std::string pre = "alarm." + std::to_string(n) + ".";
         const Alarm* a = n <= (int)p.alarms.size() ? &p.alarms[n - 1] : nullptr;

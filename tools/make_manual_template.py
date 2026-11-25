@@ -182,7 +182,7 @@ def transform_document(xml):
         elif i == 5: t = repeat_table(t, "user_pages", ["page.title", "page.fields"])
         elif i == 6: t = light_table(roomy_cols(t, (1, 2, 3)))
         elif i == 7: t = repeat_table(roomy_cols(t, (2, 3)), "rules", ["rule.light", "rule.condition", "rule.active", "rule.otherwise"])
-        else: t = numbered_table(roomy_cols(t, (3, 4, 5)), lambda n, c: "alarm.%d.%s" % (n, ["name", "light", "m1", "m2", "m3", "rate"][c - 1]))
+        else: t = repeat_table(roomy_cols(t, (3, 4, 5)), "alarms", ["alarm.no", "alarm.name", "alarm.light", "alarm.m1", "alarm.m2", "alarm.m3", "alarm.rate"])
         new[(a, b)] = t
     for (a, b) in sorted(new, reverse=True):
         xml = xml[:a] + new[(a, b)] + xml[b:]
@@ -198,7 +198,31 @@ def transform_document(xml):
                     [("t", "Hold threshold: "), ("c", "profile.hold_ms"), ("t", "   Release action: "), ("c", "profile.release_actions")])
     xml = split_run(xml, "Screen and light power conditions: ____________________________________________",
                     [("t", "Screen and light power conditions: "), ("c", "profile.power_conditions")])
-    return xml
+    return move_growing_tables(xml)
+
+
+def move_growing_tables(xml):
+    """Live lights and Alarms can grow, so they leave the dashboard's right column for a page of their own."""
+    close = "</w:tc></w:tr></w:tbl>"   # the end of the dashboard's layout table
+    a = max(xml.rfind("<w:p>", 0, xml.index("Live lights")), xml.rfind("<w:p ", 0, xml.index("Live lights")))
+    end = xml.index(close, a)
+    if xml[end - 6:end] != "</w:p>":
+        raise SystemExit("the dashboard no longer ends with a paragraph; update this script")
+    block = xml[a:end]
+    # the heading of the new page is a copy of the dashboard's own heading, starting a page
+    h = xml.index("Display and lights dashboard")
+    hs = max(xml.rfind("<w:p>", 0, h), xml.rfind("<w:p ", 0, h))
+    heading = xml[hs:xml.index("</w:p>", h) + 6].replace("Display and lights dashboard", "Live lights and alarms")
+    pageBreak = "<w:pageBreakBefore/>"
+    if "<w:pStyle" in heading[:heading.index("</w:pPr>") if "</w:pPr>" in heading else 0]:
+        k = heading.index("/>", heading.index("<w:pStyle")) + 2
+        heading = heading[:k] + pageBreak + heading[k:]
+    elif "<w:pPr>" in heading:
+        heading = heading.replace("<w:pPr>", "<w:pPr>" + pageBreak, 1)
+    else:
+        heading = heading.replace("<w:p>", "<w:p><w:pPr>" + pageBreak + "</w:pPr>", 1)
+    empty = '<w:p><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr></w:p>'   # a table cell must end with a paragraph
+    return xml[:a] + empty + close + heading + block + xml[end + len(close):]
 
 
 def transform_header(xml):

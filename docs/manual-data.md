@@ -64,11 +64,12 @@ an icon with `\x04<name>\x05`: `off`; `g`, `a`, `r` (steady); `g_flash`, `a_flas
 `ag`, `ga` (two colours, primary first) and the same with `_flash`; `gar` and `gar_flash` (three colours: the mode's own).
 A value can also colour part of itself with `\x01RRGGBB,size\x02 ... \x03`; `stripStyle` gives the plain text.
 
-Two lists have no fixed size, but never fewer than 3 rows (padded with empty rows):
+The live lights and the alarms can grow, so the manual puts them on a page of their own. These lists have no fixed size: `user_pages` and `rules` have at least 3 rows and `alarms` at least 8 (padded with empty rows):
 
 | List | Row fields |
 |---|---|
 | `user_pages` | `page.title`, `page.fields` (the labels of the page's rows) |
+| `alarms` | `alarm.no`, `alarm.name`, `alarm.light`, `alarm.m1`, `alarm.m2`, `alarm.m3`, `alarm.rate` (the alarms; never fewer than 8 rows, more when the profile has more) |
 | `rules` | `rule.light`, `rule.condition` (the ready-made rule's name, such as `Parking brake`, else the test on the dataref), `rule.active` and `rule.otherwise` (icons; the three-colour icon when it leaves the mode's colour; `rule.active_name` and `rule.otherwise_name` in words) (the live lights) |
 
 ## Plain lists of buttons (optional)

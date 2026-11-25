@@ -390,6 +390,12 @@ TEST(the_shipped_template_only_uses_tags_the_manual_data_has) {
         CHECK(doc.find("A tap") != std::string::npos);                          // the fixed rows are still there
         CHECK(doc.find("Roll / pitch / twist") != std::string::npos);
         CHECK(doc.find("Display and lights dashboard") != std::string::npos);
+        size_t second = doc.find("Live lights and alarms");                       // the growing tables have a page of their own
+        CHECK(second != std::string::npos);
+        CHECK(second != std::string::npos && doc.rfind("<w:pageBreakBefore/>", second) != std::string::npos && second - doc.rfind("<w:pageBreakBefore/>", second) < 600);
+        CHECK(second != std::string::npos && doc.find("Mode lights") < second);    // Mode lights stay on the dashboard
+        CHECK(second != std::string::npos && doc.find("Live lights", second) != std::string::npos);
+        CHECK(second != std::string::npos && doc.find("Alarms", second) != std::string::npos);
     }
 }
 
@@ -544,6 +550,22 @@ TEST(fill_colours_the_styled_parts_of_a_value_and_keeps_the_rest) {
     CHECK(xml.find("> after</w:t>") != std::string::npos);
     CHECK(xml.find("\x01") == std::string::npos);
     CHECK(xml.find("<w:b/>") != std::string::npos);                       // the control's own formatting stays
+}
+
+TEST(manual_alarms_list_has_eight_rows_at_least_and_grows_with_the_profile) {
+    Profile p;
+    ManualData few = buildManualData(p, "1.5.0");
+    CHECK_EQ(few.lists.at("alarms").size(), (size_t)8);
+    CHECK_EQ(few.lists.at("alarms")[7].at("alarm.no"), std::string("8"));
+    CHECK_EQ(few.lists.at("alarms")[0].at("alarm.name"), std::string(""));
+    Alarm a;
+    a.name = "Stall";
+    a.dataref = "x";
+    for (int i = 0; i < 11; ++i) p.alarms.push_back(a);
+    ManualData many = buildManualData(p, "1.5.0");
+    CHECK_EQ(many.lists.at("alarms").size(), (size_t)11);                      // the table grows, nothing is cut off
+    CHECK_EQ(many.lists.at("alarms")[10].at("alarm.no"), std::string("11"));
+    CHECK_EQ(many.lists.at("alarms")[10].at("alarm.name"), std::string("Stall"));
 }
 
 int main() { return runAllTests(); }
