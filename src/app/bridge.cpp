@@ -62,6 +62,7 @@ int* field(Profile& p, const std::string& n, int& lo, int& hi) {
     if (n == "steady_upper") { lo = 0; hi = 20; return &p.axes.upperRotary.deadzone; }
     if (n == "steady_slider") { lo = 0; hi = 20; return &p.axes.slider.deadzone; }
     if (n == "rotary_zoom_steps") { lo = 12; hi = 480; return &p.axes.zoomSteps; }
+    if (n == "wheel_zoom_steps") { lo = 1; hi = 24; return &p.axes.wheelZoomSteps; }
     if (n == "rotary_lower_from") { lo = 0; hi = 100; return &p.axes.lowerFrom; }
     if (n == "rotary_lower_to") { lo = 0; hi = 100; return &p.axes.lowerTo; }
     if (n == "rotary_upper_from") { lo = 0; hi = 100; return &p.axes.upperFrom; }
@@ -283,9 +284,11 @@ int x52_alarm_color2(int i) { const Alarm* a = alarmAt(i); return a ? a->color2 
 
 int x52_alarm_add(void) {
     if (!agent) return -1;
-    int led = -1;   // the first light that still has room for a level
-    for (int l = 0; l < kLedCount && led < 0; ++l)
+    int led = -1;   // Hat 2 first (a full-colour light), then the next light that still has room for a level
+    for (int k = 0; k < kLedCount && led < 0; ++k) {
+        int l = (LedPov + k) % kLedCount;
         if (levelsOnLed(agent->profile().alarms, l) < kMaxLevels) led = l;
+    }
     if (led < 0) return -1;
     agent->change([led](Profile& p) {
         Alarm a;
@@ -328,6 +331,10 @@ void x52_alarm_set(int i, const char* name, int led, int effect, int fast, int c
     if (n.size() > 40) n.resize(40);
     color = color < 0 ? 0 : color > 3 ? 3 : color;
     color2 = color2 < 0 ? 0 : color2 > 3 ? 3 : color2;
+    if (ledIsSingleColor(led)) {   // Fire and Throttle show only off or on, so the pickers have nothing else to show
+        color = color ? 1 : 0;
+        color2 = color2 ? 1 : 0;
+    }
     agent->change([=](Profile& p) {
         if (i >= (int)p.alarms.size()) return;
         Alarm& a = p.alarms[i];
@@ -845,6 +852,10 @@ const char* x52_axes(void) {
         out += std::string(controlName(a.usagePage, a.usage)) + "\t" + std::to_string(pc) + "\t" +
                controlValueText(a.usagePage, a.usage, a.value, a.min, a.max) + "\t" + std::to_string(a.value) + "\t" +
                (a.moving ? "1" : "0") + "\t" + std::to_string(a.usage) + "\n";
+    }
+    if (!out.empty()) {   // the scroll wheel is buttons, so it is added by hand (usage 9999: no raw value to show)
+        const WheelMeter& w = agent->wheel();
+        out += std::string("Scroll wheel\t50\t") + w.text() + "\t-\t" + (w.moving(agent->wheelClock()) ? "1" : "0") + "\t9999\n";
     }
     return out.c_str();
 }

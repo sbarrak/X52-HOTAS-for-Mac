@@ -28,8 +28,8 @@ bool parseVersion(const std::string& text, int out[3]) {
 bool isNewerVersion(const std::string& current, const std::string& latest) {
     int a[3], b[3];
     if (!parseVersion(current, a) || !parseVersion(latest, b)) return false;
-    // Only the first two numbers count: 1.2.3 -> 1.2.40 is a small change that nobody is asked to download.
-    for (int i = 0; i < 2; ++i)
+    // Every number counts: any newer release, small or big, is an update.
+    for (int i = 0; i < 3; ++i)
         if (a[i] != b[i]) return b[i] > a[i];
     return false;
 }

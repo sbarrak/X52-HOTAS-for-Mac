@@ -90,6 +90,8 @@ public:
         bool moving;
     };
     std::vector<AxisView> axes() const;
+    const WheelMeter& wheel() const { return wheel_; }   // the scroll wheel (buttons), for the controls list
+    double wheelClock() const { return now(); }
     void pushAxisForTest(const AxisEvent& e) { input_.pushAxis(e); }   // tests: stand in for the stick
 
     // The stick's calibration (stick-calibration.txt beside the profiles, shared with the plugin, which picks up
@@ -195,6 +197,7 @@ private:
     Lines text_;
     Lines screen_;
     std::string moved_;
+    WheelMeter wheel_;
     std::map<std::pair<int, int>, long> axisRef_;   // value when each control last counted as moving
     std::pair<int, int> axisMoved_{0, 0};
     std::map<std::pair<int, int>, long> axisSteady_;   // what dials and the slider show (small flicker held back)

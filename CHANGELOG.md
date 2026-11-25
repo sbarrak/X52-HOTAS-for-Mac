@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.6.1
+
+### Added
+- **Dataref search in tests (#117).** The dataref box of a live light, alarm or master switch searches X-Plane's list of datarefs (and the add-on aircraft's) as you type, like the buttons and screen pages do, also when X-Plane is not running.
+
+- **Scroll wheel on the Axes tab (#117).** The scroll wheel behind the throttle is three buttons (forward, back, click), so it was missing from the Axes tab's list of controls. It now has a row there (the last notch and the net notches forward) in the app and in the X-Plane window, and a setting **Scroll wheel: zoom steps per notch** (1 to 24, default 1; profile line `wheel_zoom_steps`), like the zoom strength of the dials. It applies when a wheel notch runs X-Plane's zoom in or zoom out (mode 1 in the ready-made profiles); any other job of the wheel is unchanged.
+
+### Changed
+- **Updates are offered for every release (#117).** The update check compared only the first two numbers of the version, so 1.6.0 to 1.6.1 was never offered. It now compares all three: any newer release is an update. The manual and the project rules say so.
+
+### Fixed
+- **A new alarm could show an empty Colour picker (#117).** Symptom: after adding a blank alarm the Colour choice was empty. Cause: since levels (1.6.0) a new alarm went on the first light with room, the Fire button, which shows only off or on, while the alarm's colour was red. Fix: new alarms start on Hat 2 as before (then the next light with room), and an alarm moved to Fire or Throttle keeps a colour of off or on. Fixed in 1.6.1.
+
 ## 1.6.0
 
 ### Added

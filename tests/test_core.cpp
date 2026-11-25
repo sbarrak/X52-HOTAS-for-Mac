@@ -403,6 +403,84 @@ TEST(single_command_is_held_for_as_long_as_the_button) {
     CHECK_EQ(h.str(), std::string("end:brakes "));
 }
 
+TEST(a_scroll_wheel_notch_zooms_as_many_steps_as_the_profile_says) {
+    Rec h;
+    Engine e(h);
+    Profile p;
+    p.edit(17, kLayerAny).press = act("cmd:sim/general/zoom_in");     // wheel forward
+    p.edit(18, kLayerAny).press = act("cmd:sim/general/zoom_out");    // wheel back
+    p.edit(19, kLayerAny).press = act("cmd:sim/general/zoom_in");     // the click is not a notch
+    p.edit(3, kLayerAny).press = act("cmd:sim/general/zoom_in");      // nor is any other button
+    p.edit(16, kLayerAny).press = act("cmd:sim/view/chase");
+    p.axes.wheelZoomSteps = 3;
+    e.setProfile(p);
+    e.buttonEvent(17, true, 0.0);
+    e.buttonEvent(17, false, 0.1);
+    CHECK_EQ(h.str(), std::string("once:sim/general/zoom_in once:sim/general/zoom_in once:sim/general/zoom_in "));
+    e.buttonEvent(18, true, 1.0);
+    e.buttonEvent(18, false, 1.1);
+    CHECK_EQ(h.str(), std::string("once:sim/general/zoom_out once:sim/general/zoom_out once:sim/general/zoom_out "));
+    e.buttonEvent(19, true, 2.0);
+    e.buttonEvent(19, false, 2.1);
+    CHECK_EQ(h.str(), std::string("begin:sim/general/zoom_in end:sim/general/zoom_in "));   // as before
+    e.buttonEvent(3, true, 3.0);
+    e.buttonEvent(3, false, 3.1);
+    CHECK_EQ(h.str(), std::string("begin:sim/general/zoom_in end:sim/general/zoom_in "));
+    p.edit(17, kLayerAny).press = act("cmd:sim/flight_controls/pitch_trim_up");   // the wheel on something else
+    e.setProfile(p);
+    e.buttonEvent(17, true, 4.0);
+    e.buttonEvent(17, false, 4.1);
+    CHECK_EQ(h.str(), std::string("begin:sim/flight_controls/pitch_trim_up end:sim/flight_controls/pitch_trim_up "));
+}
+
+TEST(one_wheel_zoom_step_is_what_it_always_was) {
+    Rec h;
+    Engine e(h);
+    Profile p;
+    p.edit(17, kLayerAny).press = act("cmd:sim/general/zoom_in");
+    e.setProfile(p);                                                  // wheelZoomSteps stays 1
+    e.buttonEvent(17, true, 0.0);
+    e.buttonEvent(17, false, 0.1);
+    CHECK_EQ(h.str(), std::string("begin:sim/general/zoom_in end:sim/general/zoom_in "));
+}
+
+TEST(the_wheel_zoom_steps_round_trip_and_stay_in_range) {
+    Profile p;
+    CHECK_EQ(p.axes.wheelZoomSteps, 1);
+    CHECK(serialize(p).find("wheel_zoom_steps") == std::string::npos);   // the default writes nothing
+    p.axes.wheelZoomSteps = 5;
+    std::string text = serialize(p);
+    CHECK(text.find("wheel_zoom_steps = 5\n") != std::string::npos);
+    Profile q;
+    std::string err;
+    CHECK(parse(text, q, &err));
+    CHECK_EQ(q.axes.wheelZoomSteps, 5);
+    CHECK(parse("x52pro-profile 11\nwheel_zoom_steps = 500\n", q, &err));
+    CHECK_EQ(q.axes.wheelZoomSteps, 24);
+    CHECK(parse("x52pro-profile 11\nwheel_zoom_steps = 0\n", q, &err));
+    CHECK_EQ(q.axes.wheelZoomSteps, 1);
+}
+
+TEST(the_scroll_wheel_meter_counts_notches_and_names_the_last_one) {
+    WheelMeter w;
+    CHECK(w.text() == "turn it");
+    CHECK(!w.moving(0));
+    w.notch(17, 10.0);
+    w.notch(17, 10.1);
+    w.notch(18, 10.2);
+    CHECK_EQ(w.net, 1);
+    CHECK(w.text() == "back  net +1");
+    CHECK(w.moving(11.0) && !w.moving(12.0));
+    w.notch(19, 13.0);
+    CHECK(w.text() == "click");
+    CHECK_EQ(w.net, 1);                                  // a click is not a notch
+    w.notch(5, 14.0);                                    // another button: ignored
+    CHECK(w.text() == "click");
+    w.notch(18, 15.0);
+    w.notch(18, 15.1);
+    CHECK(w.text() == "back  net -1");
+}
+
 TEST(single_key_is_held_for_as_long_as_the_button) {
     Rec h;
     Engine e(h);
@@ -2912,12 +2990,15 @@ TEST(update_compares_versions) {
     CHECK(isNewerVersion("1.9.9", "2.0.0"));
     CHECK(isNewerVersion("1.2", "1.10.0"));        // numbers, not text: 10 > 2
     CHECK(isNewerVersion("1.2.2", "1.3.0-beta"));  // suffix ignored
-    // The third number is for small changes: never worth an update prompt.
-    CHECK(!isNewerVersion("1.2.2", "1.2.3"));
-    CHECK(!isNewerVersion("1.2.2", "v1.2.10"));
-    CHECK(!isNewerVersion("1.2.0", "1.2.100"));
+    // Any newer x.y.z is an update, the third number too.
+    CHECK(isNewerVersion("1.2.2", "1.2.3"));
+    CHECK(isNewerVersion("1.2.2", "v1.2.10"));      // numbers, not text
+    CHECK(isNewerVersion("1.2.0", "1.2.100"));
+    CHECK(isNewerVersion("1.6", "1.6.1"));          // a missing part is 0
     CHECK(!isNewerVersion("1.2.2", "1.2.2"));
     CHECK(!isNewerVersion("1.3.0", "1.2.9"));
+    CHECK(!isNewerVersion("1.2.3", "1.2.2"));       // older is not an update
+    CHECK(!isNewerVersion("1.2.10", "1.2.9"));
     CHECK(!isNewerVersion("dev", "1.0.0"));        // a development build never reports an update
     CHECK(!isNewerVersion("1.0.0", ""));
     CHECK(!isNewerVersion("1.0.0", "latest"));

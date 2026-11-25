@@ -287,3 +287,21 @@ std::vector<double> leverEngines(LeverPickup& s, const std::vector<double>& sim,
 }
 
 }  // namespace x52
+
+namespace x52 {
+
+void WheelMeter::notch(int button, double now) {
+    if (button < 17 || button > 19) return;
+    if (button == 17) ++net;
+    if (button == 18) --net;
+    last = button;
+    at = now;
+}
+
+std::string WheelMeter::text() const {
+    if (!last) return "turn it";
+    if (last == 19) return "click";
+    return std::string(last == 17 ? "forward" : "back") + "  net " + (net > 0 ? "+" : "") + std::to_string(net);
+}
+
+}  // namespace x52

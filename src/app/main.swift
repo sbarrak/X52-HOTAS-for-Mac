@@ -837,8 +837,8 @@ struct ConditionRow: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(which == 0 ? "Dataref" : which == 1 ? "Second dataref" : "Third dataref").frame(width: 110, alignment: .leading)
-                TextField("e.g. sim/flightmodel/controls/parkbrake, or name[3]", text: ref)
-                    .textFieldStyle(.roundedBorder)
+                // Searches X-Plane's own list of datarefs (and the add-on aircraft's), also without X-Plane running.
+                CatalogField(kind: 1, placeholder: "e.g. sim/flightmodel/controls/parkbrake, or name[3]", text: ref)
             }
             if let status = m.liveStatus[statusKey(kind, index, which)], !status.isEmpty {
                 Text(status).font(.callout).foregroundStyle(.secondary).padding(.leading, 118)
@@ -2344,6 +2344,12 @@ struct AxesTab: View {
                         .help("How far one full turn of a dial set to Zoom zooms the view, in steps of X-Plane's own zoom. More is a stronger zoom. You can change it while flying.")
                 }
             }
+            let wz = Binding<Int>(get: { m.get("wheel_zoom_steps") }, set: { m.set("wheel_zoom_steps", $0) })
+            HStack(spacing: 12) {
+                Text("Scroll wheel").frame(width: 120, alignment: .leading)
+                Stepper(wz.wrappedValue == 1 ? "1 zoom step per notch" : "\(wz.wrappedValue) zoom steps per notch", value: wz, in: 1...24).frame(width: 260, alignment: .leading)
+                    .help("How far one notch of the scroll wheel behind the throttle zooms when the wheel is set to Zoom in / Zoom out on the Buttons tab (mode 1 in the ready-made profiles). 1 is one step, as before. Other jobs of the wheel are not changed.")
+            }
             Text("The lower dial (i) and the E dial can set the speed brake in four steps (Armed, Retracted, Half, Full) or zoom the view. The plugin only acts while you turn the dial, so buttons, the mouse and the auto-spoilers still work. Set the dial to None in X-Plane's Joystick settings if X-Plane uses it too.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Text("Smooth jobs (prop, mixture, trims, cowl flaps, carb heat) cover the game's range for this aircraft (From/To narrow it). The plugin waits until you turn the dial to X-Plane's own value, so nothing jumps.")
@@ -2367,7 +2373,7 @@ struct AxesTab: View {
                         Text(a.name).frame(width: 150, alignment: .leading).foregroundStyle(a.moving ? Color.green : Color.primary)
                         ProgressView(value: Double(a.percent), total: 100).frame(width: 200)
                         Text(a.text).frame(width: 90, alignment: .leading)
-                        Text("raw \(a.raw)").foregroundStyle(.secondary)
+                        if a.usage != 9999 { Text("raw \(a.raw)").foregroundStyle(.secondary) }
                     }
                 }
                 if m.axes.isEmpty { Text("The stick is not reporting anything yet.").foregroundStyle(.secondary) }

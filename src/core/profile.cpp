@@ -647,6 +647,9 @@ std::string serialize(const Profile& p) {
     o << "rotary_upper_range = " << p.axes.upperFrom << " " << p.axes.upperTo << "\n";
     o << "# rotary_zoom_steps = how far a dial set to zoom zooms: steps of X-Plane's zoom per full turn (12..480)\n";
     o << "rotary_zoom_steps = " << p.axes.zoomSteps << "\n";
+    if (p.axes.wheelZoomSteps != 1)
+        o << "# wheel_zoom_steps = zoom steps per notch of the scroll wheel when it runs zoom in / zoom out (1..24, default 1)\n"
+          << "wheel_zoom_steps = " << p.axes.wheelZoomSteps << "\n";
     o << "# slider_flaps = 1: the slider on the throttle sets the flaps, at the aircraft's detents (high reading = deployed; slider_invert = 1 swaps)\n";
     o << "slider_flaps = " << (p.axes.sliderFlaps ? 1 : 0) << "\n";
     o << "slider_invert = " << (p.axes.slider.invert ? 1 : 0) << "\n";
@@ -1157,6 +1160,8 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
             (key == "rotary_lower" ? p.axes.lowerUse : p.axes.upperUse) = n >= 0 && n < kDialUseCount ? (DialUse)(int)n : DialUse::None;
         } else if (key == "rotary_zoom_steps") {
             p.axes.zoomSteps = clampInt(n, 12, 480);
+        } else if (key == "wheel_zoom_steps") {
+            p.axes.wheelZoomSteps = clampInt(n, 1, 24);
         } else if (key == "rotary_lower_invert") {
             p.axes.lowerRotary.invert = n != 0;
         } else if (key == "rotary_upper_invert") {

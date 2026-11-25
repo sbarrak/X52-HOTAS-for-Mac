@@ -1471,6 +1471,11 @@ void drawAxesTab(const Rect& area) {
             rc.t -= kRow + kGap;
         }
     }
+    rc.x = area.l;   // the scroll wheel behind the throttle: how far a notch zooms (when the wheel zooms)
+    r = rc.take(110);
+    text(r.l, r, "Scroll wheel");
+    stepper("Steps per notch", a.profile.axes.wheelZoomSteps, "", 1, 24, 1, &a.profile.axes.wheelZoomSteps);
+    rc.t -= kRow + kGap;
     // Stick handling while the plugin drives it: smoothing, the damper, and the stick's calibration.
     rc.x = area.l;
     r = rc.take(110);
@@ -1531,6 +1536,17 @@ void drawAxesTab(const Rect& area) {
         text(vr.l, vr, controlValueText(kv.first.first, kv.first.second, kv.second.value, kv.second.min, kv.second.max));
         Rect raw = rc.take(120);
         text(raw.l, raw, "raw " + std::to_string(kv.second.value), kDim);
+        rc.t -= kRow;
+    }
+    if (!a.axisLive.empty() && rc.t - kRow >= area.b) {   // the scroll wheel is buttons: its own row
+        rc.x = area.l;
+        bool moved = a.wheelMeter.moving(a.now());
+        Rect name = rc.take(150);
+        text(name.l, name, "Scroll wheel", moved ? kGreen : kWhite);
+        Rect bar = rc.take(200);
+        fill({bar.l, bar.t - 4, bar.r, bar.b + 4}, cField);
+        Rect val = rc.take(240);
+        text(val.l, val, a.wheelMeter.text());
         rc.t -= kRow;
     }
 }

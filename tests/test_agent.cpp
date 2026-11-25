@@ -366,6 +366,10 @@ TEST(each_throttle_dials_job_is_picked_in_the_app_and_saved) {
     x52_set("rotary_zoom_steps", 5000);                      // kept inside the allowed range
     CHECK_EQ(x52_get("rotary_zoom_steps"), 480);
     CHECK(has(slurp(dir + "/default.x52"), "rotary_zoom_steps = 480"));
+    CHECK_EQ(x52_get("wheel_zoom_steps"), 1);                // the scroll wheel's zoom steps per notch
+    x52_set("wheel_zoom_steps", 99);                         // kept inside the allowed range
+    CHECK_EQ(x52_get("wheel_zoom_steps"), 24);
+    CHECK(has(slurp(dir + "/default.x52"), "wheel_zoom_steps = 24"));
     // The mode names and how long the screen shows them (profile keys mode_name_N and mode_banner_ms).
     CHECK_EQ(std::string(x52_mode_name(2)), std::string("Cruise"));
     x52_set_mode_name(2, "Cruise \"x\" and a very long name");
@@ -787,6 +791,23 @@ TEST(a_light_gets_levels_and_a_third_condition_from_the_app) {
     CHECK(std::string(x52_trg_ref(0, first, 2)) == "sim/test/third");
     CHECK_EQ(x52_trg_value(0, first, 2), 4.0);
     CHECK(has(slurp(dir + "/default.x52"), "and > 2 sim/test/second and > 4 sim/test/third"));
+    x52_stop();
+}
+
+TEST(a_new_alarm_starts_on_hat_2_in_red_and_a_single_colour_light_keeps_a_colour_it_can_show) {
+    std::string dir = freshDir("alarmstart");
+    x52_start("", dir.c_str(), "default");
+    int a = x52_alarm_add();
+    CHECK_EQ(x52_alarm_led(a), (int)LedPov);
+    CHECK_EQ(x52_alarm_color(a), (int)Color::Red);
+    x52_alarm_add();
+    x52_alarm_add();
+    int d = x52_alarm_add();               // Hat 2 is full: the next light with room
+    CHECK(x52_alarm_led(d) != (int)LedPov);
+    CHECK(x52_led_single(x52_alarm_led(d)) == 0);
+    x52_alarm_set(a, "x", LedFire, 1, 0, (int)Color::Red, (int)Color::Amber);   // Fire shows only off or on
+    CHECK_EQ(x52_alarm_color(a), 1);
+    CHECK_EQ(x52_alarm_color2(a), 1);
     x52_stop();
 }
 
