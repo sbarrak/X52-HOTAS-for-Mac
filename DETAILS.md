@@ -28,7 +28,7 @@ inside X-Plane 12 and a menu bar app that works with or without the simulator.
 
 - **Mode colours** – every light has a colour per mode, and another per mode while the pinkie is held.
 - **Live lights** – a light follows the simulator: Button E red while the parking brake is on, green while it is off.
-  Rules can combine two tests with AND, OR and NOT.
+  Rules can combine up to three tests with AND, OR and NOT, and a light can have up to 3 levels (green, amber, off).
 - **Alarms** – lights that blink or alternate colours for stall, gear unsafe, fire, low fuel, overspeed or autopilot
   disconnect. They override live lights, which override the mode colours.
 - **Master switch** – keep the screen and the lights on only while a dataref has the value you choose, for example
@@ -178,22 +178,24 @@ status line. A profile from before this keeps its colours for the pinkie too.
 ## Live lights
 
 A live light follows the simulator instead of the mode: for example Button E red while the
-parking brake is on, green while it is off. Each light can have one rule. A rule
-overrides the plain colours of the Lights tab; alarms (below) override rules.
+parking brake is on, green while it is off. A rule
+overrides the plain colours of the Lights tab; alarms (below) override rules. A light can have up to 3
+levels: the first level whose test is true decides the colour, and the last level also says what to show
+when none is true (gear down green, moving amber, up off).
 
 - Set them in X-Plane (**Program buttons... > Live lights**) or in the menu bar app
   (**Live lights** tab); both write the same profile file.
 - **Add rule** adds a line; click a line (its arrow) to open or close it. Tick the boxes and
   press **Remove selected** to delete several at once (*Select all* ticks every line).
-- A rule is: light, dataref, comparison, number, colour if true, colour if not. A second
-  test can be joined with **AND** or **OR**, and either test can be turned around with
+- A rule is: light, dataref, comparison, number, colour if true, colour if not. Up to three
+  tests can be joined with **AND** or all with **OR** (not mixed), and either test can be turned around with
   **NOT**. Closing a line hides all of it.
   **Start from** fills in a ready-made rule (parking brake, gear, flaps, speedbrake,
   autopilot, landing lights, stall and master warning) or type any dataref; `name[3]`
   reads one item of a list. A colour can also be *mode colour*, which leaves that state to
   the mode dial's colour.
-- A light can follow only one rule: the app explains why and refuses when you pick a light
-  that already has one. In a profile written by an older version, rules were reversed once
+- A light can have up to 3 levels (**Add level** in an opened rule): the app refuses a fourth. A level that is
+  not the last leaves its "otherwise" to the next level. In a profile written by an older version, rules were reversed once
   on loading (the first rule wins now, the last one used to) so the lights look the same.
 - Inside X-Plane the plugin reads the datarefs directly, ten times a second.
 - With X-Plane running but the plugin not, the app asks X-Plane over its network
