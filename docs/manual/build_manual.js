@@ -154,6 +154,7 @@ add(table([2300, 6998], ["Area", "What it gives you"], [
   ["Lights", "A colour for every light in each mode (and each mode with the pinkie held). Live lights follow the simulator, for example Button E red while the parking brake is on. Alarms blink or alternate colours for stall, gear unsafe, fire and more. A master switch can turn all lights, or the screen, off while the avionics are off."],
   ["Screen", "Radio and autopilot pages driven by the two wheels (COM, NAV, ADF, DME, transponder, autopilot, OBS / heading), in a classic or a side-by-side layout. Your own pages with text, live dataref values and links. Three clocks, a stopwatch, and brightness."],
   ["Axes", "Dead zone, expo curve and inversion for the stick, twist and throttle; the slider as a flap lever; the dials as speed brake or zoom; a live view of every control the stick reports."],
+  ["Manual", "A printable map of any profile as a Word file: the joystick and throttle pictures, every button in every mode, the lights, alarms and screen pages. Use the built-in layout or your own Word template."],
   ["Profiles", "Ready-made profiles for the aircraft that come with X-Plane 12, which are never changed. Your own copies, one per aircraft or one for all. Plain text files you can read and share."],
 ]));
 add(gap());
@@ -248,7 +249,7 @@ add(h2("4.1  The top bar"));
 add(bullet("**Plugin on/off**: the button at the left of the status line switches the X-Plane plugin on (green light, **Plugin on**) or off (red light, **Plugin off**). Off, the plugin does nothing in X-Plane: no buttons, axes, dials, screen or lights, and X-Plane's own Joystick settings are in charge; the status line then says \"Stick connected, plugin off\". It takes effect within a second and stays off until you switch it back on."));
 add(bullet("**Status line**: whether the stick is connected, the mode it is in (\"Mode 2\", or \"Pinkie + 2\" while the pinkie is held), and whether the plugin is driving it. The dot is green for the app, blue when the plugin is active, grey when no stick is found."));
 add(bullet("**Profile**: the profile being edited. Click it to open a list with two groups, **Your profiles** and **Ready-made profiles**; the **+** / **-** in front of a group unfolds or folds it, and the list grows to fit but never past the window (it scrolls). Below it, one line is kept free for messages (an error, or the notice that a ready-made profile is selected), so the window does not jump."));
-add(bullet("**The menu (three dots)**: New blank profile, Save as new profile, Delete this profile."));
+add(bullet("**The menu (three dots)**: New blank profile, Save as new profile, **Export Current Template**, Save a Built-In Template Blank Copy, Choose Custom Template, Use the Built-In Template, Delete this profile (section 4.13)."));
 add(bullet("**Undo delete**: appears after you delete a profile."));
 add(bullet("**The blue bar**: shown while a ready-made profile is selected, with **Save as new profile...**."));
 add(p("Tabs can be opened with Command-1 to Command-9, and the left and right arrow keys move along them. Tab reaches every control in the window, and the arrow keys choose in lists."));
@@ -330,6 +331,24 @@ add(bullet("**Left: the left wheel's pages in order.** The built-in pages carry 
 add(bullet("**Middle: the selected page.** Its **Title**, **Opens from** (the left wheel, or inside another page) and its rows. Each row is **Text**, **Value** or **Link**. A value row takes a dataref (suggestions come from X-Plane's `DataRefs.txt` as you type), a label and a format, with an example of what the format makes of 1234.5. A link row picks the page it opens, or makes a new page inside this one."));
 add(bullet("**Right: the preview.** The page on a black three-line screen, with X-Plane's live numbers when it answers over UDP and made-up ones otherwise, and the page lines as they are saved in the profile file (**Show file**)."));
 add(bullet("**Restore default pages...** asks first, then removes all your pages and brings back the usual order with every built-in page shown."));
+
+add(h2("4.13  Export the manual of a profile"));
+add(p("The menu next to the profile picker (the round button with three dots) makes a printable map of the profile in use, as a Word file, with the same layout as the maps of the ready-made profiles."));
+add(...numbered([
+  "Open the menu and choose **Export Current Template...**.",
+  "Pick where to save the file. It is named after the profile.",
+  "Open the `.docx` in Word. For a PDF, use **File > Save as PDF** in Word; the app makes only the Word file.",
+]));
+add(p("The first page shows the joystick and throttle pictures with the assignment tables: every control in each of the three modes, then the same controls with the pinkie held. The next page is the display and lights dashboard: the page order of the stick's screen for each mode, the fields of your own pages, and the colour of every light in each mode, shown as small icons. A page of its own lists the live lights and the alarms, which can grow; the alarms are a list that gets longer when the profile has more of them. A control with nothing assigned shows a dash."));
+add(p("The icons: a full disc is a steady light, a disc with rays flashes, a disc in two halves alternates the two colours (the main colour on the left), a disc in three parts is the colour the mode gives that light, and a hollow disc is off."));
+add(h3("Your own template"));
+add(p("The layout comes from a Word file, a template, with a spot for every value. You can use your own:"));
+add(bullet("**Save a Built-In Template Blank Copy...** saves the built-in template to a place of your choice, as a starting point."));
+add(bullet("Open the copy in Word and change what you like: fonts, colours, wording, pictures, the order of the pages. The spots the app fills are Word content controls with a tag (Developer tab, Properties); format their text the way you want the values to look."));
+add(bullet("**Choose Custom Template...** makes the app use your file (it remembers it); **Use the Built-In Template** goes back."));
+add(bullet("A spot with a tag the app does not know comes out empty and the app lists it after the export, so a typo is easy to find."));
+add(p("The guide “Your own manual template” (`docs/custom-manual-template.md` in the project) explains it step by step, and `docs/manual-data.md` lists every tag. The built-in template also sits in the project as `templates/X52-Manual-Template.docx`."));
+add(note("Tip", "The aircraft picture in the page header is a grey placeholder. In Word, double-click the header, right-click the picture and choose Change Picture; the app keeps your picture.", "1E6091", "E8F1F8"));
 
 // ---- 5
 add(h1("5  The plugin inside X-Plane"));

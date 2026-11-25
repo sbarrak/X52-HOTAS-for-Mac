@@ -2883,10 +2883,14 @@ struct SettingsView: View {
                     Button("Save as new profile...") { x52_copy_ask(); m.tick() }
                     Divider()
                     Button("Export Current Template...") { m.exportManual() }
+                        .help("Fills the manual template with the profile in use and saves it as a Word file (for a PDF, use Save as PDF in Word)")
                     Button("Save a Built-In Template Blank Copy...") { m.saveBuiltInTemplateCopy() }
+                        .help("Saves a blank copy of the built-in template, to open in Word and make a template of your own from")
                     Button("Choose Custom Template...") { m.chooseManualTemplate() }
+                        .help("Uses a Word template of your own when you export the manual")
                     if !m.customTemplate.isEmpty {
                         Button("Use the Built-In Template") { m.useBuiltInTemplate() }
+                            .help("Goes back to the template that comes with the app")
                     }
                     Divider()
                     Button("Delete this profile...") { m.deleteCurrent() }.disabled(!m.canDelete)
@@ -2894,7 +2898,7 @@ struct SettingsView: View {
                     Image(systemName: "ellipsis.circle")
                 }
                 .menuStyle(.borderlessButton).fixedSize()
-                .help(m.canDelete ? "New, copy, export the manual of, or delete a profile" : "New or copy a profile, or export its manual (Default and ready-made profiles are never deleted)")
+                .help(m.canDelete ? "New, copy or delete a profile, or export its manual (Export Current Template)" : "New or copy a profile, or export its manual with Export Current Template (Default and ready-made profiles are never deleted)")
             }
             .zIndex(1)
             StatusStrip(m: m, pluginNote: true)
