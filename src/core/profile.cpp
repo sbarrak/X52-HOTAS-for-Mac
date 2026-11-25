@@ -115,13 +115,18 @@ Color litOnly(int led, Color c) { return ledIsSingleColor(led) && c != Color::Of
 }  // namespace
 
 TriggerState evaluate(const Trigger& t, const DatarefReader& read) {
-    TriggerState a = testCondition(t, read);
-    if (!t.hasSecond()) return a;
-    TriggerState b = testCondition(t.second, read);
-    if (a == TriggerState::Unknown || b == TriggerState::Unknown) return TriggerState::Unknown;
-    bool both = a == TriggerState::True && b == TriggerState::True;
-    bool either = a == TriggerState::True || b == TriggerState::True;
-    return (t.join == Join::And ? both : either) ? TriggerState::True : TriggerState::False;
+    TriggerState first = testCondition(t, read);
+    if (!t.hasSecond()) return first;
+    TriggerState states[3] = {first, testCondition(t.second, read), TriggerState::True};
+    int n = 2;
+    if (t.hasThird()) states[n++] = testCondition(t.third, read);
+    bool all = true, any = false;
+    for (int i = 0; i < n; ++i) {
+        if (states[i] == TriggerState::Unknown) return TriggerState::Unknown;
+        all = all && states[i] == TriggerState::True;
+        any = any || states[i] == TriggerState::True;
+    }
+    return (t.join == Join::And ? all : any) ? TriggerState::True : TriggerState::False;
 }
 
 Color ruleColor(const LightRule& r, int led, bool valid, double current, Color modeColor) {
@@ -199,7 +204,8 @@ std::vector<std::string> datarefsUsed(const std::vector<Alarm>& alarms, const st
                                       const std::vector<Trigger>& masters) {
     std::vector<std::string> out;
     auto add = [&out](const Trigger& t) {
-        for (const std::string& r : {t.dataref, t.hasSecond() ? t.second.dataref : std::string()})
+        for (const std::string& r : {t.dataref, t.hasSecond() ? t.second.dataref : std::string(),
+                                     t.hasThird() ? t.third.dataref : std::string()})
             if (!r.empty() && std::find(out.begin(), out.end(), r) == out.end()) out.push_back(r);
     };
     for (const Alarm& a : alarms) add(a);
@@ -545,10 +551,13 @@ std::string numText(double v) {
     return o.str();
 }
 // " and [not] <op> <number> <dataref>", or "" for a trigger with one condition
-std::string secondText(const Trigger& t) {
+std::string moreText(const Trigger& t) {
     if (t.join == Join::None) return "";
-    return std::string(t.join == Join::And ? " and " : " or ") + (t.second.negate ? "not " : "") + compareName(t.second.op) +
-           " " + numText(t.second.value) + " " + (t.second.dataref.empty() ? "-" : t.second.dataref);
+    auto one = [&t](const Condition& c) {
+        return std::string(t.join == Join::And ? " and " : " or ") + (c.negate ? "not " : "") + compareName(c.op) + " " +
+               numText(c.value) + " " + (c.dataref.empty() ? "-" : c.dataref);
+    };
+    return one(t.second) + (t.hasThird() ? one(t.third) : "");
 }
 }  // namespace
 
@@ -634,7 +643,7 @@ std::string serialize(const Profile& p) {
         if (r.led < 0 || r.led >= kLedCount) continue;
         o << "rule " << ledName(r.led) << " " << compareName(r.op) << " " << numText(r.value) << " " << ruleColorName(r.thenColor)
           << " " << ruleColorName(r.elseColor) << " " << (r.negate ? "not " : "") << (r.dataref.empty() ? "-" : r.dataref)
-          << secondText(r) << "\n";
+          << moreText(r) << "\n";
     }
     o << "# alarm <light> <steady|blink|alternate> <slow|fast> <colour> <colour 2> \"name\" [not] <op> <number> <dataref> [and|or [not] <op> <number> <dataref>]\n";
     o << "#   alarms beat the rules above and the mode colours; the first alarm that is triggered wins, one that is not leaves the light to the next.\n";
@@ -645,7 +654,7 @@ std::string serialize(const Profile& p) {
         o << "alarm " << ledName(a.led) << " " << effectName(a.effect) << " " << (a.fast ? "fast" : "slow") << " "
           << colorName((Color)(a.color & 3)) << " " << colorName((Color)(a.color2 & 3)) << " \"" << name << "\" "
           << (a.negate ? "not " : "") << compareName(a.op) << " " << numText(a.value) << " "
-          << (a.dataref.empty() ? "-" : a.dataref) << secondText(a) << "\n";
+          << (a.dataref.empty() ? "-" : a.dataref) << moreText(a) << "\n";
     }
     o << serializePages(p.pages);
     auto words = [](const std::vector<std::string>& v) {
@@ -667,7 +676,7 @@ std::string serialize(const Profile& p) {
         const Trigger& t = w ? p.masterLights : p.masterScreen;
         if (!t.active()) continue;
         o << "master " << (w ? "lights " : "screen ") << (t.negate ? "not " : "") << compareName(t.op) << " "
-          << numText(t.value) << " " << t.dataref << secondText(t) << "\n";
+          << numText(t.value) << " " << t.dataref << moreText(t) << "\n";
     }
     o << "# brightness <screen|lights> <value at dim> <value at bright> <dim 0..127> <bright 0..127> <dataref>\n";
     o << "#   the brightness follows the dataref between those two points. No line: the fixed brightness above.\n";
@@ -769,13 +778,17 @@ bool parseCondition(std::istream& in, Condition& c, std::string& err) {
     return true;
 }
 
-// Optional "and|or <condition>" at the end of a line.
+// Optional "and|or <condition>", and a third with the same join word, at the end of a line.
 bool parseSecond(std::istream& in, Trigger& t, std::string& err) {
     std::string j;
     if (!(in >> j)) return true;
     if (j != "and" && j != "or") { err = "expected 'and' or 'or', not '" + j + "'"; return false; }
     t.join = j == "and" ? Join::And : Join::Or;
-    return parseCondition(in, t.second, err);
+    if (!parseCondition(in, t.second, err)) return false;
+    std::string k;
+    if (!(in >> k)) return true;
+    if (k != j) { err = "a rule joins its conditions with 'and' or with 'or', not both (found '" + j + "' then '" + k + "')"; return false; }
+    return parseCondition(in, t.third, err);
 }
 
 bool parseRule(const std::string& rest, Profile& p, std::string& err) {

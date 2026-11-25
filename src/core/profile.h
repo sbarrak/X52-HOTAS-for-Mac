@@ -98,15 +98,17 @@ struct Condition {
     }
 };
 
-// What a light waits for: one condition, or two joined by AND / OR. The first condition's
-// fields live directly in the trigger so a one-condition rule reads like it always did.
+// What a light waits for: one condition, or two or three joined by AND / OR (one join for all, no mixing).
+// The first condition's fields live directly in the trigger so a one-condition rule reads like it always did.
 enum class Join { None, And, Or };
 struct Trigger : Condition {
     Join join = Join::None;
     Condition second;               // only used when join is not None
+    Condition third;                // only used when the second one is
     bool hasSecond() const { return join != Join::None && second.active(); }
+    bool hasThird() const { return hasSecond() && third.active(); }
     bool operator==(const Trigger& o) const {
-        return Condition::operator==(o) && join == o.join && second == o.second;
+        return Condition::operator==(o) && join == o.join && second == o.second && third == o.third;
     }
 };
 

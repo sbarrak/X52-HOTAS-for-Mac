@@ -1401,6 +1401,79 @@ TEST(two_conditions_join_with_and_or_and_not) {
     CHECK(evaluate(t, values({{"a", 0}, {"b", 0}})) == TriggerState::False);
 }
 
+namespace {
+Trigger threeOf(Join j) {
+    Trigger t;
+    t.dataref = "a";
+    t.op = Compare::Greater;
+    t.value = 0;
+    t.join = j;
+    t.second.dataref = "b";
+    t.second.op = Compare::Greater;
+    t.second.value = 0;
+    t.third.dataref = "c";
+    t.third.op = Compare::Greater;
+    t.third.value = 0;
+    return t;
+}
+}  // namespace
+
+TEST(three_conditions_join_with_and) {
+    Trigger t = threeOf(Join::And);
+    CHECK(t.hasThird());
+    CHECK(evaluate(t, values({{"a", 1}, {"b", 1}, {"c", 1}})) == TriggerState::True);
+    CHECK(evaluate(t, values({{"a", 1}, {"b", 1}, {"c", 0}})) == TriggerState::False);
+}
+
+TEST(three_conditions_join_with_or) {
+    Trigger t = threeOf(Join::Or);
+    CHECK(evaluate(t, values({{"a", 0}, {"b", 0}, {"c", 1}})) == TriggerState::True);
+    CHECK(evaluate(t, values({{"a", 0}, {"b", 0}, {"c", 0}})) == TriggerState::False);
+}
+
+TEST(a_third_condition_with_an_unreadable_dataref_is_unknown) {
+    Trigger t = threeOf(Join::Or);
+    CHECK(evaluate(t, values({{"a", 1}, {"b", 1}})) == TriggerState::Unknown);
+}
+
+TEST(three_conditions_survive_save_and_load) {
+    Profile p;
+    LightRule r;
+    r.led = LedA;
+    static_cast<Trigger&>(r) = threeOf(Join::And);
+    Alarm a;
+    a.name = "x";
+    a.led = LedPov;
+    static_cast<Trigger&>(a) = threeOf(Join::Or);
+    p.rules = {r};
+    p.alarms = {a};
+    std::string text = serialize(p);
+    CHECK(text.find("and > 0 b and > 0 c") != std::string::npos);
+    Profile q;
+    std::string err;
+    CHECK(parse(text, q, &err));
+    CHECK_EQ(q.rules.size(), (size_t)1);
+    CHECK_EQ(q.alarms.size(), (size_t)1);
+    CHECK(q.rules[0] == r);
+    CHECK(q.alarms[0] == a);
+    CHECK(serialize(q) == text);
+}
+
+TEST(mixed_and_or_is_refused) {
+    Profile q;
+    std::string err;
+    CHECK(!parse("x52pro-profile 11\nrule a > 0 green off x and > 0 b or > 0 c\n", q, &err));
+    CHECK(err.find("or") != std::string::npos);
+}
+
+TEST(datarefs_used_includes_the_third_condition) {
+    Alarm a;
+    static_cast<Trigger&>(a) = threeOf(Join::And);
+    std::vector<std::string> refs = datarefsUsed({a}, {});
+    CHECK_EQ(refs.size(), (size_t)3);
+    CHECK(refs[2] == "c");
+}
+
 TEST(a_master_switch_is_off_only_while_its_condition_is_false) {
     Trigger t;
     CHECK(masterOn(t, values({})));                       // nothing chosen: always on
