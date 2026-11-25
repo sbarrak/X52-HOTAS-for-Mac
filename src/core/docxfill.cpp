@@ -1,0 +1,225 @@
+#include "docxfill.h"
+
+#include <algorithm>
+#include <cstdlib>
+
+#include "zipfile.h"
+
+namespace x52 {
+
+namespace {
+const size_t npos = std::string::npos;
+
+struct Scope {
+    const ManualData* data;
+    const ManualRow* row;   // the entry being repeated, or null
+    std::vector<std::string>* unknown;
+};
+
+// "<w:sdt" followed by '>' or ' ': a content control, not <w:sdtPr> or <w:sdtContent>.
+size_t findOpen(const std::string& x, size_t pos) {
+    for (;;) {
+        size_t p = x.find("<w:sdt", pos);
+        if (p == npos) return npos;
+        char n = p + 6 < x.size() ? x[p + 6] : '\0';
+        if (n == '>' || n == ' ') return p;
+        pos = p + 6;
+    }
+}
+
+// Index just after the </w:sdt> that closes the control opened at `open`; npos when it never closes.
+size_t findEnd(const std::string& x, size_t open) {
+    int depth = 0;
+    size_t pos = open;
+    for (;;) {
+        size_t o = findOpen(x, pos), c = x.find("</w:sdt>", pos);
+        if (c == npos) return npos;
+        if (o != npos && o < c) {
+            ++depth;
+            pos = o + 6;
+        } else {
+            --depth;
+            pos = c + 8;
+            if (depth == 0) return pos;
+        }
+    }
+}
+
+std::string tagOf(const std::string& sdt) {
+    size_t a = sdt.find("<w:sdtPr>"), b = sdt.find("</w:sdtPr>");
+    if (a == npos || b == npos) return "";
+    size_t t = sdt.find("<w:tag w:val=\"", a);
+    if (t == npos || t > b) return "";
+    t += 14;
+    size_t e = sdt.find('"', t);
+    return e == npos ? "" : sdt.substr(t, e - t);
+}
+
+std::string contentOf(const std::string& sdt) {
+    size_t a = sdt.find("<w:sdtContent>"), b = sdt.rfind("</w:sdtContent>");
+    if (a == npos || b == npos || b < a) return "";
+    a += 14;
+    return sdt.substr(a, b - a);
+}
+
+std::string escape(const std::string& s) {
+    std::string o;
+    for (char c : s) switch (c) {
+            case '&': o += "&amp;"; break;
+            case '<': o += "&lt;"; break;
+            case '>': o += "&gt;"; break;
+            case '"': o += "&quot;"; break;
+            default: o += c;
+        }
+    return o;
+}
+
+size_t findRun(const std::string& x, size_t pos) {
+    for (;;) {
+        size_t p = x.find("<w:r", pos);
+        if (p == npos) return npos;
+        char n = p + 4 < x.size() ? x[p + 4] : '\0';
+        if (n == '>' || n == ' ') return p;
+        pos = p + 4;
+    }
+}
+
+// The control's own text formatting: the properties of its first run, without the grey placeholder style.
+std::string runProps(const std::string& content, size_t from) {
+    size_t r = findRun(content, from);
+    if (r == npos) return "";
+    size_t openEnd = content.find('>', r);
+    if (openEnd == npos || content.compare(openEnd + 1, 7, "<w:rPr>") != 0) return "";
+    size_t end = content.find("</w:rPr>", openEnd);
+    if (end == npos) return "";
+    std::string props = content.substr(openEnd + 1, end + 8 - (openEnd + 1));
+    const std::string placeholder = "<w:rStyle w:val=\"PlaceholderText\"/>";
+    size_t ph = props.find(placeholder);
+    if (ph != npos) props.erase(ph, placeholder.size());
+    return props;
+}
+
+// The control's text as a run (or paragraph, when the control holds paragraphs).
+std::string render(const std::string& content, const std::string& value) {
+    bool block = content.find("<w:p>") != npos || content.find("<w:p ") != npos;
+    std::string ppr;
+    size_t from = 0;
+    if (block) {
+        size_t a = content.find("<w:pPr>"), b = content.find("</w:pPr>");
+        if (a != npos && b != npos && b > a) {
+            ppr = content.substr(a, b + 8 - a);
+            from = b + 8;
+        }
+    }
+    std::string props = runProps(content, from);
+    std::string run = "<w:r>" + props;
+    size_t start = 0;
+    for (;;) {
+        size_t nl = value.find('\n', start);
+        std::string line = value.substr(start, nl == npos ? npos : nl - start);
+        run += "<w:t xml:space=\"preserve\">" + escape(line) + "</w:t>";
+        if (nl == npos) break;
+        run += "<w:br/>";
+        start = nl + 1;
+    }
+    run += "</w:r>";
+    return block ? "<w:p>" + ppr + run + "</w:p>" : run;
+}
+
+bool lookup(const Scope& s, const std::string& tag, std::string& out) {
+    if (s.row) {
+        auto it = s.row->find(tag);
+        if (it != s.row->end()) {
+            out = it->second;
+            return true;
+        }
+    }
+    auto it = s.data->values.find(tag);
+    if (it == s.data->values.end()) return false;
+    out = it->second;
+    return true;
+}
+
+std::string process(const std::string& xml, const Scope& scope) {
+    std::string out;
+    size_t pos = 0;
+    for (;;) {
+        size_t open = findOpen(xml, pos);
+        size_t end = open == npos ? npos : findEnd(xml, open);
+        if (end == npos) {
+            out += xml.substr(pos);
+            return out;
+        }
+        out += xml.substr(pos, open - pos);
+        std::string sdt = xml.substr(open, end - open), tag = tagOf(sdt), content = contentOf(sdt);
+        if (tag.compare(0, 7, "repeat:") == 0) {
+            auto list = scope.data->lists.find(tag.substr(7));
+            if (list == scope.data->lists.end()) {
+                if (std::find(scope.unknown->begin(), scope.unknown->end(), tag) == scope.unknown->end()) scope.unknown->push_back(tag);
+            } else {
+                for (const ManualRow& row : list->second) out += process(content, Scope{scope.data, &row, scope.unknown});
+            }
+        } else if (!tag.empty()) {
+            std::string value;
+            if (!lookup(scope, tag, value)) {
+                if (std::find(scope.unknown->begin(), scope.unknown->end(), tag) == scope.unknown->end()) scope.unknown->push_back(tag);
+                value.clear();
+            }
+            out += render(content, value);
+        } else {
+            out += sdt;   // someone else's content control: left alone
+        }
+        pos = end;
+    }
+}
+
+bool isWordPart(const std::string& name) {
+    if (name.compare(0, 5, "word/") != 0 || name.size() < 9 || name.compare(name.size() - 4, 4, ".xml") != 0) return false;
+    std::string base = name.substr(5);
+    return base == "document.xml" || base.compare(0, 6, "header") == 0 || base.compare(0, 6, "footer") == 0;
+}
+}  // namespace
+
+int templateSchema(const std::string& templateBytes) {
+    std::vector<ZipEntry> parts;
+    if (!readZip(templateBytes, parts, nullptr)) return 0;
+    for (const ZipEntry& e : parts) {
+        if (e.name != "docProps/custom.xml") continue;
+        size_t n = e.data.find("name=\"X52TemplateSchema\"");
+        if (n == npos) return 0;
+        size_t v = e.data.find("<vt:i4>", n);
+        if (v == npos) return 0;
+        return atoi(e.data.c_str() + v + 7);
+    }
+    return 0;
+}
+
+FillResult fillDocx(const std::string& templateBytes, const ManualData& data) {
+    FillResult r;
+    std::vector<ZipEntry> parts;
+    std::string err;
+    if (!readZip(templateBytes, parts, &err)) {
+        r.error = "The template is not a Word file (" + err + ").";
+        return r;
+    }
+    bool hasDocument = false;
+    for (const ZipEntry& e : parts) hasDocument = hasDocument || e.name == "word/document.xml";
+    if (!hasDocument) {
+        r.error = "The template is not a Word document.";
+        return r;
+    }
+    int needs = templateSchema(templateBytes);
+    if (needs > kManualSchema) {
+        r.error = "This template needs a newer version of the app (manual data schema " + std::to_string(needs) +
+                  "; this app has " + std::to_string(kManualSchema) + ").";
+        return r;
+    }
+    Scope scope{&data, nullptr, &r.unknownTags};
+    for (ZipEntry& e : parts)
+        if (isWordPart(e.name)) e.data = process(e.data, scope);
+    r.bytes = writeZip(parts);
+    r.ok = true;
+    return r;
+}
+
+}  // namespace x52
