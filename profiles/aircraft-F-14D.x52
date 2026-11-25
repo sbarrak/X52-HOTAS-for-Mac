@@ -152,7 +152,23 @@ bind 18 3 press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
 bind 19 3 press "Take-off trim" cmd:sim/flight_controls/pitch_trim_takeoff
 bind 24 3 press "Speedbrake in" cmd:sim/flight_controls/speed_brakes_up_one
 bind 26 3 press "Speedbrake out" cmd:sim/flight_controls/speed_brakes_down_one
+bind 3 5 press "Landing light" cmd:sim/lights/landing_lights_toggle
+bind 3 5 hold "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
+bind 7 5 press "Master arm" cmd:laminar/f14/weapons/switch/master_arm_switch
+bind 9 5 press "Target next" cmd:sim/weapons/weapon_target_up
+bind 10 5 press "Target prev" cmd:sim/weapons/weapon_target_down
+bind 11 5 press "Flares" cmd:sim/weapons/deploy_flares
+bind 12 5 press "Chaff" cmd:sim/weapons/deploy_chaff
+bind 13 5 press "Wings forward" cmd:sim/flight_controls/vector_sweep_forward
+bind 14 5 press "Wings aft" cmd:sim/flight_controls/vector_sweep_aft
+bind 17 5 press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
+bind 18 5 press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
+bind 19 5 press "Take-off trim" cmd:sim/flight_controls/pitch_trim_takeoff
 bind 20 5 press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
 bind 21 5 press "Rudder trim R" cmd:sim/flight_controls/rudder_trim_right
 bind 22 5 press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
 bind 23 5 press "Rudder trim L" cmd:sim/flight_controls/rudder_trim_left
+bind 24 5 press "Sidewinder" cmd:laminar/f14/fltc/cs_wpn_select_switch1
+bind 25 5 press "Sparrow" cmd:laminar/f14/fltc/cs_wpn_select_switch2
+bind 26 5 press "Gun" cmd:laminar/f14/fltc/cs_wpn_select_switch3
+bind 27 5 press "Phoenix" cmd:laminar/f14/fltc/cs_wpn_select_switch4

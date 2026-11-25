@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.3
+
+### Fixed
+- **F-14 Combat + Pinkie disabled controls other than H2** (#112). Symptom: holding Pinkie in Combat left only the trims working; the weapons, targets, flares, chaff, wing sweep and A tap/hold stopped. Cause: the shifted layer contained only the trims, and a shifted layer falls back to Any mode, not to the unshifted mode, so Combat-only bindings disappeared. Fix: the ready-made profile now copies the Combat press and hold bindings into the shifted layer before overriding H2 with trim. Other aircraft and personal profiles are unchanged. Fixed in 1.4.3.
+
 ## 1.4.2
 
 ### Fixed
