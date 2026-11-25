@@ -14,6 +14,8 @@
 #include <sstream>
 
 #include "../core/catalog.h"
+#include "../core/docxfill.h"
+#include "../core/manual.h"
 #include "../core/pageview.h"
 #include "../core/update.h"
 #include "../core/xpjoy.h"
@@ -863,6 +865,59 @@ const char* x52_calibration_live(void) {
         out += std::to_string(l.usage) + "\t" + std::to_string(l.value) + "\t" + std::to_string(l.lo) + "\t" +
                std::to_string(l.hi) + "\t" + std::to_string(l.min) + "\t" + std::to_string(l.max) + "\n";
     return out.c_str();
+}
+
+namespace {
+std::string exportMessage;
+bool readFile(const std::string& path, std::string& out) {
+    std::ifstream f(path, std::ios::binary);
+    if (!f) return false;
+    std::stringstream ss;
+    ss << f.rdbuf();
+    out = ss.str();
+    return true;
+}
+}  // namespace
+
+const char* x52_export_message(void) { return exportMessage.c_str(); }
+
+int x52_export_manual(const char* key, const char* templatePath, const char* outPath) {
+    exportMessage.clear();
+    if (!agent || !key || !templatePath || !outPath || !*outPath) {
+        exportMessage = "Nothing to export.";
+        return 0;
+    }
+    Store st;
+    st.dir = agent->dir();
+    Profile p;
+    std::string err, tmpl;
+    if (agent->key() == key) {
+        p = agent->profile();   // the one in use: it may not be on disk yet (Default)
+    } else if (!st.load(key, p, &err)) {
+        exportMessage = "The profile could not be read" + (err.empty() ? std::string(".") : ": " + err);
+        return 0;
+    }
+    if (!readFile(templatePath, tmpl)) {
+        exportMessage = "The template could not be read: " + std::string(templatePath);
+        return 0;
+    }
+    FillResult r = fillDocx(tmpl, buildManualData(p, X52_VERSION));
+    if (!r.ok) {
+        exportMessage = r.error;
+        return 0;
+    }
+    std::ofstream o(outPath, std::ios::binary);
+    o << r.bytes;
+    o.close();
+    if (!o) {
+        exportMessage = "The file could not be written: " + std::string(outPath);
+        return 0;
+    }
+    if (!r.unknownTags.empty()) {
+        exportMessage = "The template has fields this version of the app does not know, so they are empty:";
+        for (const std::string& t : r.unknownTags) exportMessage += " " + t;
+    }
+    return 1;
 }
 
 const char* x52_profiles(void) {

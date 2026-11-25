@@ -41,8 +41,13 @@ Each row of those lists has:
 | `button.m1`, `button.m2`, `button.m3` | What it does in mode 1, 2, 3: the label of the press, and ` (hold: label)` when a hold does something else. A binding for any mode shows in all three. Empty when nothing is bound. |
 | `button.p1`, `button.p2`, `button.p3` | The same with the pinkie held. |
 | `button.used` | `yes` when any of the six cells above is not empty, otherwise `no`. |
+| `button.used_plain` | `yes` when any of the three plain mode cells is not empty. |
+| `button.used_pinkie` | `yes` when any of the three Pinkie cells is not empty. |
 
 A binding with no label shows its command text instead (`cmd:sim/...`).
+
+**Only the used rows:** tag the row control `repeat:stick_buttons:used_plain` (or `:used_pinkie`, `:used`) and the
+buttons with nothing bound are left out. Without the part after the second colon, every button is listed.
 
 ## Making and changing a template
 

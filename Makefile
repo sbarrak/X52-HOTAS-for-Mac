@@ -30,7 +30,7 @@ XPL = $(BIN)/X52Pro.xpl
 
 APP = $(BIN)/X52Pro.app
 APPBIN = $(APP)/Contents/MacOS/X52Pro
-APPSRC = src/app/bridge.cpp $(AGENT) $(CORE) $(MAC)
+APPSRC = src/app/bridge.cpp $(AGENT) $(CORE) $(DOCX) $(MAC)
 
 all: test $(XPL) $(BIN)/x52probe $(BIN)/x52manual app
 
@@ -47,9 +47,9 @@ build/test_plugin: tests/test_plugin.cpp tests/fake_xplm.cpp tests/fake_xplm.h t
 	$(CXX) $(CXXFLAGS) $(XPDEFS) $(XPINC) -DX52_NO_GL -DX52_NO_HID -o $@ tests/test_plugin.cpp tests/fake_xplm.cpp \
 		$(PLUGIN) $(CORE) $(MAC) $(FRAMEWORKS)
 
-build/test_agent: tests/test_agent.cpp tests/check.h $(AGENT) src/app/bridge.cpp $(CORE) $(MAC) $(HEADERS)
+build/test_agent: tests/test_agent.cpp tests/check.h $(AGENT) src/app/bridge.cpp $(CORE) $(DOCX) $(MAC) $(HEADERS)
 	@mkdir -p build
-	$(CXX) $(CXXFLAGS) -o $@ tests/test_agent.cpp $(AGENT) src/app/bridge.cpp $(CORE) $(MAC) $(FRAMEWORKS)
+	$(CXX) $(CXXFLAGS) -o $@ tests/test_agent.cpp $(AGENT) src/app/bridge.cpp $(CORE) $(DOCX) $(MAC) $(FRAMEWORKS) -lz
 
 build/test_xplane: tests/test_xplane.cpp tests/check.h src/mac/xplane.cpp src/mac/xplane.h
 	@mkdir -p build
@@ -89,14 +89,15 @@ build/AppIcon.icns: tools/make_icon.swift
 	swift tools/make_icon.swift build/AppIcon.iconset
 	iconutil -c icns build/AppIcon.iconset -o $@
 
-$(APPBIN): src/app/main.swift src/app/Info.plist $(APPSRC) $(HEADERS) $(XPL) build/AppIcon.icns VERSION
+$(APPBIN): src/app/main.swift src/app/Info.plist $(APPSRC) $(HEADERS) $(XPL) build/AppIcon.icns VERSION templates/X52-Manual-Template.docx
 	@mkdir -p "$(APP)/Contents/MacOS" build/appobj
 	cd build/appobj && $(CXX) $(CXXFLAGS) -mmacosx-version-min=13.0 -c $(addprefix ../../,$(APPSRC))
 	swiftc -O -target arm64-apple-macos13.0 -import-objc-header src/app/bridge.h src/app/main.swift \
-		build/appobj/*.o -lc++ $(FRAMEWORKS) -o "$(APPBIN)"
+		build/appobj/*.o -lc++ -lz $(FRAMEWORKS) -o "$(APPBIN)"
 	mkdir -p "$(APP)/Contents/Resources"
 	cp $(XPL) "$(APP)/Contents/Resources/X52Pro.xpl"
 	cp build/AppIcon.icns "$(APP)/Contents/Resources/AppIcon.icns"
+	cp templates/X52-Manual-Template.docx "$(APP)/Contents/Resources/X52-Manual-Template.docx"
 	cp src/app/Info.plist "$(APP)/Contents/Info.plist"
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" -c "Set :CFBundleVersion $(VERSION)" "$(APP)/Contents/Info.plist"
 	codesign --force --sign - "$(APP)"

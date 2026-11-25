@@ -3,7 +3,8 @@
 //   - a control tagged with a single value ("profile.name", "mode.1.name") becomes that text, in the control's own
 //     font and size; the control itself is removed, so the result is an ordinary document;
 //   - a control tagged "repeat:<list>" that wraps a table row (or a paragraph) is repeated once per entry of the
-//     list, and the controls inside it take the tags of the entry ("button.name", "button.m1", ...);
+//     list, and the controls inside it take the tags of the entry ("button.name", "button.m1", ...). "repeat:<list>:<f>"
+//     keeps only the entries whose yes/no field "<f>" (such as "used_pinkie") says yes;
 //   - a control with a tag the app does not know becomes empty and is reported in unknownTags.
 // The template may also carry a custom document property X52TemplateSchema (a whole number): the lowest manual
 // data schema it needs. An older app refuses it. See docs/manual-data.md.

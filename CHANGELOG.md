@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.0
+
+### Added
+- **Export manual (#111).** The menu next to the profile picker has **Export manual...**: it fills a Word template with the profile in use and saves a `.docx` (for a PDF, use Save as PDF in Word). The built-in template is `templates/X52-Manual-Template.docx`; **Choose manual template...** uses your own. A template is a Word file whose spots are content controls with tags (`docs/manual-data.md`), so the layout can change without an app update. Rows with nothing bound can be left out. `bin/x52manual profile.x52 template.docx out.docx` does the same from the command line.
+
 ## 1.4.3
 
 ### Fixed

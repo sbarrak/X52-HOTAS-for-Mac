@@ -322,4 +322,35 @@ TEST(fill_refuses_a_file_that_is_not_a_word_document) {
     CHECK(!s.ok);
 }
 
+TEST(manual_rows_say_whether_the_plain_or_the_pinkie_layers_use_the_button) {
+    Profile p;
+    bindAs(p, 2, 1, "Fire guns", "sim/weapons/fire_guns");       // Fire: plain only
+    bindAs(p, 1, 5, "Trim", "sim/flight_controls/pitch_trim_up");   // Trigger: pinkie only
+    ManualData d = buildManualData(p, "1.5.0");
+    CHECK_EQ(rowOf(d, "stick_buttons", "Fire")->at("button.used_plain"), std::string("yes"));
+    CHECK_EQ(rowOf(d, "stick_buttons", "Fire")->at("button.used_pinkie"), std::string("no"));
+    CHECK_EQ(rowOf(d, "stick_buttons", "Trigger")->at("button.used_plain"), std::string("no"));
+    CHECK_EQ(rowOf(d, "stick_buttons", "Trigger")->at("button.used_pinkie"), std::string("yes"));
+    CHECK_EQ(rowOf(d, "stick_buttons", "C")->at("button.used"), std::string("no"));
+}
+
+TEST(fill_repeat_with_a_filter_keeps_only_the_rows_that_say_yes) {
+    auto rows = [](const std::string& filter) {
+        std::string row = "<w:tr><w:tc><w:p>" + inlineControl("button.name") + "</w:p></w:tc></w:tr>";
+        return docWith("<w:tbl><w:sdt><w:sdtPr><w:tag w:val=\"repeat:stick_buttons" + filter + "\"/></w:sdtPr><w:sdtContent>" + row + "</w:sdtContent></w:sdt></w:tbl>");
+    };
+    Profile p;
+    bindAs(p, 2, 1, "Fire guns", "sim/weapons/fire_guns");
+    bindAs(p, 1, 5, "Trim", "sim/flight_controls/pitch_trim_up");
+    ManualData d = buildManualData(p, "1.5.0");
+    std::string all = partOf(fillDocx(mkDocx(rows("")), d).bytes, "word/document.xml");
+    std::string plain = partOf(fillDocx(mkDocx(rows(":used_plain")), d).bytes, "word/document.xml");
+    std::string pinkie = partOf(fillDocx(mkDocx(rows(":used_pinkie")), d).bytes, "word/document.xml");
+    CHECK_EQ(countOf(all, "<w:tr>"), d.lists.at("stick_buttons").size());
+    CHECK_EQ(countOf(plain, "<w:tr>"), (size_t)1);
+    CHECK(plain.find(">Fire</w:t>") != std::string::npos);
+    CHECK_EQ(countOf(pinkie, "<w:tr>"), (size_t)1);
+    CHECK(pinkie.find(">Trigger</w:t>") != std::string::npos);
+}
+
 int main() { return runAllTests(); }

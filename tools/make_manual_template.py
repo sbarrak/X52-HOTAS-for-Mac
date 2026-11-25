@@ -62,13 +62,13 @@ BORDERS = "".join('<w:%s w:val="single" w:sz="4" w:space="0" w:color="A6A6A6"/>'
 WIDTHS = [2600, 2320, 2320, 2320]   # button name, then one column per mode (A4 text width with 2 cm margins is 9560)
 
 
-def table(header_cells, row_tags, list_name):
+def table(header_cells, row_tags, list_name, only=""):
     grid = "".join('<w:gridCol w:w="%d"/>' % w for w in WIDTHS)
     head = '<w:tr><w:trPr><w:cantSplit/><w:tblHeader/></w:trPr>%s</w:tr>' % "".join(
         cell(para(c, keep=True), w, "D9E2F3") for c, w in zip(header_cells, WIDTHS))
     body_cells = "".join(cell(para(control(t, 16, alias=t)), w) for t, w in zip(row_tags, WIDTHS))
     body = ('<w:sdt><w:sdtPr><w:alias w:val="Rows: %s"/><w:tag w:val="repeat:%s"/><w:id w:val="%d"/></w:sdtPr>'
-            '<w:sdtContent><w:tr><w:trPr><w:cantSplit/></w:trPr>%s</w:tr></w:sdtContent></w:sdt>') % (list_name, list_name, next_id(), body_cells)
+            '<w:sdtContent><w:tr><w:trPr><w:cantSplit/></w:trPr>%s</w:tr></w:sdtContent></w:sdt>') % (list_name, list_name + (":" + only if only else ""), next_id(), body_cells)
     return ('<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="%d" w:type="dxa"/><w:tblBorders>%s</w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr>'
             '<w:tblGrid>%s</w:tblGrid>%s%s</w:tbl>') % (sum(WIDTHS), BORDERS, grid, head, body)
 
@@ -88,12 +88,12 @@ def body():
                     control("mode.2.name", 18) + run("  /  ", 18) + control("mode.3.name", 18)))
     for title, lst in (("Stick", "stick_buttons"), ("Throttle", "throttle_buttons")):
         out.append(para(run(title), "Heading1", keep=True))
-        out.append(table(mode_header("Button"), ["button.name", "button.m1", "button.m2", "button.m3"], lst))
+        out.append(table(mode_header("Button"), ["button.name", "button.m1", "button.m2", "button.m3"], lst, "used_plain"))
     out.append('<w:p><w:r><w:br w:type="page"/></w:r></w:p>')
     out.append(para(run("With the Pinkie held"), "Heading1", keep=True))
     for title, lst in (("Stick", "stick_buttons"), ("Throttle", "throttle_buttons")):
         out.append(para(run(title, 20, True), keep=True))
-        out.append(table(mode_header("Button", True), ["button.name", "button.p1", "button.p2", "button.p3"], lst))
+        out.append(table(mode_header("Button", True), ["button.name", "button.p1", "button.p2", "button.p3"], lst, "used_pinkie"))
     sect = ('<w:sectPr><w:footerReference w:type="default" r:id="rId2"/><w:pgSz w:w="11906" w:h="16838"/>'
             '<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr>')
     return "".join(out) + sect

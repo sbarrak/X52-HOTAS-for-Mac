@@ -4,6 +4,7 @@
 import AppKit
 import ServiceManagement
 import SwiftUI
+import UniformTypeIdentifiers
 
 func str(_ p: UnsafePointer<CChar>?) -> String { p.map { String(cString: $0) } ?? "" }
 
@@ -41,6 +42,7 @@ final class Model: ObservableObject {
     @Published var moved = ""
     @Published var screen = ["", "", ""]
     @Published var profiles: [String] = ["default"]
+    @Published var customTemplate = UserDefaults.standard.string(forKey: "manualTemplate") ?? ""   // a manual template the user chose ("": the built-in one)
     @Published var lastDeleted = ""             // the profile "Undo delete" brings back
     @Published var key = "default"
     @Published var folder = ""
@@ -301,6 +303,53 @@ final class Model: ObservableObject {
         }
         lastDeleted = ""
         keyChanged()
+    }
+    // Export manual: fills the manual template (the built-in one, or the one the user chose) with the profile in use and
+    // saves it as a Word file. Turning it into a PDF is done in Word.
+    var builtInTemplate: String { (Bundle.main.resourcePath ?? "") + "/X52-Manual-Template.docx" }
+    var manualTemplate: String {
+        !customTemplate.isEmpty && FileManager.default.fileExists(atPath: customTemplate) ? customTemplate : builtInTemplate
+    }
+    func chooseManualTemplate() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [UTType(filenameExtension: "docx")!]
+        panel.message = "Choose a manual template (a Word file with tagged content controls)"
+        panel.prompt = "Use this template"
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        customTemplate = url.path
+        UserDefaults.standard.set(url.path, forKey: "manualTemplate")
+    }
+    func useBuiltInTemplate() {
+        customTemplate = ""
+        UserDefaults.standard.removeObject(forKey: "manualTemplate")
+    }
+    func exportManual() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "docx")!]
+        panel.nameFieldStringValue = "\(profileTitle(key)) - X52 Pro map.docx"
+        panel.message = "Save the manual for “\(profileTitle(key))”"
+        panel.prompt = "Export"
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let ok = x52_export_manual(key, manualTemplate, url.path) != 0
+        let note = str(x52_export_message())
+        let alert = NSAlert()
+        if ok {
+            alert.messageText = "Manual saved"
+            alert.informativeText = "Open it in Word to check it. For a PDF, use File > Save as PDF in Word."
+                + (note.isEmpty ? "" : "\n\n" + note)
+            alert.addButton(withTitle: "Show in Finder")
+            alert.addButton(withTitle: "OK")
+            if alert.runModal() == .alertFirstButtonReturn { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+        } else {
+            alert.messageText = "The manual was not exported"
+            alert.informativeText = note
+            alert.alertStyle = .warning
+            alert.runModal()
+        }
     }
     var canDelete: Bool { key != "default" && !standardKeys.contains(key) }
     func deleteCurrent() {
@@ -2808,12 +2857,18 @@ struct SettingsView: View {
                     Button("New blank profile...") { m.newBlank() }
                     Button("Save as new profile...") { x52_copy_ask(); m.tick() }
                     Divider()
+                    Button("Export manual...") { m.exportManual() }
+                    Button("Choose manual template...") { m.chooseManualTemplate() }
+                    if !m.customTemplate.isEmpty {
+                        Button("Use the built-in manual template") { m.useBuiltInTemplate() }
+                    }
+                    Divider()
                     Button("Delete this profile...") { m.deleteCurrent() }.disabled(!m.canDelete)
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
                 .menuStyle(.borderlessButton).fixedSize()
-                .help(m.canDelete ? "New, copy or delete a profile" : "New or copy a profile (Default and ready-made profiles are never deleted)")
+                .help(m.canDelete ? "New, copy, export the manual of, or delete a profile" : "New or copy a profile, or export its manual (Default and ready-made profiles are never deleted)")
             }
             .zIndex(1)
             StatusStrip(m: m, pluginNote: true)

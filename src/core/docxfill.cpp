@@ -140,6 +140,16 @@ bool lookup(const Scope& s, const std::string& tag, std::string& out) {
     return true;
 }
 
+// "repeat:stick_buttons:used_pinkie": only the rows whose yes/no field ending in ".used_pinkie" says yes.
+bool rowPasses(const ManualRow& row, const std::string& filter) {
+    if (filter.empty()) return true;
+    const std::string suffix = "." + filter;
+    for (const auto& kv : row)
+        if (kv.first.size() > suffix.size() && kv.first.compare(kv.first.size() - suffix.size(), suffix.size(), suffix) == 0)
+            return kv.second == "yes";
+    return true;   // the row has no such field: show it
+}
+
 std::string process(const std::string& xml, const Scope& scope) {
     std::string out;
     size_t pos = 0;
@@ -153,11 +163,18 @@ std::string process(const std::string& xml, const Scope& scope) {
         out += xml.substr(pos, open - pos);
         std::string sdt = xml.substr(open, end - open), tag = tagOf(sdt), content = contentOf(sdt);
         if (tag.compare(0, 7, "repeat:") == 0) {
-            auto list = scope.data->lists.find(tag.substr(7));
+            std::string listName = tag.substr(7), filter;
+            size_t colon = listName.find(':');
+            if (colon != npos) {
+                filter = listName.substr(colon + 1);
+                listName = listName.substr(0, colon);
+            }
+            auto list = scope.data->lists.find(listName);
             if (list == scope.data->lists.end()) {
                 if (std::find(scope.unknown->begin(), scope.unknown->end(), tag) == scope.unknown->end()) scope.unknown->push_back(tag);
             } else {
-                for (const ManualRow& row : list->second) out += process(content, Scope{scope.data, &row, scope.unknown});
+                for (const ManualRow& row : list->second)
+                    if (rowPasses(row, filter)) out += process(content, Scope{scope.data, &row, scope.unknown});
             }
         } else if (!tag.empty()) {
             std::string value;

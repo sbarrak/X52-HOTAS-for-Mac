@@ -47,14 +47,17 @@ ManualData buildManualData(const Profile& p, const std::string& appVersion) {
         ManualRow row;
         row["button.number"] = std::to_string(button);
         row["button.name"] = buttonName(button);
-        bool used = false;
+        bool usedPlain = false, usedPinkie = false;
         for (int m = 1; m <= 3; ++m) {
             std::string plain = cellText(p, button, m), pinkie = cellText(p, button, m + 3);
             row["button.m" + std::to_string(m)] = plain;
             row["button.p" + std::to_string(m)] = pinkie;
-            used = used || !plain.empty() || !pinkie.empty();
+            usedPlain = usedPlain || !plain.empty();
+            usedPinkie = usedPinkie || !pinkie.empty();
         }
-        row["button.used"] = yesNo(used);
+        row["button.used"] = yesNo(usedPlain || usedPinkie);
+        row["button.used_plain"] = yesNo(usedPlain);
+        row["button.used_pinkie"] = yesNo(usedPinkie);
         d.lists[std::string(buttonDevice(button)) + "_buttons"].push_back(row);
     }
     return d;
