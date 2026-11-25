@@ -374,7 +374,9 @@ Other things to know:
   axes in this plugin* and the plugin reads roll, pitch, twist and throttle itself, applies a dead zone, an
   expo curve and optional inversion, and writes the result into X-Plane (it sets X-Plane's
   `override_joystick` / `override_throttles`, and releases them when you untick it). The throttle is only
-  taken over once it has moved. Test mode on the Settings tab also names moving controls on the stick's screen.
+  taken over once it has moved. While X-Plane's own autothrottle is on, the plugin leaves the throttle to it; once
+  the autothrottle is off, the lever takes over again when it reaches the power the autothrottle left (the plugin
+  window says where), so the power never jumps. Test mode on the Settings tab also names moving controls on the stick's screen.
   **The dials:** each profile says what the lower dial (i, by the clutch) and the E dial do: *Speed brake* (four
   steps over the dial's turn: Armed, Retracted, Half, Full), *Zoom* (X-Plane's own zoom commands; *Zoom
   strength* sets how many zoom steps a full turn gives, 96 by default, 12 to 480), a smooth lever (*Prop*,

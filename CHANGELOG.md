@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.4.1
+
+### Fixed
+- **With the plugin driving the throttle, X-Plane's autothrottle could not hold a speed.** Symptom: with *The plugin
+  drives the throttle* on, the speed wandered after engaging the autothrottle, and with it the pitch (the aircraft
+  slowly climbed and dived, #76). Cause: the plugin wrote the engine power and the cockpit levers from the X52 lever
+  every frame, with X-Plane's `override_throttles` set, so whatever the autothrottle set was put back on the next
+  frame. Fix: while X-Plane's autothrottle is really working (`autothrottle_on`), the plugin leaves the throttle to
+  it. When the autothrottle is switched off, the lever takes over again once it comes within 2 % of the power the
+  autothrottle left, or is moved past it, so the power does not jump to wherever the lever was; until then the X-Plane
+  window's Axes tab says where to move it. Add-on aircraft with an autothrottle of their own (not X-Plane's) are not
+  covered. Fixed in 1.4.1 (issue #101).
+- **Unticking *The plugin drives the throttle* left the throttle frozen while the plugin kept the stick.** Symptom:
+  with both boxes ticked, unticking only the throttle one left the engine power where it was, and neither the X52
+  nor X-Plane's own throttle axis moved it until the stick box was unticked too. Cause: the plugin only gave
+  `override_throttles` back to X-Plane when it gave up every axis. Fix: the throttle is handed back on its own as soon
+  as the plugin stops driving it. Fixed in 1.4.1 (issue #101).
+
 ## 1.4.0
 
 ### Added

@@ -2847,6 +2847,23 @@ TEST(a_lever_waits_until_the_dial_reaches_x_planes_value) {
     CHECK(leverMayWrite(fresh, 0.21, 0.2, 0.02));       // first takeover: within 1 % of the range is enough
 }
 
+TEST(the_throttle_waits_for_the_autothrottle_then_takes_over_where_it_left_the_power) {
+    ThrottleHandover s;
+    CHECK(throttleMayWrite(s, false, 0.9, 0.3));        // no autothrottle: the lever drives, as before
+    CHECK(!throttleMayWrite(s, true, 0.9, 0.6));        // autothrottle on: hands off
+    CHECK(!throttleMayWrite(s, true, 0.9, 0.62));
+    CHECK(!throttleMayWrite(s, false, 0.9, 0.62));      // off again: the lever at 90 % does not jump the power
+    CHECK(!throttleMayWrite(s, false, 0.8, 0.62));
+    CHECK(throttleMayWrite(s, false, 0.63, 0.62));      // within 2 %: taken over
+    CHECK(throttleMayWrite(s, false, 0.9, 0.63));       // and it follows the lever from then on
+    CHECK(!throttleMayWrite(s, true, 0.9, 0.5));
+    CHECK(!throttleMayWrite(s, false, 0.9, 0.5));
+    CHECK(throttleMayWrite(s, false, 0.1, 0.5));        // pulled past the power in one go (idle): taken over at once
+    ThrottleHandover t;
+    CHECK(!throttleMayWrite(t, true, 0.2, 0.5));
+    CHECK(!throttleMayWrite(t, false, 0.2, 0.5));       // the first frame after the autothrottle is not a crossing
+}
+
 TEST(a_trim_step_smaller_than_1_percent_lets_go_of_the_dial) {
     LeverPickup s;
     CHECK(leverMayWrite(s, 0.5, 0.5, 0.02));
