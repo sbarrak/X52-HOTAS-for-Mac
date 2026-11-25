@@ -23,7 +23,9 @@ enum class StepKind { Command, Key, Wait, Dataref };
 // `value2` (to `value2` when the dataref is nearer `value`, otherwise to `value`). Add: add `value`,
 // kept between `lo` and `hi` when lo < hi. Save: remember the dataref's current value. Restore: write the
 // remembered value back (nothing when none was saved). Save and Restore are handled by the host, which holds the memory.
-enum class DatarefOp { Set, Toggle, Add, Save, Restore };
+// RestoreIf: when the remembered value is between `value` and `value2` (both included), run the command `text2` (for a
+// setting that only a command can put back, such as the F-14's weapon select); one such step per possible value range.
+enum class DatarefOp { Set, Toggle, Add, Save, Restore, RestoreIf };
 
 struct Step {
     StepKind kind = StepKind::Command;
@@ -31,9 +33,10 @@ struct Step {
     int ms = 0;         // Wait only
     DatarefOp op = DatarefOp::Set;   // Dataref only, with the four numbers below
     double value = 0, value2 = 1, lo = 0, hi = 0;
+    std::string text2;  // RestoreIf only: the command to run
     bool operator==(const Step& o) const {
         return kind == o.kind && text == o.text && ms == o.ms && op == o.op && value == o.value &&
-               value2 == o.value2 && lo == o.lo && hi == o.hi;
+               value2 == o.value2 && lo == o.lo && hi == o.hi && text2 == o.text2;
     }
 };
 

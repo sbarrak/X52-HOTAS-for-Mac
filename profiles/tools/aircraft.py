@@ -413,7 +413,11 @@ F14_SELECTED = "sim/cockpit2/weapons/weapon_select_console_index"
 def releases(f):
     """{layer: {button: steps}} - what a button does when it is let go. F-14 trigger: put the remembered weapon back."""
     if f.get("f14"):
-        return {ANY: {TRIGGER: "restore:" + F14_SELECTED}}
+        # The weapon select switch also sets guns_armed and missiles_armed, so writing the index back is not enough
+        # (tested in the sim): the matching select command puts everything back. Index: Sidewinder 2-3, Sparrow 0-1, Gun 26, Phoenix 4-6.
+        c = "laminar/f14/fltc/cs_wpn_select_switch"
+        steps = [(2, 3, 1), (0, 1, 2), (26, 26, 3), (4, 6, 4)]
+        return {ANY: {TRIGGER: " ; ".join("restoreif:%s=%d,%d,%s%d" % (F14_SELECTED, lo, hi, c, n) for lo, hi, n in steps)}}
     return {}
 
 

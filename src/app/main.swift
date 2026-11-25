@@ -1418,7 +1418,7 @@ struct StepRow: View {
                         Text("between"); TextField("", value: n(0), format: .number).textFieldStyle(.roundedBorder).frame(width: 70)
                         Text("and"); TextField("", value: n(1), format: .number).textFieldStyle(.roundedBorder).frame(width: 70)
                     } else if op.wrappedValue >= 3 {
-                        Text(op.wrappedValue == 3 ? "remember its value" : "write the remembered value back").foregroundStyle(.secondary)
+                        Text(op.wrappedValue == 3 ? "remember its value" : op.wrappedValue == 4 ? "write the remembered value back" : "run a command when the remembered value was in a range (edit in the profile file)").foregroundStyle(.secondary)
                     } else {
                         Text("by"); TextField("", value: n(0), format: .number).textFieldStyle(.roundedBorder).frame(width: 70)
                         Text("keep between"); TextField("", value: n(2), format: .number).textFieldStyle(.roundedBorder).frame(width: 60)

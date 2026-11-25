@@ -597,16 +597,18 @@ void drawSteps(RowCursor& rc, const Rect& panel, int hold) {
                     });
                 },
                 "dataref, e.g. sim/cockpit/..., or name[3]", known ? kWhite : kAmber);
-            const char* opNames[5] = {"Set", "Toggle", "Add", "Save", "Restore"};
+            const char* opNames[6] = {"Set", "Toggle", "Add", "Save", "Restore", "If was"};
             button(rc.take(78), opNames[(int)s.op], [hold, i] {
                 mutate([&](Binding& bb) {
                     Action& aa = actionOf(bb, hold);
-                    if (i < (int)aa.size()) aa[i].op = (DatarefOp)(((int)aa[i].op + 1) % 5);
+                    if (i < (int)aa.size()) aa[i].op = (DatarefOp)((int)aa[i].op >= 4 ? 0 : (int)aa[i].op + 1);
                 });
             });
             Rect v = rc.take(70);
-            if (s.op == DatarefOp::Save || s.op == DatarefOp::Restore) {
-                text(v.l + 4, v, s.op == DatarefOp::Save ? "remember" : "put back", kDim);
+            if (s.op == DatarefOp::Save || s.op == DatarefOp::Restore || s.op == DatarefOp::RestoreIf) {
+                char buf[64];
+                snprintf(buf, sizeof buf, "%g-%g", s.value, s.value2);
+                text(v.l + 4, v, s.op == DatarefOp::Save ? "remember" : s.op == DatarefOp::Restore ? "put back" : fit(buf, v.w() - 8), kDim);
             } else if (s.op == DatarefOp::Toggle) {
                 char buf[48];
                 snprintf(buf, sizeof buf, "%g / %g", s.value, s.value2);

@@ -561,7 +561,7 @@ void x52_step_set(int b, int l, int hold, int i, const char* text, int ms, int o
         }
         s.text = name;
         s.ms = std::max(0, std::min(60000, ms));
-        if (op >= 0 && op <= 4) s.op = (DatarefOp)op;
+        if (op >= 0 && op <= 5) s.op = (DatarefOp)op;
         s.value = v;
         s.value2 = v2;
         s.lo = lo;

@@ -372,8 +372,8 @@ struct Rec : Host {
     void showLabel(const std::string&) override {}
     void layerChanged(int, bool) override {}
     void datarefStep(const Step& s) override {
-        static const char* ops[] = {"set", "toggle", "add", "save", "restore"};
-        log.push_back(std::string(ops[(int)s.op]) + ":" + s.text);
+        static const char* ops[] = {"set", "toggle", "add", "save", "restore", "restoreif"};
+        log.push_back(std::string(ops[(int)s.op]) + ":" + s.text + (s.text2.empty() ? "" : ">" + s.text2));
     }
     std::string str() {
         std::string s;
@@ -688,6 +688,18 @@ TEST(release_uses_the_binding_found_at_the_press_when_the_mode_changes) {
     CHECK_EQ(h.str(), std::string("end:in1 once:out1 "));
 }
 
+TEST(restoreif_runs_a_command_for_the_remembered_range_and_round_trips) {
+    Action a;
+    std::string err;
+    CHECK(actionFromText("restoreif:sim/w=2,3,laminar/x/sw1 ; restoreif:sim/w=26,26,laminar/x/sw3", a, &err));
+    CHECK_EQ(a.size(), (size_t)2);
+    CHECK(a[0].op == DatarefOp::RestoreIf && a[0].value == 2 && a[0].value2 == 3 && a[0].text2 == "laminar/x/sw1");
+    CHECK_EQ(actionToText(a), std::string("restoreif:sim/w=2,3,laminar/x/sw1 ; restoreif:sim/w=26,26,laminar/x/sw3"));
+    Action b;
+    CHECK(!actionFromText("restoreif:sim/w=2,3", b, &err));
+    CHECK(!actionFromText("restoreif:sim/w=a,3,cmd", b, &err));
+}
+
 TEST(release_does_not_run_without_a_press_in_safe_mode_or_unprogrammed) {
     Rec h;
     Engine e(h);
@@ -741,7 +753,7 @@ TEST(old_profile_without_release_loads_as_before_and_f14_trigger_migrates) {
     CHECK(parse("x52pro-profile 10\nbind 1 any press \"Fire selected weapon\" cmd:sim/weapons/fire_any_armed\n"
                 "bind 15 any press \"Guns\" cmd:sim/weapons/fire_guns\n", p, &err));
     const Binding* t = p.exact(1, kLayerAny);
-    CHECK(t && t->label == "Gun while held" && t->release.size() == 1 && t->release[0].op == DatarefOp::Restore);
+    CHECK(t && t->label == "Gun while held" && t->release.size() == 4 && t->release[0].op == DatarefOp::RestoreIf);
     const Binding* f = p.exact(2, kLayerAny);
     CHECK(f && actionToText(f->press) == "cmd:laminar/f14/wpns/fwd_weapon_trigger");
     Profile q;                                      // a trigger the user changed stays
@@ -2374,8 +2386,9 @@ TEST(the_ready_made_profiles_light_the_throttle_and_let_the_plugin_drive_it) {
             CHECK(trig && trig->press.size() == 2 && trig->press[0].op == DatarefOp::Save &&
                   trig->press[0].text == "sim/cockpit2/weapons/weapon_select_console_index");
             CHECK_EQ(trig->press[1].text, std::string("laminar/f14/fltc/cs_wpn_select_switch3"));
-            CHECK(trig->release.size() == 1 && trig->release[0].op == DatarefOp::Restore &&
-                  trig->release[0].text == trig->press[0].text);
+            CHECK(trig->release.size() == 4 && trig->release[0].op == DatarefOp::RestoreIf &&
+                  trig->release[0].text == trig->press[0].text && trig->release[2].value == 26 &&
+                  trig->release[2].text2 == "laminar/f14/fltc/cs_wpn_select_switch3");
             CHECK_EQ(p.exact(15, kLayerAny)->press[0].text, std::string("sim/weapons/fire_guns"));
             CHECK_EQ(p.exact(2, kLayerAny)->press[0].text, std::string("laminar/f14/wpns/fwd_weapon_trigger"));
             CHECK_EQ(p.exact(24, 2)->press[0].text, std::string("laminar/f14/fltc/cs_wpn_select_switch1"));

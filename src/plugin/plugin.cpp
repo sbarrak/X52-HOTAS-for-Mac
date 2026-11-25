@@ -1214,6 +1214,11 @@ void App::datarefStep(const Step& s) {
         else notice = "Cannot read " + s.text + " to remember it";
         return;
     }
+    if (s.op == DatarefOp::RestoreIf) {
+        auto it = saved.find(s.text);
+        if (it != saved.end() && it->second >= s.value && it->second <= s.value2) commandOnce(s.text2);
+        return;
+    }
     if (s.op == DatarefOp::Restore) {
         auto it = saved.find(s.text);
         if (it == saved.end()) return;   // nothing was remembered: leave it as it is
