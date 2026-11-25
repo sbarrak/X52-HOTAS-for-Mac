@@ -229,6 +229,12 @@ const char* x52_calibration(void);
 // "usage<TAB>value<TAB>lowest reached<TAB>highest reached<TAB>HID min<TAB>HID max".
 const char* x52_calibration_live(void);
 
+// Export manual: fills a Word template (a .docx with tagged content controls, see docs/manual-data.md) with the profile
+// `key` and writes the result to outPath. 1 on success, 0 when it failed; x52_export_message says why, or, after a success,
+// what to look at ("" when there is nothing to say). Never changes a profile.
+int x52_export_manual(const char* key, const char* templatePath, const char* iconDir, const char* outPath);   // iconDir: the folder of the light pictures
+const char* x52_export_message(void);
+
 const char* x52_profiles(void);                // keys, one per line
 // Ready-made profiles (standard) are never changed. Any change to one waits (x52_copy_needed) for a name:
 // x52_copy_save puts it, and the changes after it, into a new profile and switches to it ("" on success, else why);

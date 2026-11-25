@@ -14,7 +14,8 @@ CXX     = clang++
 VERSION  = $(shell cat VERSION)
 CXXFLAGS = -std=c++17 -O2 -Wall -Wextra $(ARCH) -fvisibility=hidden -DX52_VERSION='"$(VERSION)"'
 
-CORE   = src/core/profile.cpp src/core/mfd.cpp src/core/pages.cpp src/core/sidepages.cpp src/core/keys.cpp src/core/engine.cpp src/core/catalog.cpp src/core/xpjoy.cpp src/core/pagetree.cpp src/core/pageview.cpp src/core/axes.cpp src/core/update.cpp
+CORE   = src/core/profile.cpp src/core/mfd.cpp src/core/pages.cpp src/core/sidepages.cpp src/core/keys.cpp src/core/engine.cpp src/core/catalog.cpp src/core/xpjoy.cpp src/core/pagetree.cpp src/core/pageview.cpp src/core/axes.cpp src/core/update.cpp src/core/manual.cpp
+DOCX   = src/core/zipfile.cpp src/core/docxfill.cpp
 MAC    = src/mac/x52device.cpp src/mac/x52input.cpp src/mac/keysend.cpp src/mac/xplane.cpp src/mac/simlink.cpp
 PLUGIN = src/plugin/plugin.cpp src/plugin/ui.cpp src/plugin/store.cpp
 AGENT  = src/app/agent.cpp src/plugin/store.cpp
@@ -29,22 +30,26 @@ XPL = $(BIN)/X52Pro.xpl
 
 APP = $(BIN)/X52Pro.app
 APPBIN = $(APP)/Contents/MacOS/X52Pro
-APPSRC = src/app/bridge.cpp $(AGENT) $(CORE) $(MAC)
+APPSRC = src/app/bridge.cpp $(AGENT) $(CORE) $(DOCX) $(MAC)
 
-all: test $(XPL) $(BIN)/x52probe app
+all: test $(XPL) $(BIN)/x52probe $(BIN)/x52manual app
 
 build/test_core: tests/test_core.cpp tests/check.h $(CORE) $(HEADERS)
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) -o $@ tests/test_core.cpp $(CORE)
+
+build/test_manual: tests/test_manual.cpp tests/check.h $(CORE) $(DOCX) $(HEADERS)
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) -o $@ tests/test_manual.cpp $(CORE) $(DOCX) -lz
 
 build/test_plugin: tests/test_plugin.cpp tests/fake_xplm.cpp tests/fake_xplm.h tests/check.h $(PLUGIN) $(CORE) $(MAC) $(HEADERS)
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) $(XPDEFS) $(XPINC) -DX52_NO_GL -DX52_NO_HID -o $@ tests/test_plugin.cpp tests/fake_xplm.cpp \
 		$(PLUGIN) $(CORE) $(MAC) $(FRAMEWORKS)
 
-build/test_agent: tests/test_agent.cpp tests/check.h $(AGENT) src/app/bridge.cpp $(CORE) $(MAC) $(HEADERS)
+build/test_agent: tests/test_agent.cpp tests/check.h $(AGENT) src/app/bridge.cpp $(CORE) $(DOCX) $(MAC) $(HEADERS)
 	@mkdir -p build
-	$(CXX) $(CXXFLAGS) -o $@ tests/test_agent.cpp $(AGENT) src/app/bridge.cpp $(CORE) $(MAC) $(FRAMEWORKS)
+	$(CXX) $(CXXFLAGS) -o $@ tests/test_agent.cpp $(AGENT) src/app/bridge.cpp $(CORE) $(DOCX) $(MAC) $(FRAMEWORKS) -lz
 
 build/test_xplane: tests/test_xplane.cpp tests/check.h src/mac/xplane.cpp src/mac/xplane.h
 	@mkdir -p build
@@ -54,12 +59,17 @@ build/test_simlink: tests/test_simlink.cpp tests/check.h src/mac/simlink.cpp src
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) -o $@ tests/test_simlink.cpp src/mac/simlink.cpp
 
-test: build/test_core build/test_plugin build/test_agent build/test_xplane build/test_simlink
+test: build/test_core build/test_plugin build/test_agent build/test_xplane build/test_simlink build/test_manual
 	./build/test_simlink
 	./build/test_xplane
 	./build/test_core
+	./build/test_manual
 	./build/test_plugin
 	./build/test_agent
+
+$(BIN)/x52manual: tools/x52manual.cpp $(CORE) $(DOCX) $(HEADERS)
+	@mkdir -p $(BIN)
+	$(CXX) $(CXXFLAGS) -o $@ tools/x52manual.cpp $(CORE) $(DOCX) -lz
 
 $(BIN)/x52probe: tools/x52probe.cpp $(CORE) $(MAC) $(HEADERS)
 	@mkdir -p $(BIN)
@@ -79,14 +89,16 @@ build/AppIcon.icns: tools/make_icon.swift
 	swift tools/make_icon.swift build/AppIcon.iconset
 	iconutil -c icns build/AppIcon.iconset -o $@
 
-$(APPBIN): src/app/main.swift src/app/Info.plist $(APPSRC) $(HEADERS) $(XPL) build/AppIcon.icns VERSION
+$(APPBIN): src/app/main.swift src/app/Info.plist $(APPSRC) $(HEADERS) $(XPL) build/AppIcon.icns VERSION templates/X52-Manual-Template.docx $(wildcard templates/light-icons/*.png)
 	@mkdir -p "$(APP)/Contents/MacOS" build/appobj
 	cd build/appobj && $(CXX) $(CXXFLAGS) -mmacosx-version-min=13.0 -c $(addprefix ../../,$(APPSRC))
 	swiftc -O -target arm64-apple-macos13.0 -import-objc-header src/app/bridge.h src/app/main.swift \
-		build/appobj/*.o -lc++ $(FRAMEWORKS) -o "$(APPBIN)"
+		build/appobj/*.o -lc++ -lz $(FRAMEWORKS) -o "$(APPBIN)"
 	mkdir -p "$(APP)/Contents/Resources"
 	cp $(XPL) "$(APP)/Contents/Resources/X52Pro.xpl"
 	cp build/AppIcon.icns "$(APP)/Contents/Resources/AppIcon.icns"
+	cp templates/X52-Manual-Template.docx "$(APP)/Contents/Resources/X52-Manual-Template.docx"
+	rm -rf "$(APP)/Contents/Resources/light-icons" && cp -R templates/light-icons "$(APP)/Contents/Resources/light-icons"
 	cp src/app/Info.plist "$(APP)/Contents/Info.plist"
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" -c "Set :CFBundleVersion $(VERSION)" "$(APP)/Contents/Info.plist"
 	codesign --force --sign - "$(APP)"

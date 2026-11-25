@@ -403,6 +403,23 @@ TEST(the_plugin_is_switched_off_and_on_from_the_app_and_it_lasts) {
     x52_stop();
 }
 
+TEST(the_app_exports_a_manual_from_a_profile_and_a_template) {
+    std::string dir = freshDir("export_manual");
+    x52_start("", dir.c_str(), "default");
+    std::string out = dir + "/map.docx";
+    CHECK_EQ(x52_export_manual("default", "templates/X52-Manual-Template.docx", "templates/light-icons", out.c_str()), 1);
+    CHECK_EQ(std::string(x52_export_message()), std::string(""));
+    std::string made = slurp(out);
+    CHECK(made.size() > 1000);
+    CHECK(made.compare(0, 2, "PK") == 0);                    // a zip, as a Word file is
+    CHECK_EQ(x52_export_manual("no such profile", "templates/X52-Manual-Template.docx", "templates/light-icons", (dir + "/x.docx").c_str()), 0);
+    CHECK(has(x52_export_message(), "profile"));
+    CHECK_EQ(x52_export_manual("default", (dir + "/missing.docx").c_str(), "templates/light-icons", (dir + "/y.docx").c_str()), 0);
+    CHECK(has(x52_export_message(), "template"));
+    CHECK_EQ(x52_export_manual("default", out.c_str(), "templates/light-icons", (dir + "/z.docx").c_str()), 1);   // a filled file has nothing left to fill
+    x52_stop();
+}
+
 TEST(axis_and_dial_settings_are_edited_from_the_app_and_saved) {
     std::string dir = freshDir("axes_settings");
     x52_start("", dir.c_str(), "default");
