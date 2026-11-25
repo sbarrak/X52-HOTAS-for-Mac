@@ -283,9 +283,11 @@ int x52_alarm_color2(int i) { const Alarm* a = alarmAt(i); return a ? a->color2 
 
 int x52_alarm_add(void) {
     if (!agent) return -1;
-    int led = -1;   // the first light that still has room for a level
-    for (int l = 0; l < kLedCount && led < 0; ++l)
+    int led = -1;   // Hat 2 first (a full-colour light), then the next light that still has room for a level
+    for (int k = 0; k < kLedCount && led < 0; ++k) {
+        int l = (LedPov + k) % kLedCount;
         if (levelsOnLed(agent->profile().alarms, l) < kMaxLevels) led = l;
+    }
     if (led < 0) return -1;
     agent->change([led](Profile& p) {
         Alarm a;
@@ -328,6 +330,10 @@ void x52_alarm_set(int i, const char* name, int led, int effect, int fast, int c
     if (n.size() > 40) n.resize(40);
     color = color < 0 ? 0 : color > 3 ? 3 : color;
     color2 = color2 < 0 ? 0 : color2 > 3 ? 3 : color2;
+    if (ledIsSingleColor(led)) {   // Fire and Throttle show only off or on, so the pickers have nothing else to show
+        color = color ? 1 : 0;
+        color2 = color2 ? 1 : 0;
+    }
     agent->change([=](Profile& p) {
         if (i >= (int)p.alarms.size()) return;
         Alarm& a = p.alarms[i];

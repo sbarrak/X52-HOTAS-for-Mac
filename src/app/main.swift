@@ -837,8 +837,8 @@ struct ConditionRow: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(which == 0 ? "Dataref" : which == 1 ? "Second dataref" : "Third dataref").frame(width: 110, alignment: .leading)
-                TextField("e.g. sim/flightmodel/controls/parkbrake, or name[3]", text: ref)
-                    .textFieldStyle(.roundedBorder)
+                // Searches X-Plane's own list of datarefs (and the add-on aircraft's), also without X-Plane running.
+                CatalogField(kind: 1, placeholder: "e.g. sim/flightmodel/controls/parkbrake, or name[3]", text: ref)
             }
             if let status = m.liveStatus[statusKey(kind, index, which)], !status.isEmpty {
                 Text(status).font(.callout).foregroundStyle(.secondary).padding(.leading, 118)

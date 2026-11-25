@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.1
+
+### Added
+- **Dataref search in tests (#117).** The dataref box of a live light, alarm or master switch searches X-Plane's list of datarefs (and the add-on aircraft's) as you type, like the buttons and screen pages do, also when X-Plane is not running.
+
+### Fixed
+- **A new alarm could show an empty Colour picker (#117).** Symptom: after adding a blank alarm the Colour choice was empty. Cause: since levels (1.6.0) a new alarm went on the first light with room, the Fire button, which shows only off or on, while the alarm's colour was red. Fix: new alarms start on Hat 2 as before (then the next light with room), and an alarm moved to Fire or Throttle keeps a colour of off or on. Fixed in 1.6.1.
+
 ## 1.6.0
 
 ### Added
