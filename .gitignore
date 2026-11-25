@@ -17,3 +17,12 @@ local-only/
 
 # My own profiles for add-on (non-Laminar) aircraft: local only
 my_profiles/
+
+# Design mockups: local only
+mockups/
+claude_mockup_*/
+
+# Scratch and generated files, and the manual builder's npm packages: local only
+docs/tmp/
+generated_images/
+node_modules/
