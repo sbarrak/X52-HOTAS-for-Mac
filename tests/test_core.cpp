@@ -1978,17 +1978,93 @@ TEST(rules_from_before_version_3_are_reversed_once_so_they_behave_the_same) {
     CHECK_EQ(n.rules[0].dataref, std::string("first"));   // a current file keeps its order
 }
 
-TEST(one_rule_per_light_is_checked_and_a_free_light_is_found) {
+TEST(levels_on_led_counts_rules_and_alarms) {
+    std::vector<LightRule> rules(3);
+    rules[0].led = LedE;
+    rules[1].led = LedA;
+    rules[2].led = LedE;
+    CHECK_EQ(levelsOnLed(rules, LedE), 2);
+    CHECK_EQ(levelsOnLed(rules, LedB), 0);
+    CHECK_EQ(ruleLevel(rules, 0), 1);
+    CHECK_EQ(ruleLevel(rules, 2), 2);
+    CHECK_EQ(ruleLevel(rules, 9), 0);
+    std::vector<Alarm> alarms(2);
+    alarms[0].led = LedPov;
+    alarms[1].led = LedPov;
+    CHECK_EQ(levelsOnLed(alarms, LedPov), 2);
+    CHECK_EQ(levelsOnLed(alarms, LedA), 0);
+}
+
+TEST(first_free_led_is_a_light_without_rules) {
     std::vector<LightRule> rules(2);
     rules[0].led = LedE;
     rules[1].led = LedA;
-    CHECK_EQ(ruleUsingLed(rules, LedE, 1), 0);
-    CHECK_EQ(ruleUsingLed(rules, LedE, 0), -1);   // the rule itself does not count
-    CHECK_EQ(ruleUsingLed(rules, LedB, 0), -1);
     CHECK_EQ(firstFreeLed(rules), (int)LedFire);
     rules.assign(kLedCount, LightRule());
     for (int l = 0; l < kLedCount; ++l) rules[l].led = l;
     CHECK_EQ(firstFreeLed(rules), -1);
+}
+
+TEST(a_light_takes_three_live_levels_and_the_first_match_wins) {
+    LightRule gear, moving, last;
+    gear.led = moving.led = last.led = LedA;
+    gear.dataref = "down";
+    gear.op = Compare::Greater;
+    gear.value = 0.99;
+    gear.thenColor = (int)Color::Green;
+    gear.elseColor = kRuleMode;
+    moving.dataref = "moving";
+    moving.op = Compare::Greater;
+    moving.value = 0;
+    moving.thenColor = (int)Color::Amber;
+    moving.elseColor = kRuleMode;
+    last.dataref = "up";
+    last.op = Compare::Greater;
+    last.value = 0.99;
+    last.thenColor = kRuleMode;
+    last.elseColor = (int)Color::Off;   // the "otherwise"
+    std::vector<LightRule> rules = {gear, moving, last};
+    CHECK(liveColor(rules, LedA, Color::Red, values({{"down", 1}, {"moving", 0}, {"up", 0}})) == Color::Green);
+    CHECK(liveColor(rules, LedA, Color::Red, values({{"down", 0}, {"moving", 1}, {"up", 0}})) == Color::Amber);
+    CHECK(liveColor(rules, LedA, Color::Red, values({{"down", 0}, {"moving", 0}, {"up", 0}})) == Color::Off);
+    CHECK(liveColor(rules, LedA, Color::Red, values({{"down", 0}, {"moving", 0}, {"up", 1}})) == Color::Red);   // mode colour
+}
+
+TEST(adding_a_level_moves_the_otherwise_to_the_new_level) {
+    std::vector<LightRule> rules(2);
+    rules[0].led = LedB;
+    rules[1].led = LedE;
+    rules[0].elseColor = (int)Color::Amber;
+    CHECK_EQ(addRuleLevel(rules, 0), 1);
+    CHECK_EQ(rules.size(), (size_t)3);
+    CHECK_EQ(rules[1].led, (int)LedB);
+    CHECK_EQ(rules[1].elseColor, (int)Color::Amber);
+    CHECK_EQ(rules[0].elseColor, kRuleMode);
+    CHECK_EQ(addRuleLevel(rules, 0), 2);
+    CHECK_EQ(addRuleLevel(rules, 0), -1);   // three levels is the most
+    CHECK_EQ(levelsOnLed(rules, LedB), 3);
+}
+
+TEST(when_an_alarm_stops_the_live_light_returns) {
+    LightRule live;
+    live.led = LedPov;
+    live.dataref = "brake";
+    live.op = Compare::Greater;
+    live.value = 0;
+    live.thenColor = (int)Color::Green;
+    live.elseColor = kRuleMode;
+    std::vector<Alarm> alarms = {alarmOn("stall", LedPov, Color::Red)};
+    CHECK(shownColor(alarms, {live}, LedPov, Color::Amber, 0, values({{"stall", 1}, {"brake", 1}})) == Color::Red);
+    CHECK(shownColor(alarms, {live}, LedPov, Color::Amber, 0, values({{"stall", 0}, {"brake", 1}})) == Color::Green);
+    CHECK(shownColor(alarms, {live}, LedPov, Color::Amber, 0, values({{"stall", 0}, {"brake", 0}})) == Color::Amber);
+}
+
+TEST(a_file_with_four_levels_on_one_light_still_loads) {
+    Profile q;
+    std::string err;
+    CHECK(parse("x52pro-profile 11\nrule a > 0 red mode w\nrule a > 0 red mode x\nrule a > 0 red mode y\nrule a > 0 red off z\n", q, &err));
+    CHECK_EQ(q.rules.size(), (size_t)4);
+    CHECK_EQ(levelsOnLed(q.rules, LedA), 4);
 }
 
 TEST(the_alarm_templates_are_complete) {

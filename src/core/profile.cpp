@@ -148,15 +148,43 @@ Color liveColor(const std::vector<LightRule>& rules, int led, Color modeColor, c
     return modeColor;
 }
 
-int ruleUsingLed(const std::vector<LightRule>& rules, int led, int self) {
+int levelsOnLed(const std::vector<LightRule>& rules, int led) {
+    int n = 0;
+    for (const LightRule& r : rules) n += r.led == led;
+    return n;
+}
+
+int levelsOnLed(const std::vector<Alarm>& alarms, int led) {
+    int n = 0;
+    for (const Alarm& a : alarms) n += a.led == led;
+    return n;
+}
+
+int ruleLevel(const std::vector<LightRule>& rules, int index) {
+    if (index < 0 || index >= (int)rules.size()) return 0;
+    int n = 0;
+    for (int i = 0; i <= index; ++i) n += rules[i].led == rules[index].led;
+    return n;
+}
+
+int addRuleLevel(std::vector<LightRule>& rules, int index) {
+    if (index < 0 || index >= (int)rules.size()) return -1;
+    int led = rules[index].led;
+    if (levelsOnLed(rules, led) >= kMaxLevels) return -1;
+    int last = index;
     for (int i = 0; i < (int)rules.size(); ++i)
-        if (i != self && rules[i].led == led) return i;
-    return -1;
+        if (rules[i].led == led) last = i;
+    LightRule fresh;
+    fresh.led = led;
+    fresh.elseColor = rules[last].elseColor;
+    rules[last].elseColor = kRuleMode;
+    rules.insert(rules.begin() + last + 1, fresh);
+    return last + 1;
 }
 
 int firstFreeLed(const std::vector<LightRule>& rules) {
     for (int l = 0; l < kLedCount; ++l)
-        if (ruleUsingLed(rules, l, -1) < 0) return l;
+        if (levelsOnLed(rules, l) == 0) return l;
     return -1;
 }
 

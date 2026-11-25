@@ -132,9 +132,16 @@ Color ruleColor(const LightRule& r, int led, bool valid, double current, Color m
 // colour" leaves the light alone, otherwise the FIRST rule for that light wins.
 Color liveColor(const std::vector<LightRule>& rules, int led, Color modeColor, const DatarefReader& read);
 
-// Conditional lights allow one rule per light. Returns the index of the other rule that
-// already uses `led` (ignoring rule `self`), or -1 when the light is free.
-int ruleUsingLed(const std::vector<LightRule>& rules, int led, int self);
+// A light can have up to kMaxLevels levels: rules (live lights) or alarms, in list order, the first one that says
+// something wins. A level that is not the last one of its light leaves its "otherwise" to the next level.
+constexpr int kMaxLevels = 3;
+int levelsOnLed(const std::vector<LightRule>& rules, int led);
+// 1-based place of rule `index` among the rules of its own light (0 for a bad index).
+int ruleLevel(const std::vector<LightRule>& rules, int index);
+// Adds a level after the last rule of rule `index`'s light: the new rule starts as a copy of the last level's
+// "otherwise" colour with nothing chosen, and that last level's "otherwise" moves to the new one (the last one
+// gets "mode colour"). Returns the new rule's index, or -1 when the light already has kMaxLevels levels.
+int addRuleLevel(std::vector<LightRule>& rules, int index);
 // First light no rule uses yet, or -1 when every light has one.
 int firstFreeLed(const std::vector<LightRule>& rules);
 
@@ -162,6 +169,7 @@ const char* effectName(Effect e);   // "steady", "blink", "alternate"
 Color alarmColorAt(const Alarm& a, double t);
 // The first triggered alarm for `led`: index, or -1 when none is triggered.
 int activeAlarm(const std::vector<Alarm>& alarms, int led, const DatarefReader& read);
+int levelsOnLed(const std::vector<Alarm>& alarms, int led);
 
 // Everything together: alarms over conditional lights over the mode colour.
 Color shownColor(const std::vector<Alarm>& alarms, const std::vector<LightRule>& rules, int led, Color modeColor,

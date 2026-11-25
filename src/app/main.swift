@@ -52,6 +52,7 @@ final class Model: ObservableObject {
     @Published var liveChecked: Set<Int> = []  // ticked for "Remove selected"
     @Published var liveStatus: [Int: String] = [:]   // what X-Plane makes of each opened rule's / alarm's datarefs (see statusKey)
     @Published var liveNotice = ""      // why a live light change was refused
+    @Published var alarmNotice = ""     // the same for the alarms
     @Published var alarmOpen: Set<Int> = []
     @Published var alarmChecked: Set<Int> = []
     @Published var tried = -1           // the alarm being shown on the stick for a look
@@ -817,7 +818,9 @@ func conditionText(_ kind: Int, _ index: Int, _ which: Int) -> String {
 func triggerSummary(_ kind: Int, _ index: Int) -> String {
     let join = Int(x52_trg_join(Int32(kind), Int32(index)))
     if join == 0 { return conditionText(kind, index, 0) }
-    return "\(conditionText(kind, index, 0)) \(joinNames[join]) \(conditionText(kind, index, 1))"
+    var text = "\(conditionText(kind, index, 0)) \(joinNames[join]) \(conditionText(kind, index, 1))"
+    if !str(x52_trg_ref(Int32(kind), Int32(index), 2)).isEmpty { text += " \(joinNames[join]) \(conditionText(kind, index, 2))" }
+    return text
 }
 
 struct ConditionRow: View {
@@ -833,7 +836,7 @@ struct ConditionRow: View {
         let negate = Binding<Bool>(get: { x52_trg_negate(k, i, w) != 0 }, set: { write(negate: $0) })
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(which == 0 ? "Dataref" : "Second dataref").frame(width: 110, alignment: .leading)
+                Text(which == 0 ? "Dataref" : which == 1 ? "Second dataref" : "Third dataref").frame(width: 110, alignment: .leading)
                 TextField("e.g. sim/flightmodel/controls/parkbrake, or name[3]", text: ref)
                     .textFieldStyle(.roundedBorder)
             }
@@ -859,7 +862,7 @@ struct ConditionRow: View {
     }
 }
 
-// The first test, and an optional second one joined with AND / OR.
+// The first test, and optionally a second and a third, all joined with AND or all with OR.
 struct TriggerEditor: View {
     @ObservedObject var m: Model
     let kind: Int
@@ -875,6 +878,10 @@ struct TriggerEditor: View {
             }
             if join.wrappedValue != 0 {
                 ConditionRow(m: m, kind: kind, index: index, which: 1)
+                // A third test (same AND / OR) once the second one has a dataref.
+                if !str(x52_trg_ref(Int32(kind), Int32(index), 1)).isEmpty {
+                    ConditionRow(m: m, kind: kind, index: index, which: 2)
+                }
             }
         }
     }
@@ -936,7 +943,8 @@ struct LiveRow: View {
         let single = x52_led_single(x52_rule_led(r)) != 0
         let then = Binding<Int>(get: { Int(x52_rule_then(r)) }, set: { write(then: $0) })
         let other = Binding<Int>(get: { Int(x52_rule_else(r)) }, set: { write(other: $0) })
-        let clash = Int(x52_rule_conflict(r))
+        let level = Int(x52_rule_level(r)), levels = Int(x52_rule_levels(r))
+        let last = level == levels
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Light").frame(width: 110, alignment: .leading)
@@ -952,17 +960,32 @@ struct LiveRow: View {
                 }
                 .frame(width: 100)
             }
-            if clash >= 0 {
-                Text("This light is also used by rule \(clash + 1). That one comes first, so it decides the colour and this rule never shows. Give one of them another light, or remove one.")
-                    .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Text("Level \(level) of \(levels)").foregroundStyle(.secondary)
+                Button("Add level") {
+                    let n = Int(x52_rule_add_level(r))
+                    if n >= 0 {
+                        m.liveOpen = [n]
+                        m.liveNotice = ""
+                    } else {
+                        m.liveNotice = "A light can have 3 levels at most."
+                    }
+                    m.tick()
+                }
+                .disabled(levels >= 3)
+                .help("Adds another test for this light. The first level whose test is true decides the colour.")
             }
             TriggerEditor(m: m, kind: 0, index: rule)
             HStack {
                 Text("Light is").frame(width: 110, alignment: .leading)
                 ColorChoice(selection: then, single: single)
-                Text("when true, and")
-                ColorChoice(selection: other, single: single)
-                Text("when not")
+                if last {
+                    Text(levels > 1 ? "when true, and otherwise" : "when true, and")
+                    ColorChoice(selection: other, single: single)
+                    if levels == 1 { Text("when not") }
+                } else {
+                    Text("when true; if not, the next level decides")
+                }
             }
         }
         .padding(.leading, 28).padding(.vertical, 6)
@@ -970,9 +993,9 @@ struct LiveRow: View {
     private func write(led: Int? = nil, then: Int? = nil, other: Int? = nil) {
         let r = Int32(rule)
         let target = led ?? Int(x52_rule_led(r))
-        let clash = Int(x52_rule_set(r, Int32(target), Int32(then ?? Int(x52_rule_then(r))), Int32(other ?? Int(x52_rule_else(r)))))
-        if clash >= 0 {
-            m.liveNotice = "\(str(x52_led_title(Int32(target)))) already follows rule \(clash + 1). A light can follow only one rule, because a rule decides the colour whether its test is true or not, so a second rule on the same light would never be seen. The light was not changed: pick a free light, or remove the other rule first."
+        let full = Int(x52_rule_set(r, Int32(target), Int32(then ?? Int(x52_rule_then(r))), Int32(other ?? Int(x52_rule_else(r))))) == -2
+        if full {
+            m.liveNotice = "\(str(x52_led_title(Int32(target)))) already has 3 levels, the most a light can have. The light was not changed: pick another light, or remove a level first."
         } else {
             m.liveNotice = ""
         }
@@ -985,7 +1008,7 @@ struct LiveTab: View {
     var body: some View {
         let count = Int(x52_rule_count())
         VStack(alignment: .leading, spacing: 10) {
-            Text("Live lights follow the simulator instead of the mode dial. Open a rule to set what it watches and the colours it shows. A rule overrides the plain colours from the Lights tab, and alarms (Alarms tab) override rules. Each light can have one rule.")
+            Text("Live lights follow the simulator instead of the mode dial. Open a rule to set what it watches and the colours it shows. A rule overrides the plain colours from the Lights tab, and alarms (Alarms tab) override rules. A light can have up to 3 levels: open a rule and press Add level, and the first level whose test is true decides the colour. The last level also says what to show when none is true.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack {
                 Button("Add rule") {
@@ -994,7 +1017,7 @@ struct LiveTab: View {
                         m.liveOpen.insert(i)
                         m.liveNotice = ""
                     } else {
-                        m.liveNotice = "Every light already has a rule. A light can follow only one rule, so remove one or change an existing rule."
+                        m.liveNotice = "Every light already has a rule. Open a rule and press Add level to give a light more levels, or remove a rule."
                     }
                     m.tick()
                 }
@@ -1136,14 +1159,18 @@ struct AlarmsTab: View {
     var body: some View {
         let count = Int(x52_alarm_count())
         VStack(alignment: .leading, spacing: 10) {
-            Text("Alarms have the highest priority: an alarm overrules the live lights (Live lights tab), and those overrule the plain colours (Lights tab). The first alarm in the list that is triggered decides its light. An alarm that is not triggered leaves the light to the next one, so a gear alarm can still show while the stall alarm above it is quiet.")
+            Text("Alarms have the highest priority: an alarm overrules the live lights (Live lights tab), and those overrule the plain colours (Lights tab). The first alarm in the list that is triggered decides its light. An alarm that is not triggered leaves the light to the next one, so a gear alarm can still show while the stall alarm above it is quiet. A light can have up to 3 alarms, which makes levels: for example amber, then red, then red flashing, as the test gets worse. When the situation ends the alarm stops and the light goes back to its live light or colour.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if !m.alarmNotice.isEmpty {
+                Text(m.alarmNotice).font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+            }
             HStack {
                 Menu("Add from template") {
                     ForEach(0..<Int(x52_alarm_preset_count()), id: \.self) { i in
                         Button(str(x52_alarm_preset_name(Int32(i)))) {
                             let n = Int(x52_alarm_add_preset(Int32(i)))
-                            if n >= 0 { m.alarmOpen.insert(n) }
+                            if n >= 0 { m.alarmOpen.insert(n); m.alarmNotice = "" }
+                            else { m.alarmNotice = "That light already has 3 alarms, the most a light can have." }
                             m.tick()
                         }
                     }
@@ -1151,7 +1178,8 @@ struct AlarmsTab: View {
                 .frame(width: 150)
                 Button("Add blank alarm") {
                     let n = Int(x52_alarm_add())
-                    if n >= 0 { m.alarmOpen.insert(n) }
+                    if n >= 0 { m.alarmOpen.insert(n); m.alarmNotice = "" }
+                    else { m.alarmNotice = "Every light already has 3 alarms, the most a light can have." }
                     m.tick()
                 }
                 Button("Remove selected") {

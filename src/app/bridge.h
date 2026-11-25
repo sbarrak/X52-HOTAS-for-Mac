@@ -47,11 +47,13 @@ int x52_rule_count(void);
 int x52_rule_led(int rule);
 int x52_rule_then(int rule);
 int x52_rule_else(int rule);
-int x52_rule_add(void);                        // the new rule's number (on the first free light), -1 when every light has one
+int x52_rule_add(void);                        // the new rule's number (on the first light without a rule), -1 when every light has one
 void x52_rule_remove(int rule);
-// Returns -1 when applied, or the number of another rule that already uses that light (nothing is changed).
+// Returns -1 when applied, or -2 when that light already has 3 levels (nothing is changed).
 int x52_rule_set(int rule, int led, int then_color, int else_color);
-int x52_rule_conflict(int rule);               // another rule on the same light (older files), or -1
+int x52_rule_level(int rule);                  // 1..3: this rule's place among the rules of its light
+int x52_rule_levels(int rule);                 // how many rules its light has
+int x52_rule_add_level(int rule);              // another level on the same light (it takes over the "otherwise"); -1 when it has 3
 void x52_rule_preset(int rule, int preset);    // fills in the rule, keeps its light
 
 // Alarms: the highest priority, in order; the first one that is triggered decides its light.
@@ -63,7 +65,7 @@ int x52_alarm_effect(int alarm);
 int x52_alarm_fast(int alarm);
 int x52_alarm_color(int alarm);                // 0..3
 int x52_alarm_color2(int alarm);
-int x52_alarm_add(void);                       // returns the new alarm's number
+int x52_alarm_add(void);                       // returns the new alarm's number (on a light with room), -1 when every light has 3
 void x52_alarm_remove(int alarm);
 void x52_alarm_move(int alarm, int direction); // -1 up (more important), 1 down
 void x52_alarm_set(int alarm, const char* name, int led, int effect, int fast, int color, int color2);
@@ -73,7 +75,7 @@ int x52_alarm_add_preset(int preset);          // adds a copy of the template, r
 void x52_alarm_try(int alarm);                 // shows the alarm on the stick for a few seconds
 int x52_alarm_tried(void);                     // the alarm being shown that way, or -1
 
-// What a rule (kind 0) or an alarm (kind 1) waits for: condition `which` 0 is the first, 1 the second.
+// What a rule (kind 0) or an alarm (kind 1) waits for: condition `which` 0 is the first, 1 the second, 2 the third.
 // Join: 0 none (one condition), 1 and, 2 or.
 const char* x52_trg_ref(int kind, int index, int which);
 int x52_trg_op(int kind, int index, int which);
