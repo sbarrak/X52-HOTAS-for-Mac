@@ -133,6 +133,7 @@ private:
     void* findCommand(const std::string& name);
     void key(const std::string& combo, bool down);
     std::map<std::string, void*> commandCache_;
+    std::map<std::string, double> saved;   // what a Save step remembered, by dataref name
 public:
     // Every analog control seen on the stick, for the window's live view and the axis override.
     struct AxisLive {

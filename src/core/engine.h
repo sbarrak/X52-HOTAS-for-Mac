@@ -44,6 +44,7 @@ private:
         Binding binding;
         Step held;          // the single step being held (Command or Key)
         bool hasHeld = false;
+        bool bound = false; // a binding was found at the press: its release action runs at the release
     };
     struct Running {
         Action steps;

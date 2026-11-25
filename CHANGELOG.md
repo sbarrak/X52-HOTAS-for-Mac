@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.4.0
+
+### Added
+- **A button can have an action when it is let go.** Besides "when pressed" and "when held", a binding can now have
+  "when released", run after whatever the press or hold started has ended. The release runs from the binding found at
+  the press, so turning the mode dial while the button is held does not change it. In the profile file:
+  `bind <button> <layer> release "" step ; step ...`. Both button editors (the app and the in-sim window) show and edit
+  it. Profiles without it load and behave as before. (issue #105)
+- **Two new dataref steps, Save and Restore.** `save:<dataref>` remembers the dataref's value and `restore:<dataref>`
+  writes it back (nothing happens when nothing was remembered). `restoreif:<dataref>=<from>,<to>,<command>` runs a command when the remembered value was in that range, for settings only a command can put back. Used with "when released" a button can change a
+  setting while it is held and put it back afterwards. (issue #105)
+
+### Changed
+- **F-14: the trigger selects the Gun while held, and Fire fires the selected weapon.** Trigger stage 1 remembers
+  the selected weapon (`sim/cockpit2/weapons/weapon_select_console_index`) and selects the Gun; stage 2 fires the
+  guns; letting go of stage 1 selects the remembered weapon again with its own select command (tested in the sim: writing the index back left the guns/missiles armed flags wrong), so you always know what the aircraft would fire. Fire (button 2)
+  runs the F-14's own trigger command (`laminar/f14/wpns/fwd_weapon_trigger`), which fires the selected weapon for as
+  long as it is held. The profile version is now 11: an older F-14 profile whose trigger is still as the ready-made one
+  had it gets the new trigger and Fire (when Fire is free); anything you changed stays. (issue #105) If the remembered weapon has nothing left (the F-14 refuses to select an empty weapon), the selection stays on the Gun, which is what Fire would fire; hat 2 picks another weapon.
+
 ## 1.3.8
 
 ### Changed

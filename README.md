@@ -34,7 +34,7 @@ write macros, put radios and autopilot on the throttle's screen, and have the li
 - **The mode's name on the screen** – when the mode dial moves, the stick's screen says the mode's name (you can
   rename the modes) for 1.5 seconds, or as long as you set.
 - **Macros** – one press runs several commands and keystrokes in a row, with waits between them.
-- **Tap versus hold** – a short press and a long press can do different things.
+- **Tap versus hold** – a short press and a long press can do different things. A button can also do something when it is let go, and a *Save* dataref step plus a *Restore* step put a setting back (the F-14 trigger selects the Gun while held and puts the weapon back).
 - **Commands, datarefs and keystrokes** – a button can run any X-Plane command, set, toggle or add to a dataref, or
   type a key or shortcut. Searches use X-Plane's own command and dataref lists, plus the add-on aircraft's own (the F-14's weapon select, ...), so the app works without the sim. Type several words to narrow the list; the Down and Up arrows move through the suggestions and Return picks one.
 - **Press to select** – with the Buttons tab open, pressing a button on the stick selects it in the list. Each button that has a light shows that light's colour next to its number.
@@ -297,7 +297,7 @@ row fuel value "Tank 1" "%.0f kg" sim/cockpit2/fuel/fuel_quantity[0]
 
 The **Buttons** tab of the menu bar app does what the X-Plane window's button editor does, without
 starting the simulator. Pick the mode (or mode + pinkie) at the top, click a button in the list,
-and add steps under **When pressed** and **When held**: **+ Command**, **+ Keystroke**,
+and add steps under **When pressed**, **When held** and **When released**: **+ Command**, **+ Keystroke**,
 **+ Dataref** and **+ Wait**. While you type a command or dataref, the app suggests matches from
 X-Plane's own lists (`Resources/plugins/Commands.txt` and `DataRefs.txt`), so no sim is needed. The aircraft's own commands and datarefs are in the search too: they are read from the aircraft's xlua scripts (`Aircraft/**/plugins/xlua/scripts`, with the aircraft's name shown), and from the DataRefTool lists of X-Plane's last run (`Output/preferences/drt_last_run_commandrefs.txt` and `drt_last_run_datarefs.txt`, names only), when you have that plugin.
 Changes are saved at once; a running X-Plane applies them within a second.

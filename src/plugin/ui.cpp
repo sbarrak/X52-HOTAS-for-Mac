@@ -82,7 +82,7 @@ bool confirmDrop = false;
 
 // command picker
 bool pickerOpen = false;
-bool pickerHold = false;
+int pickerHold = 0;
 int pickerStep = -1;   // -1 = add a new step
 std::string pickerQuery;
 std::string pickerResultsFor = "\x01";
@@ -405,7 +405,9 @@ void mutate(const std::function<void(Binding&)>& fn) {
     gApp->profileChanged();
 }
 
-Action& actionOf(Binding& b, bool hold) { return hold ? b.hold : b.press; }
+// hold: 0 when pressed, 1 when held, 2 when released
+Action& actionOf(Binding& b, int hold) { return hold == 2 ? b.release : hold == 1 ? b.hold : b.press; }
+const Action& actionOf(const Binding& b, int hold) { return hold == 2 ? b.release : hold == 1 ? b.hold : b.press; }
 
 std::string summary(const Binding* b) {
     if (!b) return "";
@@ -421,10 +423,11 @@ std::string summary(const Binding* b) {
         if (s.kind == StepKind::Command && slash != std::string::npos) t = t.substr(slash + 1);
         return b->press.size() > 1 ? t + " +" + std::to_string(b->press.size() - 1) : t;
     }
+    if (b->hold.empty()) return "(release)";
     return b->holdLabel.empty() ? "(hold)" : b->holdLabel;
 }
 
-void openPicker(bool hold, int step) {
+void openPicker(int hold, int step) {
     pickerOpen = true;
     pickerHold = hold;
     pickerStep = step;
@@ -437,7 +440,7 @@ void openPicker(bool hold, int step) {
 }
 
 void applyPickedCommand(const std::string& name) {
-    bool hold = pickerHold;
+    int hold = pickerHold;
     int step = pickerStep;
     mutate([=](Binding& b) {
         Action& a = actionOf(b, hold);
@@ -534,28 +537,31 @@ void drawButtonList(const Rect& area) {
     }
 }
 
-void drawSteps(RowCursor& rc, const Rect& panel, bool hold) {
+void drawSteps(RowCursor& rc, const Rect& panel, int hold) {
     const Binding& b = shownBinding();
-    const Action& act = hold ? b.hold : b.press;
+    const Action& act = actionOf(b, hold);
 
     Rect head{panel.l, rc.t, panel.r, rc.t - kRow};
     char title[96];
-    if (hold) snprintf(title, sizeof title, "When held longer than %.1f s (optional)", gApp->profile.holdMs / 1000.0);
+    if (hold == 2) snprintf(title, sizeof title, "When released (optional)");
+    else if (hold) snprintf(title, sizeof title, "When held longer than %.1f s (optional)", gApp->profile.holdMs / 1000.0);
     else snprintf(title, sizeof title, "When pressed");
     text(panel.l, head, title, kAmber);
     rc.t -= kRow + 2;
 
-    rc.x = panel.l;
-    Rect lab = rc.take(110);
-    text(lab.l, lab, "Name on screen:", kDim);
-    Rect f = rc.take(std::min(260, panel.r - rc.x));
-    field(
-        f, 100 + (hold ? 1 : 0), [hold] { return hold ? shownBinding().holdLabel : shownBinding().label; },
-        [hold](const std::string& s) {
-            mutate([&](Binding& bb) { (hold ? bb.holdLabel : bb.label) = s.substr(0, kMfdCols); });
-        },
-        "up to 16 characters");
-    rc.t -= kRow + kGap;
+    if (hold != 2) {   // a release has no name of its own
+        rc.x = panel.l;
+        Rect lab = rc.take(110);
+        text(lab.l, lab, "Name on screen:", kDim);
+        Rect f = rc.take(std::min(260, panel.r - rc.x));
+        field(
+            f, 100 + hold, [hold] { return hold ? shownBinding().holdLabel : shownBinding().label; },
+            [hold](const std::string& s) {
+                mutate([&](Binding& bb) { (hold ? bb.holdLabel : bb.label) = s.substr(0, kMfdCols); });
+            },
+            "up to 16 characters");
+        rc.t -= kRow + kGap;
+    }
 
     for (int i = 0; i < (int)act.size(); ++i) {
         const Step& s = act[i];
@@ -577,9 +583,9 @@ void drawSteps(RowCursor& rc, const Rect& panel, bool hold) {
             Rect c = rc.take(std::max(80, contentW - 78 - 70 - 2 * kGap));
             bool known = datarefReport(s.text).compare(0, 9, "Not found") != 0;
             field(
-                c, 2000 + (hold ? 500 : 0) + i,
+                c, 2000 + (hold * 500) + i,
                 [hold, i] {
-                    const Action& aa = hold ? shownBinding().hold : shownBinding().press;
+                    const Action& aa = actionOf(shownBinding(), hold);
                     return i < (int)aa.size() ? aa[i].text : std::string();
                 },
                 [hold, i](const std::string& v) {
@@ -591,23 +597,27 @@ void drawSteps(RowCursor& rc, const Rect& panel, bool hold) {
                     });
                 },
                 "dataref, e.g. sim/cockpit/..., or name[3]", known ? kWhite : kAmber);
-            const char* opNames[3] = {"Set", "Toggle", "Add"};
+            const char* opNames[6] = {"Set", "Toggle", "Add", "Save", "Restore", "If was"};
             button(rc.take(78), opNames[(int)s.op], [hold, i] {
                 mutate([&](Binding& bb) {
                     Action& aa = actionOf(bb, hold);
-                    if (i < (int)aa.size()) aa[i].op = (DatarefOp)(((int)aa[i].op + 1) % 3);
+                    if (i < (int)aa.size()) aa[i].op = (DatarefOp)((int)aa[i].op >= 4 ? 0 : (int)aa[i].op + 1);
                 });
             });
             Rect v = rc.take(70);
-            if (s.op == DatarefOp::Toggle) {
+            if (s.op == DatarefOp::Save || s.op == DatarefOp::Restore || s.op == DatarefOp::RestoreIf) {
+                char buf[64];
+                snprintf(buf, sizeof buf, "%g-%g", s.value, s.value2);
+                text(v.l + 4, v, s.op == DatarefOp::Save ? "remember" : s.op == DatarefOp::Restore ? "put back" : fit(buf, v.w() - 8), kDim);
+            } else if (s.op == DatarefOp::Toggle) {
                 char buf[48];
                 snprintf(buf, sizeof buf, "%g / %g", s.value, s.value2);
                 text(v.l + 4, v, fit(buf, v.w() - 8), kDim);
             } else {
                 field(
-                    v, 3000 + (hold ? 500 : 0) + i,
+                    v, 3000 + (hold * 500) + i,
                     [hold, i] {
-                        const Action& aa = hold ? shownBinding().hold : shownBinding().press;
+                        const Action& aa = actionOf(shownBinding(), hold);
                         if (i >= (int)aa.size()) return std::string();
                         char buf[48];
                         snprintf(buf, sizeof buf, "%g", aa[i].value);
@@ -629,9 +639,9 @@ void drawSteps(RowCursor& rc, const Rect& panel, bool hold) {
             KeyCombo k;
             bool valid = parseKey(s.text, k);
             field(
-                c, 1000 + (hold ? 500 : 0) + i,
+                c, 1000 + (hold * 500) + i,
                 [hold, i] {
-                    const Action& aa = hold ? shownBinding().hold : shownBinding().press;
+                    const Action& aa = actionOf(shownBinding(), hold);
                     return i < (int)aa.size() ? aa[i].text : std::string();
                 },
                 [hold, i](const std::string& v) {
@@ -641,9 +651,9 @@ void drawSteps(RowCursor& rc, const Rect& panel, bool hold) {
                     });
                 },
                 "e.g. shift+f1", valid ? kWhite : kRed);
-            bool recordingThis = capturing && focusId == -(1000 + (hold ? 500 : 0) + i);
+            bool recordingThis = capturing && focusId == -(1000 + (hold * 500) + i);
             button(rc.take(80), recordingThis ? "Press a key" : "Record", [hold, i] {
-                focusId = -(1000 + (hold ? 500 : 0) + i);
+                focusId = -(1000 + (hold * 500) + i);
                 capturing = true;
                 captureDone = [hold, i](const std::string& combo) {
                     mutate([&](Binding& bb) {
@@ -804,8 +814,9 @@ void drawEditor(const Rect& panel) {
         rc.t -= kRow + kGap;
     }
 
-    drawSteps(rc, panel, false);
-    drawSteps(rc, panel, true);
+    drawSteps(rc, panel, 0);
+    drawSteps(rc, panel, 1);
+    drawSteps(rc, panel, 2);
 
     rc.x = panel.l;
     if (exact && !exact->empty())
@@ -814,6 +825,7 @@ void drawEditor(const Rect& panel) {
             mutate([](Binding& bb) {
                 bb.press.clear();
                 bb.hold.clear();
+                bb.release.clear();
                 bb.label.clear();
                 bb.holdLabel.clear();
             });

@@ -21,8 +21,11 @@ enum class StepKind { Command, Key, Wait, Dataref };
 
 // What a Dataref step does to its dataref. Set: write `value`. Toggle: switch between `value` and
 // `value2` (to `value2` when the dataref is nearer `value`, otherwise to `value`). Add: add `value`,
-// kept between `lo` and `hi` when lo < hi.
-enum class DatarefOp { Set, Toggle, Add };
+// kept between `lo` and `hi` when lo < hi. Save: remember the dataref's current value. Restore: write the
+// remembered value back (nothing when none was saved). Save and Restore are handled by the host, which holds the memory.
+// RestoreIf: when the remembered value is between `value` and `value2` (both included), run the command `text2` (for a
+// setting that only a command can put back, such as the F-14's weapon select); one such step per possible value range.
+enum class DatarefOp { Set, Toggle, Add, Save, Restore, RestoreIf };
 
 struct Step {
     StepKind kind = StepKind::Command;
@@ -30,9 +33,10 @@ struct Step {
     int ms = 0;         // Wait only
     DatarefOp op = DatarefOp::Set;   // Dataref only, with the four numbers below
     double value = 0, value2 = 1, lo = 0, hi = 0;
+    std::string text2;  // RestoreIf only: the command to run
     bool operator==(const Step& o) const {
         return kind == o.kind && text == o.text && ms == o.ms && op == o.op && value == o.value &&
-               value2 == o.value2 && lo == o.lo && hi == o.hi;
+               value2 == o.value2 && lo == o.lo && hi == o.hi && text2 == o.text2;
     }
 };
 
@@ -48,7 +52,8 @@ struct Binding {
     Action press;
     std::string holdLabel;
     Action hold;            // optional: runs instead when the button is held
-    bool empty() const { return press.empty() && hold.empty(); }
+    Action release;         // optional: runs when the button is let go (after whatever press or hold started)
+    bool empty() const { return press.empty() && hold.empty() && release.empty(); }
 };
 
 // What clock 1 shows: GMT, the simulator's local time (the Mac's while X-Plane is not running), the Mac's local
@@ -241,7 +246,7 @@ struct Profile {
     Trigger masterLights;           // the same for every light
     BrightnessLink brightScreen;    // screen brightness follows a dataref (none chosen: mfdBrightness)
     BrightnessLink brightLights;    // the same for the lights (ledBrightness)
-    int version = 10;          // file format the profile was read from; 1 = older file (wheel bindings added on reading); below 3 the rules were reversed on reading (first rule wins now); below 4 untouched stick curves got the new defaults; below 5 the POV 1 look-around bindings were added on reading; below 6 the mouse nub pan bindings; below 7 the dials had no function lines (they get speed brake and zoom, the defaults); below 8 no dial ranges (0..100); below 9 modes 2 and 3 were approach/landing and cruise (swapped on reading unless the file has `mode_layout = 2`), the parking brake was on Fire (moved to a hold on A), and modes had no names; below 10 the Fire button fired the selected weapon (it drops bombs now when unchanged)
+    int version = 11;          // file format the profile was read from; 1 = older file (wheel bindings added on reading); below 3 the rules were reversed on reading (first rule wins now); below 4 untouched stick curves got the new defaults; below 5 the POV 1 look-around bindings were added on reading; below 6 the mouse nub pan bindings; below 7 the dials had no function lines (they get speed brake and zoom, the defaults); below 8 no dial ranges (0..100); below 9 modes 2 and 3 were approach/landing and cruise (swapped on reading unless the file has `mode_layout = 2`), the parking brake was on Fire (moved to a hold on A), and modes had no names; below 10 the Fire button fired the selected weapon (it drops bombs now when unchanged); below 11 the F-14 trigger fired the selected weapon (now: holds the Gun selected and puts the weapon back; Fire fires the selected weapon)
     bool clutchLatched = false;   // clutch toggles safe mode instead of holding it
     int clockOffset[2] = {0, 0};  // clock 2 and 3: minutes from GMT
     int clock1Source = 0;         // ClockSource: what clock 1 shows (GMT unless chosen)

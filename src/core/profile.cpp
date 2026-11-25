@@ -393,6 +393,8 @@ bool addNubBindings(Profile& p) {
     return added;
 }
 
+static const char* const kF14Selected = "sim/cockpit2/weapons/weapon_select_console_index";
+
 bool datarefStepValue(const Step& s, bool haveCurrent, double current, double& out) {
     switch (s.op) {
         case DatarefOp::Set: out = s.value; return true;
@@ -404,6 +406,9 @@ bool datarefStepValue(const Step& s, bool haveCurrent, double current, double& o
             out = current + s.value;
             if (s.lo < s.hi) out = std::max(s.lo, std::min(s.hi, out));
             return true;
+        case DatarefOp::Save:
+        case DatarefOp::Restore:
+        case DatarefOp::RestoreIf: return false;   // the host keeps the remembered value
     }
     return false;
 }
@@ -426,7 +431,11 @@ std::string actionToText(const Action& a) {
             case StepKind::Wait: s += "wait:" + std::to_string(a[i].ms); break;
             case StepKind::Dataref: {
                 const Step& st = a[i];
-                if (st.op == DatarefOp::Set) s += "set:" + st.text + "=" + numberText(st.value);
+                if (st.op == DatarefOp::RestoreIf)
+                    s += "restoreif:" + st.text + "=" + numberText(st.value) + "," + numberText(st.value2) + "," + st.text2;
+                else if (st.op == DatarefOp::Save) s += "save:" + st.text;
+                else if (st.op == DatarefOp::Restore) s += "restore:" + st.text;
+                else if (st.op == DatarefOp::Set) s += "set:" + st.text + "=" + numberText(st.value);
                 else if (st.op == DatarefOp::Toggle) s += "toggle:" + st.text + "=" + numberText(st.value) + "," + numberText(st.value2);
                 else {
                     s += "add:" + st.text + "=" + numberText(st.value);
@@ -443,6 +452,21 @@ namespace {
 // "<dataref>=<n>[,<n>[,<n>]]" for set / toggle / add; toggle may leave the numbers out (0 and 1).
 bool datarefStepFromText(const std::string& kind, const std::string& arg, Step& st) {
     size_t eq = arg.find('=');
+    if (kind == "restoreif") {   // <dataref>=<from>,<to>,<command>
+        std::stringstream rs(eq == std::string::npos ? "" : arg.substr(eq + 1));
+        std::string a, b, cmd;
+        char* e1 = nullptr;
+        char* e2 = nullptr;
+        if (!std::getline(rs, a, ',') || !std::getline(rs, b, ',') || !std::getline(rs, cmd)) return false;
+        a = trim(a); b = trim(b); cmd = trim(cmd);
+        double lo = strtod(a.c_str(), &e1), hi = strtod(b.c_str(), &e2);
+        if (a.empty() || b.empty() || *e1 || *e2 || cmd.empty()) return false;
+        st.kind = StepKind::Dataref;
+        st.op = DatarefOp::RestoreIf;
+        st.text = trim(arg.substr(0, eq));
+        st.value = lo; st.value2 = hi; st.text2 = cmd;
+        return !st.text.empty() && st.text.find_first_of(" \t") == std::string::npos;
+    }
     std::string ref = trim(eq == std::string::npos ? arg : arg.substr(0, eq));
     if (ref.find_first_of(" \t") != std::string::npos) return false;
     std::vector<double> nums;
@@ -459,7 +483,10 @@ bool datarefStepFromText(const std::string& kind, const std::string& arg, Step& 
     }
     st.kind = StepKind::Dataref;
     st.text = ref;
-    if (kind == "set") {
+    if (kind == "save" || kind == "restore") {
+        if (!nums.empty()) return false;
+        st.op = kind == "save" ? DatarefOp::Save : DatarefOp::Restore;
+    } else if (kind == "set") {
         if (nums.size() != 1) return false;
         st.op = DatarefOp::Set;
         st.value = nums[0];
@@ -499,7 +526,7 @@ bool actionFromText(const std::string& text, Action& out, std::string* error) {
             st.text = arg;
         } else if (kind == "wait" && toInt(arg, st.ms) && st.ms >= 0) {
             st.kind = StepKind::Wait;
-        } else if ((kind == "set" || kind == "toggle" || kind == "add") && datarefStepFromText(kind, arg, st)) {
+        } else if ((kind == "set" || kind == "toggle" || kind == "add" || kind == "save" || kind == "restore" || kind == "restoreif") && datarefStepFromText(kind, arg, st)) {
             // parsed
         } else {
             if (error) *error = "cannot understand step '" + part + "'";
@@ -650,10 +677,11 @@ std::string serialize(const Profile& p) {
         o << "brightness " << (w ? "lights " : "screen ") << numText(b.inLow) << " " << numText(b.inHigh) << " "
           << b.outLow << " " << b.outHigh << " " << b.dataref << "\n";
     }
-    o << "# bind <button> <any|1..6> <press|hold> \"label\" step ; step ...\n";
+    o << "# bind <button> <any|1..6> <press|hold|release> \"label\" step ; step ...\n";
     o << "#   layers 1-3 = mode 1-3, 4-6 = mode 1-3 with the pinkie held\n";
     o << "#   steps: cmd:<x-plane command>   key:<combo e.g. shift+f1>   wait:<milliseconds>\n";
     o << "#          set:<dataref>=<value>   toggle:<dataref>=<a>,<b>   add:<dataref>=<amount>[,<min>,<max>]\n";
+    o << "#          save:<dataref> remembers the value, restore:<dataref> writes it back, restoreif:<dataref>=<from>,<to>,<command> runs the command when the remembered value is in that range; release runs when the button is let go\n";
     std::vector<const Binding*> sorted;
     for (const Binding& b : p.bindings) sorted.push_back(&b);
     std::stable_sort(sorted.begin(), sorted.end(), [](const Binding* a, const Binding* b) {
@@ -667,6 +695,8 @@ std::string serialize(const Profile& p) {
         if (!b->hold.empty())
             o << "bind " << b->button << " " << layer << " hold \"" << cleanLabel(b->holdLabel) << "\" "
               << actionToText(b->hold) << "\n";
+        if (!b->release.empty())
+            o << "bind " << b->button << " " << layer << " release \"\" " << actionToText(b->release) << "\n";
     }
     return o.str();
 }
@@ -858,8 +888,8 @@ bool parseBind(const std::string& rest, Profile& p, std::string& err) {
         err = "layer must be 'any' or 1-6";
         return false;
     }
-    if (sKind != "press" && sKind != "hold") {
-        err = "expected 'press' or 'hold'";
+    if (sKind != "press" && sKind != "hold" && sKind != "release") {
+        err = "expected 'press', 'hold' or 'release'";
         return false;
     }
     std::string tail;
@@ -877,9 +907,11 @@ bool parseBind(const std::string& rest, Profile& p, std::string& err) {
     if (sKind == "press") {
         b.label = label;
         b.press = a;
-    } else {
+    } else if (sKind == "hold") {
         b.holdLabel = label;
         b.hold = a;
+    } else {
+        b.release = a;   // no label: the press or hold label is what shows
     }
     return true;
 }
@@ -1154,6 +1186,34 @@ bool parse(const std::string& text, Profile& out, std::string* error) {
             Binding& b = p.edit(2, kLayerAny);
             b.label = "Drop bomb";
             b.press[0].text = "sim/weapons/fire_air_to_ground";
+        }
+    }
+    // Before version 11 the F-14 trigger fired the selected weapon. Now it selects the Gun while held (and puts the
+    // selected weapon back when let go), and Fire fires the selected weapon. Only a trigger exactly as the ready-made
+    // F-14 profile had it changes, and Fire only when nothing is on it.
+    if (p.version < 11) {
+        const Binding* trig = p.exact(1, kLayerAny);
+        const Binding* fire = p.exact(2, kLayerAny);
+        if (trig && trig->label == "Fire selected weapon" && trig->hold.empty() && trig->release.empty() &&
+            trig->press.size() == 1 && trig->press[0].kind == StepKind::Command &&
+            trig->press[0].text == "sim/weapons/fire_any_armed" && (!fire || fire->empty())) {
+            Binding& t = p.edit(1, kLayerAny);
+            t.label = "Gun while held";
+            t.press = {{StepKind::Dataref, kF14Selected, 0, DatarefOp::Save},
+                       {StepKind::Command, "laminar/f14/fltc/cs_wpn_select_switch3", 0}};
+            // The select command puts back the armed flags too (the index alone does not): one step per range of the index.
+            static const struct { int lo, hi; const char* cmd; } kSel[] = {
+                {2, 3, "laminar/f14/fltc/cs_wpn_select_switch1"}, {0, 1, "laminar/f14/fltc/cs_wpn_select_switch2"},
+                {26, 26, "laminar/f14/fltc/cs_wpn_select_switch3"}, {4, 6, "laminar/f14/fltc/cs_wpn_select_switch4"}};
+            t.release.clear();
+            for (const auto& k : kSel) {
+                Step r{StepKind::Dataref, kF14Selected, 0, DatarefOp::RestoreIf};
+                r.value = k.lo; r.value2 = k.hi; r.text2 = k.cmd;
+                t.release.push_back(r);
+            }
+            Binding& f = p.edit(2, kLayerAny);
+            f.label = "Fire weapon";
+            f.press = {{StepKind::Command, "laminar/f14/wpns/fwd_weapon_trigger", 0}};
         }
     }
     // A file from before the pinkie lights: with the pinkie held the lights stay as the mode has them.

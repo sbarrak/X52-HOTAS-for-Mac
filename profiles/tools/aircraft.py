@@ -9,7 +9,7 @@ features, so all aircraft follow the same idea:
 
 The pinkie switch is NOT a shift here: it is a normal button (wheel brakes while held).
 Buttons marked ANY do the same thing in all three modes. The parking brake is a hold on A (tap: gear or
-landing light). The autopilot is one on/off button (B) in every mode. The Fire button drops bombs in the F-4 (flares in the F-14, which has no bombs); the F-14 trigger fires the selected weapon, the F-4 trigger is the guns.
+landing light). The autopilot is one on/off button (B) in every mode. The Fire button drops bombs in the F-4 (the F-14 has no bombs: Fire fires its selected weapon); the F-14 trigger selects the Gun while held (the weapon comes back when let go) and Fire fires the selected weapon, the F-4 trigger is the guns.
 The gear is on A in takeoff and landing only: in cruise there is no gear button.
 """
 
@@ -125,10 +125,12 @@ def layout(f):
     # ---- every mode
     if k == "fighter":
         if f.get("f14"):
-            # The manual: the forward trigger fires the weapon that is selected (the hat picks it); bombs are not supported.
-            any_[TRIGGER] = ("Fire selected weapon", S("weapons/fire_any_armed"))
+            # Trigger stage 1 remembers the selected weapon and selects the Gun; stage 2 fires the guns; letting go of stage 1
+            # puts the weapon back (see releases()), so the pilot always knows what the aircraft would fire.
+            any_[TRIGGER] = ("Gun while held", "save:" + F14_SELECTED + " ; cmd:laminar/f14/fltc/cs_wpn_select_switch3")
+            any_[FIRE] = ("Fire weapon", "cmd:laminar/f14/wpns/fwd_weapon_trigger")
             any_[TRIGGER2] = ("Guns", S("weapons/fire_guns"))
-            # Fire is free in the F-14 (no bombs; the flares and chaff are on T2 in combat)
+            # Fire fires the selected weapon (the F-14's own trigger command; a held button keeps it firing). No bombs in the F-14.
         else:
             any_[TRIGGER] = ("Guns", S("weapons/fire_guns"))
             any_[TRIGGER2] = ("Fire weapon", S("weapons/fire_any_armed"))
@@ -403,6 +405,20 @@ def layout(f):
         view_hat(m2)
         trim_wheel(m2)
     return L
+
+
+F14_SELECTED = "sim/cockpit2/weapons/weapon_select_console_index"
+
+
+def releases(f):
+    """{layer: {button: steps}} - what a button does when it is let go. F-14 trigger: put the remembered weapon back."""
+    if f.get("f14"):
+        # The weapon select switch also sets guns_armed and missiles_armed, so writing the index back is not enough
+        # (tested in the sim): the matching select command puts everything back. Index: Sidewinder 2-3, Sparrow 0-1, Gun 26, Phoenix 4-6.
+        c = "laminar/f14/fltc/cs_wpn_select_switch"
+        steps = [(2, 3, 1), (0, 1, 2), (26, 26, 3), (4, 6, 4)]
+        return {ANY: {TRIGGER: " ; ".join("restoreif:%s=%d,%d,%s%d" % (F14_SELECTED, lo, hi, c, n) for lo, hi, n in steps)}}
+    return {}
 
 
 def holds(f):

@@ -423,10 +423,12 @@ bool okBind(int button, int layer) { return button >= 1 && button <= kMaxButton 
 const Binding* bindAt(int button, int layer) {
     return agent && okBind(button, layer) ? agent->profile().exact(button, layer) : nullptr;
 }
+// "hold" is which action: 0 when pressed, 1 when held, 2 when released.
+const Action& actionOfConst(const Binding& b, int hold) { return hold == 2 ? b.release : hold == 1 ? b.hold : b.press; }
 const Step* stepAt(int button, int layer, int hold, int i) {
     const Binding* b = bindAt(button, layer);
     if (!b) return nullptr;
-    const Action& a = hold ? b->hold : b->press;
+    const Action& a = actionOfConst(*b, hold);
     return i >= 0 && i < (int)a.size() ? &a[i] : nullptr;
 }
 // Edits one binding (never a reserved button) and drops it again if it ends up empty.
@@ -437,7 +439,7 @@ void editBinding(int button, int layer, const std::function<void(Binding&)>& fn)
         p.prune();
     });
 }
-Action& actionIn(Binding& b, int hold) { return hold ? b.hold : b.press; }
+Action& actionIn(Binding& b, int hold) { return hold == 2 ? b.release : hold == 1 ? b.hold : b.press; }
 std::string stepName(const Step& s) {
     std::string t = s.text;
     size_t slash = t.rfind('/');
@@ -473,8 +475,10 @@ const char* x52_bind_summary(int b, int l) {
         else if (!x->press.empty()) {
             s = stepName(x->press[0]);
             if (x->press.size() > 1) s += " +" + std::to_string(x->press.size() - 1);
-        } else {
+        } else if (!x->hold.empty()) {
             s = x->holdLabel.empty() ? "(hold)" : x->holdLabel;
+        } else {
+            s = "(release)";
         }
     }
     return s.c_str();
@@ -494,17 +498,18 @@ void x52_bind_clear(int b, int l) {
 const char* x52_bind_label(int b, int l, int hold) {
     static std::string s;
     const Binding* x = bindAt(b, l);
-    s = x ? (hold ? x->holdLabel : x->label) : "";
+    s = x ? (hold == 1 ? x->holdLabel : hold == 2 ? std::string() : x->label) : "";   // a release has no label of its own
     return s.c_str();
 }
 void x52_bind_set_label(int b, int l, int hold, const char* label) {
     std::string t = mfdText(label ? label : "");
+    if (hold == 2) return;
     editBinding(b, l, [=](Binding& x) { (hold ? x.holdLabel : x.label) = t; });
 }
 
 int x52_step_count(int b, int l, int hold) {
     const Binding* x = bindAt(b, l);
-    return x ? (int)(hold ? x->hold : x->press).size() : 0;
+    return x ? (int)actionOfConst(*x, hold).size() : 0;
 }
 int x52_step_kind(int b, int l, int h, int i) { const Step* s = stepAt(b, l, h, i); return s ? (int)s->kind : 0; }
 const char* x52_step_text(int b, int l, int h, int i) {
@@ -556,7 +561,7 @@ void x52_step_set(int b, int l, int hold, int i, const char* text, int ms, int o
         }
         s.text = name;
         s.ms = std::max(0, std::min(60000, ms));
-        if (op >= 0 && op <= 2) s.op = (DatarefOp)op;
+        if (op >= 0 && op <= 5) s.op = (DatarefOp)op;
         s.value = v;
         s.value2 = v2;
         s.lo = lo;

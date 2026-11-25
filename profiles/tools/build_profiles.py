@@ -7,7 +7,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from aircraft import (AIRCRAFT, ANY, LED_ORDER, alarms, axes, features, holds, layout, mode_leds, mode_names, pages, rules)
+from aircraft import (AIRCRAFT, ANY, LED_ORDER, alarms, axes, features, holds, layout, mode_leds, releases, mode_names, pages, rules)
 
 OUT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
@@ -72,6 +72,7 @@ def profile_text(ac, acf):
         o.append("master lights == 1 sim/cockpit2/switches/avionics_power_on")
     L = layout(f)
     H = holds(f)
+    R = releases(f)
     for layer in (ANY, 1, 2, 3, 5):
         for button in sorted(L.get(layer, {})):
             label, steps = L[layer][button]
@@ -79,6 +80,8 @@ def profile_text(ac, acf):
             if layer in H and button in H[layer]:
                 hl, hs = H[layer][button]
                 o.append('bind %d %s hold "%s" %s' % (button, layer, hl, hs))
+            if layer in R and button in R[layer]:
+                o.append('bind %d %s release "" %s' % (button, "any" if layer == ANY else layer, R[layer][button]))
     return "\n".join(o) + "\n"
 
 
