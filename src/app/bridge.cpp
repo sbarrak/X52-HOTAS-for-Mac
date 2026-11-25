@@ -202,8 +202,9 @@ Trigger* trgIn(Profile& p, int kind, int i) {
     if (kind == 0) return i < (int)p.rules.size() ? (Trigger*)&p.rules[i] : nullptr;
     return i < (int)p.alarms.size() ? (Trigger*)&p.alarms[i] : nullptr;
 }
-const Condition& cond(const Trigger& t, int which) { return which ? t.second : (const Condition&)t; }
-Condition& condIn(Trigger& t, int which) { return which ? t.second : (Condition&)t; }
+// which: 0 the first condition, 1 the second, 2 the third
+const Condition& cond(const Trigger& t, int which) { return which == 2 ? t.third : which == 1 ? t.second : (const Condition&)t; }
+Condition& condIn(Trigger& t, int which) { return which == 2 ? t.third : which == 1 ? t.second : (Condition&)t; }
 }  // namespace
 
 int x52_rule_count(void) { return agent ? (int)agent->profile().rules.size() : 0; }
@@ -230,15 +231,22 @@ void x52_rule_remove(int i) {
     });
 }
 
-int x52_rule_conflict(int i) {
+int x52_rule_level(int i) { return agent ? ruleLevel(agent->profile().rules, i) : 0; }
+int x52_rule_levels(int i) {
     const LightRule* r = ruleAt(i);
-    return r ? ruleUsingLed(agent->profile().rules, r->led, i) : -1;
+    return r ? levelsOnLed(agent->profile().rules, r->led) : 0;
+}
+
+int x52_rule_add_level(int i) {
+    if (!ruleAt(i)) return -1;
+    int added = -1;
+    agent->change([&](Profile& p) { added = addRuleLevel(p.rules, i); });
+    return added;
 }
 
 int x52_rule_set(int i, int led, int t, int e) {
     if (!ruleAt(i) || led < 0 || led >= kLedCount) return -1;
-    int other = ruleUsingLed(agent->profile().rules, led, i);
-    if (other >= 0) return other;   // one rule per light: the caller explains why
+    if (led != agent->profile().rules[i].led && levelsOnLed(agent->profile().rules, led) >= kMaxLevels) return -2;
     if (t < kRuleMode || t > 3) t = kRuleMode;
     if (e < kRuleMode || e > 3) e = kRuleMode;
     agent->change([=](Profile& p) {
@@ -275,8 +283,13 @@ int x52_alarm_color2(int i) { const Alarm* a = alarmAt(i); return a ? a->color2 
 
 int x52_alarm_add(void) {
     if (!agent) return -1;
-    agent->change([](Profile& p) {
+    int led = -1;   // the first light that still has room for a level
+    for (int l = 0; l < kLedCount && led < 0; ++l)
+        if (levelsOnLed(agent->profile().alarms, l) < kMaxLevels) led = l;
+    if (led < 0) return -1;
+    agent->change([led](Profile& p) {
         Alarm a;
+        a.led = led;
         a.name = "Alarm " + std::to_string(p.alarms.size() + 1);
         p.alarms.push_back(a);
     });
@@ -285,6 +298,7 @@ int x52_alarm_add(void) {
 
 int x52_alarm_add_preset(int preset) {
     if (!agent || preset < 0 || preset >= alarmPresetCount()) return -1;
+    if (levelsOnLed(agent->profile().alarms, alarmPreset(preset).alarm.led) >= kMaxLevels) return -1;
     agent->change([preset](Profile& p) { p.alarms.push_back(alarmPreset(preset).alarm); });
     return (int)agent->profile().alarms.size() - 1;
 }
@@ -307,6 +321,7 @@ void x52_alarm_move(int i, int dir) {
 
 void x52_alarm_set(int i, const char* name, int led, int effect, int fast, int color, int color2) {
     if (!alarmAt(i) || led < 0 || led >= kLedCount || effect < 0 || effect > 2) return;
+    if (led != alarmAt(i)->led && levelsOnLed(agent->profile().alarms, led) >= kMaxLevels) return;   // that light is full
     std::string n = name ? name : "";
     for (char& c : n)
         if (c == '"') c = '\'';
@@ -333,23 +348,23 @@ int x52_alarm_tried(void) { return agent ? agent->triedAlarm() : -1; }
 const char* x52_trg_ref(int kind, int i, int which) {
     static std::string s;
     const Trigger* t = trgAt(kind, i);
-    s = t ? cond(*t, which ? 1 : 0).dataref : "";
+    s = t ? cond(*t, which).dataref : "";
     return s.c_str();
 }
-int x52_trg_op(int kind, int i, int which) { const Trigger* t = trgAt(kind, i); return t ? (int)cond(*t, which ? 1 : 0).op : 0; }
-double x52_trg_value(int kind, int i, int which) { const Trigger* t = trgAt(kind, i); return t ? cond(*t, which ? 1 : 0).value : 0; }
-int x52_trg_negate(int kind, int i, int which) { const Trigger* t = trgAt(kind, i); return t && cond(*t, which ? 1 : 0).negate ? 1 : 0; }
+int x52_trg_op(int kind, int i, int which) { const Trigger* t = trgAt(kind, i); return t ? (int)cond(*t, which).op : 0; }
+double x52_trg_value(int kind, int i, int which) { const Trigger* t = trgAt(kind, i); return t ? cond(*t, which).value : 0; }
+int x52_trg_negate(int kind, int i, int which) { const Trigger* t = trgAt(kind, i); return t && cond(*t, which).negate ? 1 : 0; }
 int x52_trg_join(int kind, int i) { const Trigger* t = trgAt(kind, i); return t ? (int)t->join : 0; }
 
 void x52_trg_set(int kind, int i, int which, const char* dataref, int op, double value, int negate) {
-    if (!trgAt(kind, i) || op < 0 || op >= kCompareCount) return;
+    if (!trgAt(kind, i) || op < 0 || op >= kCompareCount || which < 0 || which > 2) return;
     std::string ref;
     for (const char* c = dataref ? dataref : ""; *c; ++c)
         if (!isspace((unsigned char)*c)) ref += *c;   // a dataref has no blanks (a pasted one often has a stray one)
     agent->change([=](Profile& p) {
         Trigger* t = trgIn(p, kind, i);
         if (!t) return;
-        Condition& c = condIn(*t, which ? 1 : 0);
+        Condition& c = condIn(*t, which);
         c.dataref = ref;
         c.op = (Compare)op;
         c.value = value;
@@ -368,7 +383,7 @@ void x52_trg_set_join(int kind, int i, int join) {
 const char* x52_trg_status(int kind, int i, int which) {
     static std::string out;
     const Trigger* t = trgAt(kind, i);
-    out = t && agent ? agent->liveStatus(cond(*t, which ? 1 : 0).dataref) : "";
+    out = t && agent ? agent->liveStatus(cond(*t, which).dataref) : "";
     return out.c_str();
 }
 

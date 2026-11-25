@@ -761,6 +761,35 @@ TEST(clock_1_can_be_set_from_the_app) {
     x52_stop();
 }
 
+TEST(a_light_gets_levels_and_a_third_condition_from_the_app) {
+    std::string dir = freshDir("levels");
+    x52_start("", dir.c_str(), "default");
+    int first = x52_rule_add();
+    CHECK(first >= 0);
+    int led = x52_rule_led(first);
+    x52_rule_set(first, led, (int)Color::Green, (int)Color::Amber);
+    int second = x52_rule_add_level(first);
+    CHECK_EQ(second, first + 1);
+    CHECK_EQ(x52_rule_led(second), led);
+    CHECK_EQ(x52_rule_else(second), (int)Color::Amber);   // the "otherwise" moved down
+    CHECK_EQ(x52_rule_else(first), kRuleMode);
+    CHECK_EQ(x52_rule_level(second), 2);
+    CHECK_EQ(x52_rule_levels(first), 2);
+    CHECK(x52_rule_add_level(first) >= 0);
+    CHECK_EQ(x52_rule_add_level(first), -1);               // three is the most
+    int other = x52_rule_add();                            // a rule on a different light
+    CHECK(other >= 0 && x52_rule_led(other) != led);
+    CHECK_EQ(x52_rule_set(other, led, 0, 0), -2);          // that light is full
+    x52_trg_set(0, first, 0, "sim/test/first", (int)Compare::Greater, 1, 0);
+    x52_trg_set_join(0, first, 1);
+    x52_trg_set(0, first, 1, "sim/test/second", (int)Compare::Greater, 2, 0);
+    x52_trg_set(0, first, 2, "sim/test/third", (int)Compare::Greater, 4, 0);
+    CHECK(std::string(x52_trg_ref(0, first, 2)) == "sim/test/third");
+    CHECK_EQ(x52_trg_value(0, first, 2), 4.0);
+    CHECK(has(slurp(dir + "/default.x52"), "and > 2 sim/test/second and > 4 sim/test/third"));
+    x52_stop();
+}
+
 TEST(a_profile_of_mine_can_be_deleted_and_brought_back_but_never_default_or_a_ready_made_one) {
     std::string dir = freshDir("delete");
     {

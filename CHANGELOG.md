@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.0
+
+### Added
+- **Three-state live lights and alarms (#115).** A light can have up to 3 levels, for live lights (rules) and for alarms. The first level whose test is true decides the colour, and the last live level also says what to show when none is true: for example Button A green with the gear down, amber while it moves, off when it is up. Alarms work the same way, in priority order, so amber, then red, then red flashing is three alarms on one light. A live level has **Add level** in the app and in the X-Plane window. A rule, an alarm or a master switch can now have up to three tests joined with AND, or all with OR (they cannot be mixed). Alarms still beat live lights, and when an alarm stops the light goes back to its live light or mode colour. Old profiles are read and written as before (the file lines are unchanged; a third test is written as one more `and` / `or` test at the end of the line), so no profile changes. The app refuses a fourth level on a light; a hand-edited file with more still works.
+
 ## 1.5.0
 
 ### Added

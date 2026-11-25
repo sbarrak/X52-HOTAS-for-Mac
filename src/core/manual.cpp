@@ -136,6 +136,7 @@ std::string triggerText(const Trigger& t) {
     if (!t.active()) return "";
     std::string s = conditionText(t);
     if (t.hasSecond()) s += std::string(t.join == Join::And ? " AND " : " OR ") + conditionText(t.second);
+    if (t.hasThird()) s += std::string(t.join == Join::And ? " AND " : " OR ") + conditionText(t.third);
     return s;
 }
 std::string ruleColorText(int c) { return c == kRuleMode ? "mode light" : ruleColorName(c); }

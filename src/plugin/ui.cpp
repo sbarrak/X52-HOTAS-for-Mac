@@ -956,12 +956,12 @@ void drawLiveTab(const Rect& area) {
     App& a = *gApp;
     RowCursor rc{area.l, area.t};
     Rect head{area.l, rc.t, area.r, rc.t - kRow};
-    text(head.l, head, "Live lights follow the simulator and replace the mode colour. One rule per light; alarms (set in the X52 Pro app) override them.", kDim);
+    text(head.l, head, "Live lights follow the simulator and replace the mode colour. A light can have up to 3 levels (the first true one wins); alarms (set in the X52 Pro app) override them.", kDim);
     rc.t -= kRow + kGap;
     button(rc.take(120), "Add rule", [] {
         int free = firstFreeLed(gApp->profile.rules);
         if (free < 0) {
-            gApp->notice = "Every light already has a rule. A light follows only one rule: remove one first.";
+            gApp->notice = "Every light already has a rule. Open a rule and press Add level to give a light more levels, or remove one.";
             return;
         }
         LightRule fresh;
@@ -1049,12 +1049,25 @@ void drawLiveTab(const Rect& area) {
                 std::vector<std::string> names;
                 for (int l = 0; l < kLedCount; ++l) names.push_back(ledTitle(l));
                 openDrop(lb, names, curLed, [edit, idx](int i) {
-                    if (ruleUsingLed(gApp->profile.rules, i, idx) >= 0) {
-                        gApp->notice = std::string(ledTitle(i)) + " already follows another rule, and a light follows only one. Pick a free light.";
+                    if (i != gApp->profile.rules[idx].led && levelsOnLed(gApp->profile.rules, i) >= kMaxLevels) {
+                        gApp->notice = std::string(ledTitle(i)) + " already has 3 levels, the most a light can have. Pick another light.";
                         return;
                     }
                     edit([i](LightRule& x) { x.led = i; });
                 });
+            });
+            er.take(20);
+            int levels = levelsOnLed(gApp->profile.rules, r.led);
+            text(er.take(150).l, lb, "Level " + std::to_string(ruleLevel(gApp->profile.rules, idx)) + " of " + std::to_string(levels), kDim);
+            button(er.take(130), "Add level", [idx] {
+                int added = addRuleLevel(gApp->profile.rules, idx);
+                if (added < 0) {
+                    gApp->notice = "A light can have 3 levels at most.";
+                    return;
+                }
+                liveOpen.clear();
+                liveOpen.insert(added);
+                gApp->profileChanged();
             });
         }
         ++line;
