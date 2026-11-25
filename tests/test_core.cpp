@@ -2399,6 +2399,20 @@ TEST(the_ready_made_profiles_light_the_throttle_and_let_the_plugin_drive_it) {
         if (n == "aircraft-F-14D.x52") {   // hat 2 is the weapon select, in every mode: up 1, right 2, down 3, left 4
             CHECK_EQ(p.shiftModes, 2);                          // the pinkie is the shift in combat only: the trims on hat 2 with it
             CHECK(p.pinkieShift);
+            // Pinkie changes only H2: all other Combat press/hold/release actions survive.
+            for (int button = 1; button <= kMaxButton; ++button) {
+                if (button == 6 || (button >= 20 && button <= 23)) continue;
+                const Binding* normal = p.find(button, 2);
+                const Binding* shifted = p.find(button, 5);
+                CHECK((normal != nullptr) == (shifted != nullptr));
+                if (normal && shifted) {
+                    CHECK_EQ(actionToText(normal->press), actionToText(shifted->press));
+                    CHECK_EQ(actionToText(normal->hold), actionToText(shifted->hold));
+                    CHECK_EQ(actionToText(normal->release), actionToText(shifted->release));
+                    CHECK_EQ(normal->label, shifted->label);
+                    CHECK_EQ(normal->holdLabel, shifted->holdLabel);
+                }
+            }
             CHECK_EQ(p.exact(20, 5)->press[0].text, std::string("sim/flight_controls/pitch_trim_down"));
             CHECK_EQ(p.exact(21, 5)->press[0].text, std::string("sim/flight_controls/rudder_trim_right"));
             CHECK_EQ(p.exact(22, 5)->press[0].text, std::string("sim/flight_controls/pitch_trim_up"));

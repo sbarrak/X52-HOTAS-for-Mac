@@ -7,7 +7,7 @@ features, so all aircraft follow the same idea:
   Mode 2  Cruise    (autopilot modes and values; all the weapons for the fighters: "Combat")
   Mode 3  Landing   (flaps, speedbrake, reversers on D, autobrake, gear, approach, trim on the wheel)
 
-The pinkie switch is NOT a shift here: it is a normal button (wheel brakes while held).
+The pinkie switch is wheel brakes, except in F-14 Combat: it changes H2 to trim and leaves all other controls unchanged.
 Buttons marked ANY do the same thing in all three modes. The parking brake is a hold on A (tap: gear or
 landing light). The autopilot is one on/off button (B) in every mode. The Fire button drops bombs in the F-4 (the F-14 has no bombs: Fire fires its selected weapon); the F-14 trigger selects the Gun while held (the weapon comes back when let go) and Fire fires the selected weapon, the F-4 trigger is the guns.
 The gear is on A in takeoff and landing only: in cruise there is no gear button.
@@ -404,6 +404,10 @@ def layout(f):
             m2[T3D] = ("Strobes off", S("lights/strobe_lights_off"))
         view_hat(m2)
         trim_wheel(m2)
+    if f.get("f14"):
+        # Pinkie changes H2 only. Explicitly retain every other Combat binding:
+        # shifted layers fall back to Any mode, not to the unshifted mode.
+        L[5] = {**m2, **L[5]}
     return L
 
 
@@ -424,7 +428,7 @@ def releases(f):
 def holds(f):
     """{layer: {button: (label, steps)}} - what a button does when held longer than the hold time (400 ms).
     A: the parking brake, in every mode (its tap is the gear or the landing light)."""
-    return {m: {A: ("Parking brake", S("flight_controls/brakes_toggle_max"))} for m in (1, 2, 3)}
+    return {m: {A: ("Parking brake", S("flight_controls/brakes_toggle_max"))} for m in ((1, 2, 3, 5) if f.get("f14") else (1, 2, 3))}
 
 
 # ---------------------------------------------------------------- lights, alarms, screen
