@@ -18,7 +18,7 @@
   guns; letting go of stage 1 selects the remembered weapon again with its own select command (tested in the sim: writing the index back left the guns/missiles armed flags wrong), so you always know what the aircraft would fire. Fire (button 2)
   runs the F-14's own trigger command (`laminar/f14/wpns/fwd_weapon_trigger`), which fires the selected weapon for as
   long as it is held. The profile version is now 11: an older F-14 profile whose trigger is still as the ready-made one
-  had it gets the new trigger and Fire (when Fire is free); anything you changed stays. (issue #105)
+  had it gets the new trigger and Fire (when Fire is free); anything you changed stays. (issue #105) If the remembered weapon has nothing left (the F-14 refuses to select an empty weapon), the selection stays on the Gun, which is what Fire would fire; hat 2 picks another weapon.
 
 ## 1.3.8
 
