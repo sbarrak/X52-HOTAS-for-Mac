@@ -140,6 +140,34 @@ std::string triggerText(const Trigger& t) {
 }
 std::string ruleColorText(int c) { return c == kRuleMode ? "mode light" : ruleColorName(c); }
 
+// The light dots of the standard maps, as coloured characters: a full dot lights steady, a hollow one is off, rays flash,
+// two half dots alternate.
+const char* colorHex(int c) {
+    switch (c) {
+        case (int)Color::Green: return "2E9E57";
+        case (int)Color::Amber: return "F0B429";
+        case (int)Color::Red: return "D64545";
+        default: return "8A8A8A";
+    }
+}
+std::string styled(const std::string& hex, const std::string& text) { return "\x01" + hex + ",22\x02" + text + "\x03"; }
+std::string dot(int c, bool flashing = false) {
+    if (c == (int)Color::Off) return styled(colorHex(c), "\xE2\x97\x8B");                           // hollow circle
+    return styled(colorHex(c), flashing ? "\xE2\x9C\xBA" : "\xE2\x97\x8F");                       // rays / full circle
+}
+std::string splitDot(int a, int b) { return styled(colorHex(a), "\xE2\x97\x96") + styled(colorHex(b), "\xE2\x97\x97"); }   // two half circles
+std::string ruleDot(int c) { return c == kRuleMode ? std::string("mode light") : dot(c); }
+
+// A live light's condition in the words of the matching ready-made rule ("Parking brake"), else as a test on the dataref.
+std::string conditionWords(const LightRule& r) {
+    for (int i = 0; i < rulePresetCount(); ++i)
+        if (static_cast<const Trigger&>(rulePreset(i).rule) == static_cast<const Trigger&>(r)) {
+            std::string name = rulePreset(i).name;
+            return name.substr(0, name.find(':'));
+        }
+    return triggerText(r);
+}
+
 const char* const kLightLabels[kLedCount] = {"Fire", "A", "B", "D", "E", "T1", "T2", "T3", "H2 lit hat", "i clutch", "Throttle"};
 
 
@@ -155,6 +183,20 @@ std::string cellText(const Profile& p, int button, int layer) {
     return text;
 }
 }  // namespace
+
+std::string stripStyle(const std::string& v) {
+    std::string out;
+    for (size_t i = 0; i < v.size(); ++i) {
+        if (v[i] == '\x01') {
+            size_t e = v.find('\x02', i);
+            if (e == std::string::npos) break;
+            i = e;
+        } else if (v[i] != '\x03') {
+            out += v[i];
+        }
+    }
+    return out;
+}
 
 std::string ManualData::value(const std::string& tag) const {
     auto it = values.find(tag);
@@ -251,28 +293,37 @@ ManualData buildManualData(const Profile& p, const std::string& appVersion, cons
     // The lights: what each mode shows, the live rules and the alarms.
     for (int l = 0; l < kLedCount; ++l)
         for (int m = 1; m <= 3; ++m) {
-            std::string plain = colorName(p.leds[m - 1][l]), held = colorName(p.ledsPinkie[m - 1][l]);
-            d.values[std::string("light.") + ledName(l) + ".m" + std::to_string(m)] = plain == held ? plain : plain + " (Pinkie: " + held + ")";
+            Color plain = p.leds[m - 1][l], held = p.ledsPinkie[m - 1][l];
+            std::string key = std::string("light.") + ledName(l) + ".m" + std::to_string(m);
+            d.values[key] = dot((int)plain) + (plain == held ? "" : " Pinkie " + dot((int)held));
+            d.values[key + ".name"] = plain == held ? std::string(colorName(plain)) : std::string(colorName(plain)) + " (Pinkie: " + colorName(held) + ")";
         }
     for (const LightRule& r : p.rules) {
         ManualRow row;
         row["rule.light"] = kLightLabels[r.led >= 0 && r.led < kLedCount ? r.led : 0];
-        row["rule.condition"] = triggerText(r);
-        row["rule.active"] = ruleColorText(r.thenColor);
-        row["rule.otherwise"] = ruleColorText(r.elseColor);
+        row["rule.condition"] = conditionWords(r);
+        row["rule.active"] = ruleDot(r.thenColor);
+        row["rule.otherwise"] = ruleDot(r.elseColor);
+        row["rule.active_name"] = ruleColorText(r.thenColor);
+        row["rule.otherwise_name"] = ruleColorText(r.elseColor);
         d.lists["rules"].push_back(row);
     }
     while (d.lists["rules"].size() < 3)
-        d.lists["rules"].push_back(ManualRow{{"rule.light", ""}, {"rule.condition", ""}, {"rule.active", ""}, {"rule.otherwise", ""}});
+        d.lists["rules"].push_back(ManualRow{{"rule.light", ""}, {"rule.condition", ""}, {"rule.active", ""}, {"rule.otherwise", ""}, {"rule.active_name", ""}, {"rule.otherwise_name", ""}});
     for (int n = 1; n <= 8; ++n) {
         std::string pre = "alarm." + std::to_string(n) + ".";
         const Alarm* a = n <= (int)p.alarms.size() ? &p.alarms[n - 1] : nullptr;
         d.values[pre + "name"] = a ? (a->name.empty() ? triggerText(*a) : a->name) : "";
         d.values[pre + "light"] = a ? kLightLabels[a->led >= 0 && a->led < kLedCount ? a->led : 0] : "";
-        std::string colour;
-        if (a) colour = a->effect == Effect::Alternate ? std::string(ruleColorName(a->color)) + " / " + ruleColorName(a->color2) : ruleColorName(a->color);
-        for (int m = 1; m <= 3; ++m) d.values[pre + "m" + std::to_string(m)] = colour;
-        d.values[pre + "rate"] = !a ? "" : a->effect == Effect::Steady ? "steady" : std::string(effectName(a->effect)) + (a->fast ? " fast" : " slow");
+        for (int m = 1; m <= 3; ++m) {
+            std::string cell;
+            if (a) {
+                int c = a->color == kRuleMode ? (int)p.leds[m - 1][a->led] : a->color;   // "mode light": the colour the mode gives it
+                cell = a->effect == Effect::Alternate ? splitDot(c, a->color2) : dot(c, a->effect == Effect::Blink);
+            }
+            d.values[pre + "m" + std::to_string(m)] = cell;
+        }
+        d.values[pre + "rate"] = !a ? "" : a->effect == Effect::Steady ? "Steady" : a->fast ? "Fast" : "Slow";
     }
     return d;
 }

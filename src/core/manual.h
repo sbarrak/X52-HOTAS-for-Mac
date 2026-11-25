@@ -14,6 +14,10 @@ constexpr int kManualSchema = 1;   // goes up only when a field is renamed or re
 
 typedef std::map<std::string, std::string> ManualRow;
 
+// A value may colour parts of itself (the light dots): \x01<RRGGBB>[,<size in half-points>]\x02 starts a coloured part and
+// \x03 ends it. The template filler turns those into coloured runs; stripStyle gives the plain text.
+std::string stripStyle(const std::string& value);
+
 struct ManualData {
     std::map<std::string, std::string> values;                    // "profile.name" -> "Cessna 172"
     std::map<std::string, std::vector<ManualRow>> lists;          // "stick_buttons" -> one row per button

@@ -447,20 +447,59 @@ TEST(manual_dashboard_values_pages_lights_rules_and_alarms) {
     a.fast = true;
     p.alarms.push_back(a);
     ManualData d = buildManualData(p, "1.5.0");
-    CHECK_EQ(d.value("light.a.m1"), std::string("red (Pinkie: amber)"));
-    CHECK_EQ(d.value("light.a.m2"), std::string("green"));
-    CHECK_EQ(d.value("light.pov.m1"), std::string("green"));
+    CHECK_EQ(d.value("light.a.m1.name"), std::string("red (Pinkie: amber)"));
+    CHECK_EQ(d.value("light.a.m2.name"), std::string("green"));
+    CHECK_EQ(d.value("light.pov.m1.name"), std::string("green"));
+    CHECK(d.value("light.a.m2").find("\xE2\x97\x8F") != std::string::npos);            // a full dot
+    CHECK(d.value("light.a.m2").find("2E9E57") != std::string::npos);                    // in green
+    CHECK(d.value("light.a.m1").find("Pinkie") != std::string::npos);                    // and the Pinkie colour when it differs
+    CHECK_EQ(stripStyle(d.value("light.a.m2")), std::string("\xE2\x97\x8F"));
     CHECK_EQ(d.lists.at("rules").size(), (size_t)3);                       // a table never has fewer than 3 rows
     CHECK_EQ(d.lists.at("rules")[0].at("rule.light"), std::string("B"));
     CHECK_EQ(d.lists.at("rules")[0].at("rule.condition"), std::string("sim/x/gear > 0.5"));
-    CHECK_EQ(d.lists.at("rules")[0].at("rule.active"), std::string("amber"));
-    CHECK_EQ(d.lists.at("rules")[0].at("rule.otherwise"), std::string("mode light"));
+    CHECK_EQ(d.lists.at("rules")[0].at("rule.active_name"), std::string("amber"));
+    CHECK_EQ(d.lists.at("rules")[0].at("rule.otherwise_name"), std::string("mode light"));
+    CHECK(d.lists.at("rules")[0].at("rule.active").find("F0B429") != std::string::npos);   // an amber dot
     CHECK_EQ(d.value("alarm.1.name"), std::string("Stall"));
     CHECK_EQ(d.value("alarm.1.light"), std::string("H2 lit hat"));
-    CHECK_EQ(d.value("alarm.1.rate"), std::string("blink fast"));
+    CHECK_EQ(d.value("alarm.1.rate"), std::string("Fast"));
+    CHECK_EQ(stripStyle(d.value("alarm.1.m1")), std::string("\xE2\x9C\xBA"));                // flashing: rays
     CHECK_EQ(d.value("alarm.2.name"), std::string(""));                    // 8 alarm rows, always
     CHECK(!d.value("pages.1.m1").empty());                                  // the built-in pages come first
     CHECK_EQ(d.lists.at("user_pages").size(), (size_t)3);
+}
+
+TEST(manual_alarm_dots_show_steady_flashing_and_alternating_and_use_the_mode_light) {
+    Profile p;
+    p.leds[1][LedA] = Color::Amber;                    // mode 2 lights A amber
+    Alarm steady, alt, modeLight;
+    steady.name = "S"; steady.effect = Effect::Steady; steady.color = (int)Color::Red; steady.dataref = "x";
+    alt.name = "A"; alt.effect = Effect::Alternate; alt.color = (int)Color::Red; alt.color2 = (int)Color::Amber; alt.fast = true; alt.dataref = "x";
+    modeLight.name = "M"; modeLight.effect = Effect::Steady; modeLight.color = kRuleMode; modeLight.led = LedA; modeLight.dataref = "x";
+    p.alarms = {steady, alt, modeLight};
+    ManualData d = buildManualData(p, "1.5.0");
+    CHECK_EQ(stripStyle(d.value("alarm.1.m1")), std::string("\xE2\x97\x8F"));                         // steady: a full dot
+    CHECK_EQ(d.value("alarm.1.rate"), std::string("Steady"));
+    CHECK_EQ(stripStyle(d.value("alarm.2.m1")), std::string("\xE2\x97\x96\xE2\x97\x97"));            // alternating: two half dots
+    CHECK(d.value("alarm.2.m1").find("D64545") != std::string::npos);
+    CHECK(d.value("alarm.2.m1").find("F0B429") != std::string::npos);
+    CHECK_EQ(d.value("alarm.2.rate"), std::string("Fast"));
+    CHECK(d.value("alarm.3.m2").find("F0B429") != std::string::npos);                                // the mode's own colour in mode 2
+    CHECK(d.value("alarm.3.m1").find("2E9E57") != std::string::npos);                                // green in mode 1
+}
+
+TEST(fill_colours_the_styled_parts_of_a_value_and_keeps_the_rest) {
+    ManualData d;
+    d.values["dot"] = "\x01" "D64545,22\x02" "X\x03" " after";
+    FillResult r = fillDocx(mkDocx(docWith("<w:p>" + inlineControl("dot") + "</w:p>")), d);
+    CHECK(r.ok);
+    std::string xml = partOf(r.bytes, "word/document.xml");
+    CHECK(xml.find("<w:color w:val=\"D64545\"/>") != std::string::npos);
+    CHECK(xml.find("<w:sz w:val=\"22\"/>") != std::string::npos);
+    CHECK(xml.find(">X</w:t>") != std::string::npos);
+    CHECK(xml.find("> after</w:t>") != std::string::npos);
+    CHECK(xml.find("\x01") == std::string::npos);
+    CHECK(xml.find("<w:b/>") != std::string::npos);                       // the control's own formatting stays
 }
 
 int main() { return runAllTests(); }

@@ -99,6 +99,67 @@ std::string runProps(const std::string& content, size_t from) {
     return props;
 }
 
+// A value may carry formatting for parts of it (see manual.h): \x01<RRGGBB>[,<size>]\x02 starts a coloured part,
+// \x03 ends it. A run with that colour (and size, in half-points) replaces the control's own where it applies.
+struct Seg {
+    std::string text, color;
+    int size = 0;
+};
+
+std::vector<Seg> parseStyled(const std::string& v) {
+    std::vector<Seg> out;
+    Seg cur;
+    auto flush = [&]() {
+        if (!cur.text.empty()) out.push_back(cur);
+        cur.text.clear();
+    };
+    for (size_t i = 0; i < v.size(); ++i) {
+        char c = v[i];
+        if (c == '\x01') {
+            size_t e = v.find('\x02', i);
+            if (e == npos) break;
+            flush();
+            std::string spec = v.substr(i + 1, e - i - 1);
+            size_t comma = spec.find(',');
+            cur.color = spec.substr(0, comma);
+            cur.size = comma == npos ? 0 : atoi(spec.c_str() + comma + 1);
+            i = e;
+        } else if (c == '\x03') {
+            flush();
+            cur.color.clear();
+            cur.size = 0;
+        } else {
+            cur.text += c;
+        }
+    }
+    flush();
+    if (out.empty()) out.push_back(Seg());
+    return out;
+}
+
+// Puts `value` into the attribute of the first <tag .../> of props, or adds the element when there is none.
+std::string setAttr(std::string props, const std::string& tag, const std::string& value) {
+    std::string elem = "<" + tag + " w:val=\"" + value + "\"/>";
+    size_t a = props.find("<" + tag + " ");
+    if (a != npos) {
+        size_t e = props.find("/>", a);
+        if (e != npos) return props.replace(a, e + 2 - a, elem);
+    }
+    if (props.empty()) return "<w:rPr>" + elem + "</w:rPr>";
+    size_t close = props.rfind("</w:rPr>");
+    return close == npos ? props : props.insert(close, elem);
+}
+
+std::string styledProps(const std::string& props, const Seg& s) {
+    std::string p = props;
+    if (!s.color.empty()) p = setAttr(p, "w:color", s.color);
+    if (s.size > 0) {
+        p = setAttr(p, "w:sz", std::to_string(s.size));
+        p = setAttr(p, "w:szCs", std::to_string(s.size));
+    }
+    return p;
+}
+
 // The control's text as a run (or paragraph, when the control holds paragraphs).
 std::string render(const std::string& content, const std::string& value) {
     bool block = content.find("<w:p>") != npos || content.find("<w:p ") != npos;
@@ -112,18 +173,20 @@ std::string render(const std::string& content, const std::string& value) {
         }
     }
     std::string props = runProps(content, from);
-    std::string run = "<w:r>" + props;
-    size_t start = 0;
-    for (;;) {
-        size_t nl = value.find('\n', start);
-        std::string line = value.substr(start, nl == npos ? npos : nl - start);
-        run += "<w:t xml:space=\"preserve\">" + escape(line) + "</w:t>";
-        if (nl == npos) break;
-        run += "<w:br/>";
-        start = nl + 1;
+    std::string runs;
+    for (const Seg& seg : parseStyled(value)) {
+        runs += "<w:r>" + styledProps(props, seg);
+        size_t start = 0;
+        for (;;) {
+            size_t nl = seg.text.find('\n', start);
+            runs += "<w:t xml:space=\"preserve\">" + escape(seg.text.substr(start, nl == npos ? npos : nl - start)) + "</w:t>";
+            if (nl == npos) break;
+            runs += "<w:br/>";
+            start = nl + 1;
+        }
+        runs += "</w:r>";
     }
-    run += "</w:r>";
-    return block ? "<w:p>" + ppr + run + "</w:p>" : run;
+    return block ? "<w:p>" + ppr + runs + "</w:p>" : runs;
 }
 
 bool lookup(const Scope& s, const std::string& tag, std::string& out) {

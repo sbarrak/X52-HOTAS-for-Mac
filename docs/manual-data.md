@@ -55,15 +55,18 @@ assigned shows an em dash.
 | Tag | Contains |
 |---|---|
 | `pages.<1..12>.m<1..3>` | The page the left wheel reaches in that position and mode (hidden pages left out); empty after the last. |
-| `light.<fire, a, b, d, e, t1, t2, t3, pov, clutch, throttle>.m<1..3>` | The light's colour in that mode: `off`, `green`, `amber` or `red`, with ` (Pinkie: colour)` when it differs while the Pinkie is held. |
-| `alarm.<1..8>.name`, `.light`, `.m1`, `.m2`, `.m3`, `.rate` | An alarm: its name, its light, its colour in each mode (`red / amber` when it alternates) and its rate (`steady`, `blink slow`, `blink fast`, `alternate slow`...). Rows without an alarm are empty. |
+| `light.<fire, a, b, d, e, t1, t2, t3, pov, clutch, throttle>.m<1..3>` | The light's colour in that mode as a coloured dot (a hollow dot when off), with the Pinkie colour after it when that differs. `...m<n>.name` is the same in words (`green`, `red (Pinkie: amber)`). |
+| `alarm.<1..8>.name`, `.light`, `.m1`, `.m2`, `.m3`, `.rate` | An alarm: its name, its light, and in each mode a dot for its colour: a full dot when steady, rays when flashing, two half dots (the two colours) when alternating. An alarm set to the mode light shows the colour the mode gives that light. The rate is `Steady`, `Slow` or `Fast`. Rows without an alarm are empty. |
+
+The dots are coloured characters, so a template only has to give the cell its font and size; the app colours them. A
+value can colour part of itself with `\x01RRGGBB,size\x02 ... \x03` (size in half-points); `stripStyle` gives the plain text.
 
 Two lists have no fixed size, but never fewer than 3 rows (padded with empty rows):
 
 | List | Row fields |
 |---|---|
 | `user_pages` | `page.title`, `page.fields` (the labels of the page's rows) |
-| `rules` | `rule.light`, `rule.condition`, `rule.active`, `rule.otherwise` (the live lights) |
+| `rules` | `rule.light`, `rule.condition` (the ready-made rule's name, such as `Parking brake`, else the test on the dataref), `rule.active` and `rule.otherwise` (dots; `mode light` when it leaves the mode's colour; `rule.active_name` and `rule.otherwise_name` in words) (the live lights) |
 
 ## Plain lists of buttons (optional)
 
