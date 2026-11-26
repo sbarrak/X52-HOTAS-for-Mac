@@ -118,6 +118,7 @@ def _landing_group(*lamps, first=None):
 
 
 # Autothrottle: arm the A/T switch first (nothing happens when it is armed), then engage / disengage (tested in the 737).
+A333_PROBE = "laminar/A333/buttons/window_probe_ice"
 GEAR_HANDLE = "sim/cockpit2/controls/gear_handle_down"
 B738_GUARD = "laminar/B738/button_switch/guard_cover_pos[0]"
 ARM_TOGGLE = ["sim/autopilot/autothrottle_arm", "sim/autopilot/autothrottle_toggle"]
@@ -203,7 +204,15 @@ CIVIL = {
                                         x_up=_tog("Runway turnoff", "generic_01_light_tog"),
                                         x_right=_tog("Wing lights", "generic_02_light_tog")),
                             park="sim/flight_controls/brakes_toggle_max", fd="sim/autopilot/fdir_command_bars_toggle",
-                            athr="laminar/A333/autopilot/a_thr_toggle", dial_i="speedbrake", dial_e="rudder"),
+                            athr="laminar/A333/autopilot/a_thr_toggle", dial_i="speedbrake", dial_e="rudder",
+                            # The APU has push buttons that need a real press: MASTER SW (on/off) on T3 down, START up.
+                            apu=("laminar/A333/buttons/APU_start", "laminar/A333/buttons/APU_master",
+                                 "APU start", "APU master on/off"),
+                            # X-Plane's pitot heat commands do nothing here: the PROBE/WINDOW HEAT button is ON or
+                            # AUTO (the probes are heated automatically with the engines running).
+                            pitot=(["save:" + A333_PROBE, "restoreif:%s=0,0.5,laminar/A333/buttons/probe_window_heat_toggle" % A333_PROBE],
+                                   ["save:" + A333_PROBE, "restoreif:%s=0.5,1,laminar/A333/buttons/probe_window_heat_toggle" % A333_PROBE],
+                                   "Probe heat ON", "Probe heat AUTO")),
     # Wing landing lights L/R and the nose light are selectors (up / down); nav and strobe are one selector;
     # generic 1 tail logo, 4 wings and engines.
     # Tested: their "up" commands move towards OFF / RETRACT, so a tap uses "dwn" (lights on) and a hold "up".
@@ -396,9 +405,10 @@ def civil(f):
         m1[T2U] = ("Avionics on", S("systems/avionics_on"))
         m1[T2D] = ("Avionics off", S("systems/avionics_off"))
     if f["apu"]:
-        up, dn = c.get("apu", ("sim/electrical/APU_start", "sim/electrical/APU_off"))
-        m1[T3U] = ("APU start", _steps(up))
-        m1[T3D] = ("APU off", _steps(dn))
+        up, dn, lup, ldn = (tuple(c["apu"]) + ("APU start", "APU off"))[:4] if c.get("apu") else \
+            ("sim/electrical/APU_start", "sim/electrical/APU_off", "APU start", "APU off")
+        m1[T3U] = (lup, _steps(up))
+        m1[T3D] = (ldn, _steps(dn))
     elif f["governor"]:
         m1[T3U] = ("Governor on", S("engines/governor_on"))
         m1[T3D] = ("Governor off", S("engines/governor_off"))
@@ -498,8 +508,10 @@ def civil(f):
                 L[5][THAT_R] = ("VS +", S("autopilot/vertical_speed_up"))
                 L[5][THAT_L] = ("VS -", S("autopilot/vertical_speed_down"))
     if airliner:   # TOGA took T3 in landing: the pitot heat that was there is on the pinkie
-        L[6][T3U] = ("Pitot heat on", S("ice/pitot_heat0_on"))
-        L[6][T3D] = ("Pitot heat off", S("ice/pitot_heat0_off"))
+        on, off, lon, loff = c.get("pitot", ("sim/ice/pitot_heat0_on", "sim/ice/pitot_heat0_off",
+                                             "Pitot heat on", "Pitot heat off"))
+        L[6][T3U] = (lon, _steps(on))
+        L[6][T3D] = (loff, _steps(off))
     if f["kind"] == "heli" and f["governor"]:   # the R22: T3 is the governor, rotor RPM with the pinkie
         L[4][T3U] = ("Rotor RPM +", S("flight_controls/rotor_rpm_trim_up"))
         L[4][T3D] = ("Rotor RPM -", S("flight_controls/rotor_rpm_trim_down"))

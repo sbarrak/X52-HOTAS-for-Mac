@@ -20,6 +20,8 @@
 - **The 737's battery button did nothing (#121).** Symptom: T1 did not switch the battery off. Cause: the 737's battery switch is under a guard cover, and the switch does not move while the cover is shut (shutting the cover also puts it back on). Fix: battery off opens the cover first; battery on switches it on and shuts the cover. Found with the stick in X-Plane. Fixed in 1.6.4.
 - **The 737's APU did not start (#121).** Symptom: T3 up did nothing. Cause: X-Plane's own APU command is not used by the 737, which has an OFF / ON / START switch. Fix: T3 up moves that switch down a notch (tap for ON, then hold for START, which springs back to ON), T3 down moves it up a notch. Fixed in 1.6.4.
 - **The 737 needed two taps of A to lower the gear (#121).** Symptom: after the gear went up, a tap left the gear up. Cause: the 737's gear lever is UP / OFF / DOWN, and the toggle steps through them, so a tap from UP went to OFF. Fix: a tap puts the lever UP when it is down and DOWN otherwise. Fixed in 1.6.4.
+- **The A330's APU did not start (#121).** Symptom: T3 up did nothing. Cause: the A330 does not use X-Plane's APU commands; it has MASTER SW and START push buttons. Fix: T3 down is the APU MASTER SW (on/off), T3 up is START. Fixed in 1.6.4.
+- **The A330's probe heat buttons did nothing (#121).** Symptom: pinkie + T3 in landing did not change the probe heat. Cause: the A330 ignores X-Plane's pitot heat commands; its PROBE/WINDOW HEAT button is ON or AUTO. Fix: pinkie + T3 up sets the button to ON, down to AUTO. Fixed in 1.6.4.
 
 ## 1.6.2
 

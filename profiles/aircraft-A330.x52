@@ -109,8 +109,8 @@ bind 5 1 press "Flight director" cmd:sim/autopilot/fdir_command_bars_toggle
 bind 7 1 press "Beacon" cmd:sim/lights/beacon_lights_toggle
 bind 9 1 press "Battery on" cmd:sim/electrical/battery_1_on ; cmd:sim/electrical/battery_2_on
 bind 10 1 press "Battery off" cmd:sim/electrical/battery_1_off ; cmd:sim/electrical/battery_2_off
-bind 13 1 press "APU start" cmd:sim/electrical/APU_start
-bind 14 1 press "APU off" cmd:sim/electrical/APU_off
+bind 13 1 press "APU start" cmd:laminar/A333/buttons/APU_start
+bind 14 1 press "APU master on/off" cmd:laminar/A333/buttons/APU_master
 bind 17 1 press "Zoom in" cmd:sim/general/zoom_in
 bind 18 1 press "Zoom out" cmd:sim/general/zoom_out
 bind 19 1 press "Chase view" cmd:sim/view/chase
@@ -162,8 +162,8 @@ bind 5 4 press "Flight director" cmd:sim/autopilot/fdir_command_bars_toggle
 bind 7 4 press "Beacon" cmd:sim/lights/beacon_lights_toggle
 bind 9 4 press "Battery on" cmd:sim/electrical/battery_1_on ; cmd:sim/electrical/battery_2_on
 bind 10 4 press "Battery off" cmd:sim/electrical/battery_1_off ; cmd:sim/electrical/battery_2_off
-bind 13 4 press "APU start" cmd:sim/electrical/APU_start
-bind 14 4 press "APU off" cmd:sim/electrical/APU_off
+bind 13 4 press "APU start" cmd:laminar/A333/buttons/APU_start
+bind 14 4 press "APU master on/off" cmd:laminar/A333/buttons/APU_master
 bind 17 4 press "Zoom in" cmd:sim/general/zoom_in
 bind 18 4 press "Zoom out" cmd:sim/general/zoom_out
 bind 24 4 press "Runway turnoff" cmd:sim/lights/generic_01_light_tog
@@ -195,8 +195,8 @@ bind 9 6 press "Autobrake up" cmd:sim/flight_controls/brakes_up_auto
 bind 10 6 press "Autobrake down" cmd:sim/flight_controls/brakes_dn_auto
 bind 11 6 press "Spoilers arm" cmd:sim/flight_controls/speed_brakes_arm_toggle
 bind 12 6 press "Spoilers retract" cmd:sim/flight_controls/speed_brakes_up_all
-bind 13 6 press "Pitot heat on" cmd:sim/ice/pitot_heat0_on
-bind 14 6 press "Pitot heat off" cmd:sim/ice/pitot_heat0_off
+bind 13 6 press "Probe heat ON" save:laminar/A333/buttons/window_probe_ice ; restoreif:laminar/A333/buttons/window_probe_ice=0,0.5,laminar/A333/buttons/probe_window_heat_toggle
+bind 14 6 press "Probe heat AUTO" save:laminar/A333/buttons/window_probe_ice ; restoreif:laminar/A333/buttons/window_probe_ice=0.5,1,laminar/A333/buttons/probe_window_heat_toggle
 bind 17 6 press "Zoom in" cmd:sim/general/zoom_in
 bind 18 6 press "Zoom out" cmd:sim/general/zoom_out
 bind 24 6 press "Runway turnoff" cmd:sim/lights/generic_01_light_tog
