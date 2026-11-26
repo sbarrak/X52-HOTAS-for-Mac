@@ -113,7 +113,7 @@ bind 26 1 press "Strobes" cmd:sim/lights/strobe_lights_toggle
 bind 27 1 press "Nav lights" cmd:sim/lights/nav_lights_toggle
 bind 3 2 hold "Parking brake" cmd:sim/flight_controls/park_brake_toggle
 bind 5 2 press "AP approach" cmd:sim/autopilot/approach
-bind 7 2 press "AP wing leveler" cmd:sim/autopilot/wing_leveler
+bind 7 2 press "AP wing leveler" cmd:sim/autopilot/return_to_level
 bind 9 2 press "AP HDG" cmd:sim/autopilot/heading
 bind 10 2 press "AP NAV" cmd:sim/autopilot/NAV
 bind 11 2 press "AP ALT hold" cmd:sim/autopilot/altitude_hold
@@ -155,7 +155,7 @@ bind 26 4 press "Strobes" cmd:sim/lights/strobe_lights_toggle
 bind 27 4 press "Nav lights" cmd:sim/lights/nav_lights_toggle
 bind 3 5 hold "Parking brake" cmd:sim/flight_controls/park_brake_toggle
 bind 5 5 press "Flight director" cmd:sim/autopilot/fdir_toggle
-bind 7 5 press "AP wing leveler" cmd:sim/autopilot/wing_leveler
+bind 7 5 press "AP wing leveler" cmd:sim/autopilot/return_to_level
 bind 9 5 press "AP HDG" cmd:sim/autopilot/heading
 bind 10 5 press "AP NAV" cmd:sim/autopilot/NAV
 bind 11 5 press "AP ALT hold" cmd:sim/autopilot/altitude_hold

@@ -107,7 +107,7 @@ bind 50 any press "Pan down fast" cmd:sim/general/down_fast
 bind 51 any press "Pan left fast" cmd:sim/general/left_fast
 bind 3 1 press "Gear up/down" cmd:sim/flight_controls/landing_gear_toggle
 bind 3 1 hold "Parking brake" cmd:sim/flight_controls/park_brake_toggle
-bind 5 1 press "Flight director" cmd:sim/autopilot/fdir_toggle
+bind 5 1 press "Flight director" cmd:laminar/c90/avionics/switch/fd
 bind 7 1 press "Beacon" cmd:sim/lights/beacon_lights_toggle
 bind 9 1 press "Battery on" cmd:sim/electrical/battery_1_on ; cmd:sim/electrical/battery_2_on
 bind 10 1 press "Battery off" cmd:sim/electrical/battery_1_off ; cmd:sim/electrical/battery_2_off
@@ -122,7 +122,7 @@ bind 26 1 press "Strobes" cmd:sim/lights/strobe_lights_toggle
 bind 27 1 press "Nav lights" cmd:sim/lights/nav_lights_toggle
 bind 3 2 hold "Parking brake" cmd:sim/flight_controls/park_brake_toggle
 bind 5 2 press "AP approach" cmd:sim/autopilot/approach
-bind 7 2 press "AP wing leveler" cmd:sim/autopilot/wing_leveler
+bind 7 2 press "AP wing leveler" cmd:sim/autopilot/return_to_level
 bind 9 2 press "AP HDG" cmd:sim/autopilot/heading
 bind 10 2 press "AP NAV" cmd:sim/autopilot/NAV
 bind 11 2 press "AP ALT hold" cmd:sim/autopilot/altitude_hold
@@ -138,7 +138,7 @@ bind 27 2 press "VS -" cmd:sim/autopilot/vertical_speed_down
 bind 3 3 press "Gear up/down" cmd:sim/flight_controls/landing_gear_toggle
 bind 3 3 hold "Parking brake" cmd:sim/flight_controls/park_brake_toggle
 bind 5 3 press "AP approach" cmd:sim/autopilot/approach
-bind 7 3 press "Reverse (hold)" cmd:sim/engines/thrust_reverse_hold
+bind 7 3 press "Reverse on/off" cmd:sim/engines/thrust_reverse_toggle
 bind 9 3 press "AP HDG" cmd:sim/autopilot/heading
 bind 10 3 press "AP NAV" cmd:sim/autopilot/NAV
 bind 11 3 press "Fuel pumps on" cmd:sim/fuel/fuel_pumps_on
@@ -154,7 +154,7 @@ bind 26 3 press "Strobes" cmd:sim/lights/strobe_lights_toggle
 bind 27 3 press "Nav lights" cmd:sim/lights/nav_lights_toggle
 bind 3 4 press "Gear up/down" cmd:sim/flight_controls/landing_gear_toggle
 bind 3 4 hold "Parking brake" cmd:sim/flight_controls/park_brake_toggle
-bind 5 4 press "Flight director" cmd:sim/autopilot/fdir_toggle
+bind 5 4 press "Flight director" cmd:laminar/c90/avionics/switch/fd
 bind 7 4 press "Beacon" cmd:sim/lights/beacon_lights_toggle
 bind 9 4 press "Battery on" cmd:sim/electrical/battery_1_on ; cmd:sim/electrical/battery_2_on
 bind 10 4 press "Battery off" cmd:sim/electrical/battery_1_off ; cmd:sim/electrical/battery_2_off
@@ -167,8 +167,8 @@ bind 25 4 press "Wing ice light" cmd:sim/lights/generic_02_light_tog
 bind 26 4 press "Recognition" cmd:sim/lights/generic_03_light_tog
 bind 27 4 press "Nav lights" cmd:sim/lights/nav_lights_toggle
 bind 3 5 hold "Parking brake" cmd:sim/flight_controls/park_brake_toggle
-bind 5 5 press "Flight director" cmd:sim/autopilot/fdir_toggle
-bind 7 5 press "AP wing leveler" cmd:sim/autopilot/wing_leveler
+bind 5 5 press "Flight director" cmd:laminar/c90/avionics/switch/fd
+bind 7 5 press "AP wing leveler" cmd:sim/autopilot/return_to_level
 bind 9 5 press "AP HDG" cmd:sim/autopilot/heading
 bind 10 5 press "AP NAV" cmd:sim/autopilot/NAV
 bind 11 5 press "AP ALT hold" cmd:sim/autopilot/altitude_hold
@@ -183,7 +183,7 @@ bind 27 5 press "VS -" cmd:sim/autopilot/vertical_speed_down
 bind 3 6 press "Gear up/down" cmd:sim/flight_controls/landing_gear_toggle
 bind 3 6 hold "Parking brake" cmd:sim/flight_controls/park_brake_toggle
 bind 5 6 press "AP approach" cmd:sim/autopilot/approach
-bind 7 6 press "Reverse (hold)" cmd:sim/engines/thrust_reverse_hold
+bind 7 6 press "Reverse on/off" cmd:sim/engines/thrust_reverse_toggle
 bind 9 6 press "AP HDG" cmd:sim/autopilot/heading
 bind 10 6 press "AP NAV" cmd:sim/autopilot/NAV
 bind 11 6 press "Fuel pumps on" cmd:sim/fuel/fuel_pumps_on

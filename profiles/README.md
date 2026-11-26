@@ -23,7 +23,7 @@ aircraft does not have it, the button is left empty rather than given something 
 | B | autopilot on/off | same | same |
 | Trigger (1st / 2nd stage) | AP disconnect / Contact ATC | same | same |
 | C | flight director | AP approach | AP approach |
-| D | beacon | AP wing leveler | reverse (held) |
+| D | beacon | AP wing leveler (engages the AP wings level) | reverse (held; Citation X and King Air: tap on / tap off) |
 | T1 up / down | battery on / off | AP HDG / NAV | autobrake + / - (no autobrake: HDG / NAV) |
 | T2 up / down | avionics on / off | AP ALT hold / VS | spoilers arm / retract (others: fuel pumps) |
 | T3 up / down | APU start / off | autothrottle / level change (airliners), FLC | TOGA (airliners), pitot heat |

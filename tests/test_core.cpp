@@ -2593,7 +2593,8 @@ TEST(the_ready_made_profiles_light_the_throttle_and_let_the_plugin_drive_it) {
             CHECK(!p.exact(4, 1) && !p.exact(4, 2) && !p.exact(4, 3));
             CHECK_EQ(p.exact(5, 2)->press[0].text, std::string("sim/autopilot/approach"));        // C, cruise (#121)
             CHECK_EQ(p.exact(5, 3)->press[0].text, std::string("sim/autopilot/approach"));        // C, landing
-            CHECK_EQ(p.exact(7, 3)->press[0].text, std::string("sim/engines/thrust_reverse_hold"));   // D, landing: reverse
+            CHECK_EQ(p.exact(7, 3)->press[0].text, std::string("sim/engines/thrust_reverse_toggle")); // D, landing: reverse
+                                                                                                       // (the hold does nothing here)
             CHECK_EQ(p.modeNames[1], std::string("Cruise"));
             CHECK_EQ(p.modeBannerMs, 1500);
         }

@@ -124,6 +124,28 @@ GEAR_HANDLE = "sim/cockpit2/controls/gear_handle_down"
 B738_GUARD = "laminar/B738/button_switch/guard_cover_pos[0]"
 ARM_TOGGLE = ["sim/autopilot/autothrottle_arm", "sim/autopilot/autothrottle_toggle"]
 
+
+def _switch(ref, toggle):
+    """(on, off) steps for a two-way switch that has only a toggle command: each one toggles only when needed."""
+    return (["save:" + ref, "restoreif:%s=0,0.5,%s" % (ref, toggle)], ["save:" + ref, "restoreif:%s=0.5,1,%s" % (ref, toggle)])
+
+
+def _switches(*pairs):
+    """(on, off) steps for several such switches set together."""
+    on, off = [], []
+    for ref, toggle in pairs:
+        a, b = _switch(ref, toggle)
+        on += a
+        off += b
+    return on, off
+
+
+CITX_BATT = _switches(("laminar/CitX/electrical/battery_left", "laminar/CitX/electrical/cmd_battery_left_toggle"),
+                      ("laminar/CitX/electrical/battery_right", "laminar/CitX/electrical/cmd_battery_right_toggle"))
+CITX_APU = "laminar/CitX/APU/master_switch"
+CITX_PITOT = _switches(("laminar/CitX/ice/pitot_static_left", "laminar/CitX/ice/cmd_pitot_static_left_toggle"),
+                       ("laminar/CitX/ice/pitot_static_right", "laminar/CitX/ice/cmd_pitot_static_right_toggle"))
+
 CIVIL = {
     # The KAP140 autopilot (the classic and the seaplane) has no FLC; the G1000's GFC700 has (tested).
     "Cessna 172 SP Skyhawk": dict(lights=_lights(), park="sim/flight_controls/brakes_toggle_max", avionics=True,
@@ -147,7 +169,12 @@ CIVIL = {
                                 park="sim/flight_controls/park_brake_toggle", avionics=True, dial_i="prop", dial_e="mixture"),
     "Beechcraft King Air C90B": dict(lights=_lights(up=_landing_group(1, 2), x_right=_tog("Wing ice light", "generic_02_light_tog"),
                                                     x_down=_tog("Recognition", "generic_03_light_tog")),
-                                     park="sim/flight_controls/park_brake_toggle", avionics=True, dial_i="prop", dial_e="rudder"),
+                                     park="sim/flight_controls/park_brake_toggle", avionics=True, dial_i="prop", dial_e="rudder",
+                                     # Tested: X-Plane's flight director command does nothing here (its HDG, NAV and ALT
+                                     # work only with the FD on): the cockpit's own FD switch. Reverse does not follow
+                                     # the reverse-hold command; the toggle works (a tap in, a tap out).
+                                     fd="laminar/c90/avionics/switch/fd",
+                                     rev=("Reverse on/off", "cmd:sim/engines/thrust_reverse_toggle")),
     "Lancair Evolution": dict(lights=_lights(drop=("right", "beacon"), up=_landing_group(1)),
                               park="sim/flight_controls/brakes_toggle_max", dial_i="prop"),
     "Cirrus Vision SF50": dict(lights=_lights(drop=("right", "beacon")), park="sim/flight_controls/park_brake_toggle"),
@@ -162,8 +189,18 @@ CIVIL = {
                                           left=_tog("Nav lights", "laminar/CitX/lights/cmd_navigation_toggle"),
                                           x_down=_tog("Recognition", "laminar/CitX/lights/cmd_recognition_toggle"),
                                           x_right=_tog("Wing lights", "laminar/CitX/ice/cmd_wing_light_toggle")),
-                              park="sim/flight_controls/park_brake_toggle", avionics=True, athr=None, spoiler_arm=False,
-                              dial_i="speedbrake", dial_e="rudder"),
+                              park="sim/flight_controls/park_brake_toggle", athr=None, spoiler_arm=False,
+                              dial_i="speedbrake", dial_e="rudder",
+                              # Tested: X-Plane's battery, avionics and pitot heat commands do not move its switches (the
+                              # aircraft keeps its own state), so each uses the cockpit switch's own toggle, only when needed.
+                              battery=CITX_BATT + ("Battery",),
+                              avionics=_switch("laminar/CitX/electrical/avionics", "laminar/CitX/electrical/cmd_avionics_toggle"),
+                              pitot=CITX_PITOT + ("Pitot heat on", "Pitot heat off"),
+                              # X-Plane's APU commands leave its switches alone: the APU master on (when off), then the
+                              # starter; off is the starter down, then the master off. Reverse: only the toggle works.
+                              apu=(_switch(CITX_APU, "laminar/CitX/APU/master_switch_toggle")[0] + ["wait:500", "laminar/CitX/APU/starter_switch_up"],
+                                   ["laminar/CitX/APU/starter_switch_dwn"] + _switch(CITX_APU, "laminar/CitX/APU/master_switch_toggle")[1]),
+                              rev=("Reverse on/off", "cmd:sim/engines/thrust_reverse_toggle")),
     # Four landing lights (wing root L/R, belly L/R) with an all-on spring switch; position (STROBE & STEADY / OFF /
     # STEADY) and taxi are selectors; generic lights 1 wing, 2 logo, 3/4 runway turnoff L/R.
     "Boeing 737-800": dict(lights=dict(up=("grp", "Landing lights", SW + "landing_lights_switch[0]",
@@ -412,8 +449,10 @@ def civil(f):
         m1[T1U] = (name + " on", _steps(on))
         m1[T1D] = (name + " off", _steps(off))
     if c.get("avionics"):
-        m1[T2U] = ("Avionics on", S("systems/avionics_on"))
-        m1[T2D] = ("Avionics off", S("systems/avionics_off"))
+        # True: X-Plane's avionics commands; (on, off): the aircraft's own switch.
+        on, off = c["avionics"] if isinstance(c["avionics"], tuple) else ("sim/systems/avionics_on", "sim/systems/avionics_off")
+        m1[T2U] = ("Avionics on", _steps(on))
+        m1[T2D] = ("Avionics off", _steps(off))
     if f["apu"]:
         up, dn, lup, ldn = (tuple(c["apu"]) + ("APU start", "APU off"))[:4] if c.get("apu") else \
             ("sim/electrical/APU_start", "sim/electrical/APU_off", "APU start", "APU off")
@@ -437,7 +476,10 @@ def civil(f):
     # ---- Mode 2: cruise
     if f["ap"]:
         m2[C] = ("AP approach", S("autopilot/approach"))
-        m2[D] = ("AP wing leveler", S("autopilot/wing_leveler"))
+        # Tested in all of them: X-Plane's wing leveler does nothing with the autopilot off in the King Air and
+        # the Citation X and only turns the flight director on in the G1000 aircraft; return to level (the SR22's
+        # and SF50's own LVL button) engages the autopilot wings level in every one.
+        m2[D] = ("AP wing leveler", S("autopilot/return_to_level"))
         m2[T1U] = ("AP HDG", S("autopilot/heading"))
         m2[T1D] = ("AP NAV", S("autopilot/NAV"))
         m2[T2U] = ("AP ALT hold", S("autopilot/altitude_hold"))
@@ -478,7 +520,7 @@ def civil(f):
     if f["ap"]:
         m3[C] = ("AP approach", S("autopilot/approach"))
     if f["rev"]:
-        m3[D] = ("Reverse (hold)", S("engines/thrust_reverse_hold"))
+        m3[D] = c.get("rev", ("Reverse (hold)", S("engines/thrust_reverse_hold")))
     if f["autobrake"]:
         m3[T1U] = ("Autobrake up", S("flight_controls/brakes_up_auto"))
         m3[T1D] = ("Autobrake down", S("flight_controls/brakes_dn_auto"))
@@ -705,7 +747,7 @@ def layout(f):
 
     # ---- Mode 3: landing (approach, flaps, speedbrake, reverse, autobrake)
     if f["rev"]:
-        m3[D] = ("Reverse (hold)", S("engines/thrust_reverse_hold"))   # the lights are the same lights as in mode 1: on the hat, left
+        m3[D] = c.get("rev", ("Reverse (hold)", S("engines/thrust_reverse_hold")))   # the lights are the same lights as in mode 1: on the hat, left
     elif f["speedbrake"]:
         m3[D] = ("Speedbrake", S("flight_controls/speed_brakes_toggle"))
     elif k != "glider":
@@ -784,7 +826,10 @@ def layout(f):
             m2[THAT_L] = ("Chase view", S("view/chase"))
         trim_wheel(m2)
     elif f["ap"]:
-        m2[D] = ("AP wing leveler", S("autopilot/wing_leveler"))
+        # Tested in all of them: X-Plane's wing leveler does nothing with the autopilot off in the King Air and
+        # the Citation X and only turns the flight director on in the G1000 aircraft; return to level (the SR22's
+        # and SF50's own LVL button) engages the autopilot wings level in every one.
+        m2[D] = ("AP wing leveler", S("autopilot/return_to_level"))
         m2[E] = ("Flight director", S("autopilot/fdir_toggle"))
         m2[T1U] = ("AP HDG", S("autopilot/heading"))
         m2[T1D] = ("AP NAV", S("autopilot/NAV"))
