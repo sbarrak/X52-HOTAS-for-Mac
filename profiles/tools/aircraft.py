@@ -118,6 +118,8 @@ def _landing_group(*lamps, first=None):
 
 
 # Autothrottle: arm the A/T switch first (nothing happens when it is armed), then engage / disengage (tested in the 737).
+GEAR_HANDLE = "sim/cockpit2/controls/gear_handle_down"
+B738_GUARD = "laminar/B738/button_switch/guard_cover_pos[0]"
 ARM_TOGGLE = ["sim/autopilot/autothrottle_arm", "sim/autopilot/autothrottle_toggle"]
 
 CIVIL = {
@@ -173,7 +175,22 @@ CIVIL = {
                                                                          (SW + "generic_lights_switch[3]", "sim/lights/generic_04_light_tog")]),
                                        x_right=_tog("Wing lights", "generic_01_light_tog"),
                                        x_left=_tog("Logo light", "generic_02_light_tog")),
-                           park="sim/flight_controls/park_brake_toggle", athr=ARM_TOGGLE, dial_i="speedbrake", dial_e="rudder"),
+                           park="sim/flight_controls/park_brake_toggle", athr=ARM_TOGGLE, dial_i="speedbrake", dial_e="rudder",
+                           # The battery switch has a guard: off opens it first; closing it puts the switch back on.
+                           battery=(["sim/electrical/battery_1_on", "sim/electrical/battery_2_on", "save:" + B738_GUARD,
+                                     "restoreif:%s=0.5,1,laminar/B738/guard_cover00" % B738_GUARD],
+                                    ["save:" + B738_GUARD, "restoreif:%s=0,0.5,laminar/B738/guard_cover00" % B738_GUARD,
+                                     "wait:1000", "sim/electrical/battery_1_off", "sim/electrical/battery_2_off"], "Battery"),
+                           # The APU switch is OFF / ON / START (spring back to ON): a tap moves it down a notch, so tap
+                           # for ON, then hold for START; T3 down moves it up a notch (ON to OFF).
+                           # The gear lever is UP / OFF / DOWN (-1 is OFF), so a toggle needs two taps from OFF to
+                           # DOWN: a tap puts it UP when it is down and DOWN otherwise.
+                           gear=["save:" + GEAR_HANDLE,
+                                 "restoreif:%s=0.5,1.5,sim/flight_controls/landing_gear_up" % GEAR_HANDLE,
+                                 "restoreif:%s=-0.4,0.4,sim/flight_controls/landing_gear_down" % GEAR_HANDLE,
+                                 "restoreif:%s=-1.5,-0.6,sim/flight_controls/landing_gear_toggle" % GEAR_HANDLE],
+                           apu=("laminar/B738/spring_toggle_switch/APU_start_pos_dn",
+                                "laminar/B738/spring_toggle_switch/APU_start_pos_up")),
     # Strobe OFF / AUTO / ON, NAV & LOGO and nose OFF / TAXI / TO are selectors; generic 1 runway turnoff, 2 wing.
     "Airbus A330-300": dict(lights=dict(up=_landing_group(1),
                                         right=("step", "Nose sel up", "laminar/A333/switch/lighting/taxi_light_up",
@@ -253,7 +270,9 @@ def mode_names(f):
 
 
 def _steps(c):
-    return " ; ".join("cmd:" + x for x in ([c] if isinstance(c, str) else c))
+    """Commands to steps. An item that is already a step (save:, restoreif:, wait:, set:, cmd:) is kept as it is."""
+    keep = ("save:", "restoreif:", "wait:", "set:", "cmd:")
+    return " ; ".join(x if x.startswith(keep) else "cmd:" + x for x in ([c] if isinstance(c, str) else c))
 
 
 def civil(f):
@@ -318,7 +337,7 @@ def civil(f):
         if k == "glider":
             L[mode][A] = ("Tow release", S("flight_controls/glider_all_release"))   # the cockpit's own release
         elif f["gear"] and mode != 2:
-            L[mode][A] = ("Gear up/down", S("flight_controls/landing_gear_toggle"))
+            L[mode][A] = ("Gear up/down", _steps(c.get("gear", "sim/flight_controls/landing_gear_toggle")))
         if park:
             H[mode][A] = park   # alone (no tap) on fixed gear and in cruise
     if k == "heli":
@@ -377,8 +396,9 @@ def civil(f):
         m1[T2U] = ("Avionics on", S("systems/avionics_on"))
         m1[T2D] = ("Avionics off", S("systems/avionics_off"))
     if f["apu"]:
-        m1[T3U] = ("APU start", S("electrical/APU_start"))
-        m1[T3D] = ("APU off", S("electrical/APU_off"))
+        up, dn = c.get("apu", ("sim/electrical/APU_start", "sim/electrical/APU_off"))
+        m1[T3U] = ("APU start", _steps(up))
+        m1[T3D] = ("APU off", _steps(dn))
     elif f["governor"]:
         m1[T3U] = ("Governor on", S("engines/governor_on"))
         m1[T3D] = ("Governor off", S("engines/governor_off"))
