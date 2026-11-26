@@ -118,6 +118,7 @@ def _landing_group(*lamps, first=None):
 
 
 # Autothrottle: arm the A/T switch first (nothing happens when it is armed), then engage / disengage (tested in the 737).
+MD82_ATS = "laminar/md82/autopilot/autothrottle_switch"
 A333_PROBE = "laminar/A333/buttons/window_probe_ice"
 GEAR_HANDLE = "sim/cockpit2/controls/gear_handle_down"
 B738_GUARD = "laminar/B738/button_switch/guard_cover_pos[0]"
@@ -227,7 +228,16 @@ CIVIL = {
                                                 beacon=_tog("Beacon", "beacon_lights_toggle"),
                                                 x_right=_tog("Wing lights", "generic_04_light_tog"),
                                                 x_left=_tog("Logo light", "generic_01_light_tog")),
-                                    park="sim/flight_controls/brakes_toggle_max", athr=ARM_TOGGLE, dial_i="speedbrake", dial_e="rudder"),
+                                    park="sim/flight_controls/brakes_toggle_max", athr=["save:" + MD82_ATS, "restoreif:%s=0,0.5,laminar/md82cmd/autopilot/autothrottle_switch" % MD82_ATS,
+                                 "wait:800", "restoreif:%s=0,0.5,laminar/md82cmd/autopilot/airspeed_is_knots" % MD82_ATS,
+                                 "restoreif:%s=0.5,1,laminar/md82cmd/autopilot/autothrottle_switch" % MD82_ATS],
+                           # The A/T needs its own switch on first, then the IAS (knots) button engages it; the switch
+                           # turns it off. X-Plane's autothrottle commands do nothing here.
+                           dial_i="speedbrake", dial_e="rudder",
+                           # Pitot and stall heat is a knob (OFF in the middle; any other position heats the probes):
+                           # X-Plane's pitot heat commands are undone by it, so T3 turns the knob a notch each way.
+                           pitot=("laminar/md82cmd/ice/selheatknob_up", "laminar/md82cmd/ice/selheatknob_dwn",
+                                  "Probe heat knob +", "Probe heat knob -")),
     "Robinson R22 Beta II": dict(lights=_lights(drop=("right", "beacon")), park=None, dial_e="carb"),
     "Sikorsky S-76C": dict(lights=_lights(up=_landing_group(2, 3), x_right=_tog("Search light", "generic_01_light_tog")),
                            park="sim/flight_controls/brakes_toggle_max", avionics=True),

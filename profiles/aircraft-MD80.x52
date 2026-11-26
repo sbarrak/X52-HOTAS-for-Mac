@@ -127,7 +127,7 @@ bind 9 2 press "AP HDG" cmd:sim/autopilot/heading
 bind 10 2 press "AP NAV" cmd:sim/autopilot/NAV
 bind 11 2 press "AP ALT hold" cmd:sim/autopilot/altitude_hold
 bind 12 2 press "AP VS" cmd:sim/autopilot/vertical_speed
-bind 13 2 press "Autothrottle" cmd:sim/autopilot/autothrottle_arm ; cmd:sim/autopilot/autothrottle_toggle
+bind 13 2 press "Autothrottle" save:laminar/md82/autopilot/autothrottle_switch ; restoreif:laminar/md82/autopilot/autothrottle_switch=0,0.5,laminar/md82cmd/autopilot/autothrottle_switch ; wait:800 ; restoreif:laminar/md82/autopilot/autothrottle_switch=0,0.5,laminar/md82cmd/autopilot/airspeed_is_knots ; restoreif:laminar/md82/autopilot/autothrottle_switch=0.5,1,laminar/md82cmd/autopilot/autothrottle_switch
 bind 14 2 press "AP level change" cmd:sim/autopilot/level_change
 bind 17 2 press "HDG bug +" cmd:sim/autopilot/heading_up
 bind 18 2 press "HDG bug -" cmd:sim/autopilot/heading_down
@@ -175,7 +175,7 @@ bind 9 5 press "AP HDG" cmd:sim/autopilot/heading
 bind 10 5 press "AP NAV" cmd:sim/autopilot/NAV
 bind 11 5 press "AP ALT hold" cmd:sim/autopilot/altitude_hold
 bind 12 5 press "AP VS" cmd:sim/autopilot/vertical_speed
-bind 13 5 press "Autothrottle" cmd:sim/autopilot/autothrottle_arm ; cmd:sim/autopilot/autothrottle_toggle
+bind 13 5 press "Autothrottle" save:laminar/md82/autopilot/autothrottle_switch ; restoreif:laminar/md82/autopilot/autothrottle_switch=0,0.5,laminar/md82cmd/autopilot/autothrottle_switch ; wait:800 ; restoreif:laminar/md82/autopilot/autothrottle_switch=0,0.5,laminar/md82cmd/autopilot/airspeed_is_knots ; restoreif:laminar/md82/autopilot/autothrottle_switch=0.5,1,laminar/md82cmd/autopilot/autothrottle_switch
 bind 14 5 press "AP level change" cmd:sim/autopilot/level_change
 bind 17 5 press "Zoom in" cmd:sim/general/zoom_in
 bind 18 5 press "Zoom out" cmd:sim/general/zoom_out
@@ -191,8 +191,8 @@ bind 9 6 press "Autobrake up" cmd:sim/flight_controls/brakes_up_auto
 bind 10 6 press "Autobrake down" cmd:sim/flight_controls/brakes_dn_auto
 bind 11 6 press "Spoilers arm" cmd:sim/flight_controls/speed_brakes_arm_toggle
 bind 12 6 press "Spoilers retract" cmd:sim/flight_controls/speed_brakes_up_all
-bind 13 6 press "Pitot heat on" cmd:sim/ice/pitot_heat0_on
-bind 14 6 press "Pitot heat off" cmd:sim/ice/pitot_heat0_off
+bind 13 6 press "Probe heat knob +" cmd:laminar/md82cmd/ice/selheatknob_up
+bind 14 6 press "Probe heat knob -" cmd:laminar/md82cmd/ice/selheatknob_dwn
 bind 17 6 press "Zoom in" cmd:sim/general/zoom_in
 bind 18 6 press "Zoom out" cmd:sim/general/zoom_out
 bind 24 6 press "Landing lts +" cmd:laminar/md82cmd/switches/landing_lights_switch_L_dwn ; cmd:laminar/md82cmd/switches/landing_lights_switch_R_dwn

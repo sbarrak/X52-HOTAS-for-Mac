@@ -22,6 +22,8 @@
 - **The 737 needed two taps of A to lower the gear (#121).** Symptom: after the gear went up, a tap left the gear up. Cause: the 737's gear lever is UP / OFF / DOWN, and the toggle steps through them, so a tap from UP went to OFF. Fix: a tap puts the lever UP when it is down and DOWN otherwise. Fixed in 1.6.4.
 - **The A330's APU did not start (#121).** Symptom: T3 up did nothing. Cause: the A330 does not use X-Plane's APU commands; it has MASTER SW and START push buttons. Fix: T3 down is the APU MASTER SW (on/off), T3 up is START. Fixed in 1.6.4.
 - **The A330's probe heat buttons did nothing (#121).** Symptom: pinkie + T3 in landing did not change the probe heat. Cause: the A330 ignores X-Plane's pitot heat commands; its PROBE/WINDOW HEAT button is ON or AUTO. Fix: pinkie + T3 up sets the button to ON, down to AUTO. Fixed in 1.6.4.
+- **The MD-82's probe heat buttons did nothing (#121).** Symptom: pinkie + T3 in landing did not turn the probe heat on. Cause: the MD-82's pitot and stall heat is a knob (OFF in the middle), and it undoes X-Plane's pitot heat commands. Fix: pinkie + T3 up and down turn the knob a notch each way. Fixed in 1.6.4.
+- **The MD-82's autothrottle button did nothing (#121).** Symptom: T3 up in cruise left the A/T off. Cause: X-Plane's autothrottle commands are not used by the MD-82, whose A/T needs its AUTO THROTTLE switch on and then the IAS button. Fix: the button turns the switch on and presses IAS, or turns the switch off when the A/T is on. Fixed in 1.6.4.
 
 ## 1.6.2
 
