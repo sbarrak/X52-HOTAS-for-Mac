@@ -3134,6 +3134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         menu.addItem(withTitle: "Calibrate stick...", action: #selector(openCalibration), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Open guides", action: #selector(openGuides), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Setup...", action: #selector(openSetup), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Uninstall X52 Pro...", action: #selector(openUninstall), keyEquivalent: "").target = self
         loginLine.target = self
         menu.addItem(loginLine)
         menu.addItem(.separator())
@@ -3190,6 +3191,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         appMenu.addItem(withTitle: "Settings...", action: #selector(openSettings), keyEquivalent: ",").target = self
         appMenu.addItem(withTitle: "Pages Editor...", action: #selector(openPagesEditor), keyEquivalent: "e").target = self
         appMenu.addItem(withTitle: "Setup...", action: #selector(openSetup), keyEquivalent: "").target = self
+        appMenu.addItem(withTitle: "Uninstall X52 Pro...", action: #selector(openUninstall), keyEquivalent: "").target = self
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Hide X52 Pro", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         let others = appMenu.addItem(withTitle: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
@@ -3297,6 +3299,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                 openPagesEditor()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [self] in
                     draw(pagesWindow, to: dir + "/pages-editor.png"); next()
+                }
+            } else if sandboxDir != nil && n == shots.count + 4 {
+                n += 1
+                openUninstall()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [self] in
+                    draw(uninstallWindow, to: dir + "/uninstall.png")
+                    // The uninstall itself, in the sandbox only: delete the custom setup too.
+                    uninstallState.deleteCustom = CommandLine.arguments.contains("--uninstall-delete")
+                    if CommandLine.arguments.contains("--uninstall") || uninstallState.deleteCustom {
+                        uninstallState.perform(m: model)
+                        print("uninstall failures: \(uninstallState.failed)")
+                    }
+                    next()
                 }
             } else if sandboxDir != nil && n < shots.count + 4 {
                 let step = n - shots.count - 1; n += 1
@@ -3431,6 +3446,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         setupWindow?.makeKeyAndOrderFront(nil)
     }
     @objc func openGuides() { model.openGuides() }
+
+    var uninstallWindow: NSWindow?
+    let uninstallState = UninstallState()
+    @objc func openUninstall() {
+        if uninstallWindow == nil {
+            let w = NSWindow(contentRect: .zero, styleMask: [.titled, .closable, .miniaturizable],
+                             backing: .buffered, defer: false)
+            w.title = "X52 Pro \(appVersion): Uninstall"
+            w.isReleasedWhenClosed = false
+            let view = UninstallView(m: model, s: uninstallState, closeOthers: { [weak self] in
+                for other in [self?.window, self?.pagesWindow, self?.calibrationWindow, self?.setupWindow] { other?.close() }
+            }, close: { [weak self] in self?.uninstallWindow?.close() })
+            w.contentView = NSHostingView(rootView: view)
+            w.setContentSize(NSSize(width: 620, height: 600))
+            w.center()
+            uninstallWindow = w
+        }
+        if uninstallWindow?.isVisible != true { uninstallState.begin(chosen: model.xplane) }
+        showInDock()
+        NSApp.unhide(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        uninstallWindow?.makeKeyAndOrderFront(nil)
+    }
 
     // The pages editor gets a window of its own: there is a lot to see side by side.
     var pagesWindow: NSWindow?

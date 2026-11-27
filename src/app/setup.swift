@@ -1,6 +1,7 @@
 // The setup window: finds X-Plane 12, asks what to install and installs it. The file work is in
 // C++ (src/mac/setup.cpp), reached through bridge.h.
 import AppKit
+import ServiceManagement
 import SwiftUI
 
 /// X52_SANDBOX=<folder> tries setup and uninstall out inside that folder: nothing outside it is looked
@@ -211,5 +212,175 @@ struct SetupView: View {
             if !s.failed.isEmpty { Button("Try again") { s.step = 1 } }
             Button("Done", action: close).keyboardShortcut(.defaultAction)
         }
+    }
+}
+
+// MARK: - Uninstall
+
+/// The app itself goes to the Trash only from an Applications folder (never a copy someone built or keeps elsewhere).
+var appIsInApplications: Bool {
+    let parent = Bundle.main.bundleURL.deletingLastPathComponent().path
+    return parent == "/Applications" || parent == NSHomeDirectory() + "/Applications"
+}
+
+/// To the Trash; in a sandbox, into its own "trash" folder.
+func moveToTrash(_ url: URL) throws {
+    guard let box = sandboxDir else {
+        try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+        return
+    }
+    guard url.path.hasPrefix(box + "/") || url.path.hasPrefix(NSTemporaryDirectory()) else {
+        throw CocoaError(.fileWriteNoPermission)
+    }
+    let bin = URL(fileURLWithPath: box + "/trash")
+    try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+    try FileManager.default.moveItem(at: url, to: bin.appendingPathComponent(UUID().uuidString + " " + url.lastPathComponent))
+}
+
+final class UninstallState: ObservableObject {
+    @Published var deleteCustom = false
+    @Published var remove: [String] = []
+    @Published var custom: [String] = []
+    @Published var unknown: [String] = []
+    @Published var missing: [String] = []
+    @Published var failed: [String] = []
+    @Published var blocked = false     // X-Plane is running
+
+    func look(chosen: String) {
+        x52_uninstall_plan(chosen)
+        remove = lines(x52_uninstall_list(0))
+        custom = lines(x52_uninstall_list(1))
+        unknown = lines(x52_uninstall_list(2))
+        missing = lines(x52_uninstall_list(3))
+        blocked = xplaneIsRunning && sandboxDir == nil
+    }
+
+    func begin(chosen: String) {
+        deleteCustom = false
+        failed = []
+        look(chosen: chosen)
+    }
+
+    /// Takes everything out, except the app itself. Fills `failed`; a failed step does not stop the others.
+    func perform(m: Model) {
+        let chosen = m.xplane
+        m.stop()                       // nothing writes into the folders while they are emptied
+        look(chosen: chosen)           // what is there now
+        guard !blocked else {
+            m.start()
+            return
+        }
+        var problems = lines(x52_uninstall_remove())
+        if deleteCustom {
+            for path in custom {
+                do { try moveToTrash(URL(fileURLWithPath: path)) }
+                catch { problems.append("\(path): \(error.localizedDescription)") }
+            }
+        }
+        x52_uninstall_prune()
+        if sandboxDir == nil, let id = Bundle.main.bundleIdentifier {
+            if SMAppService.mainApp.status == .enabled {
+                do { try SMAppService.mainApp.unregister() }
+                catch { problems.append("Start at login: \(error.localizedDescription)") }
+            }
+            // The app's own entries in Privacy & Security (X-Plane's Accessibility entry is X-Plane's and stays).
+            let reset = Process()
+            reset.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+            reset.arguments = ["reset", "All", id]
+            try? reset.run()
+            reset.waitUntilExit()
+            if deleteCustom { deletePreferences(id, &problems) }
+        }
+        failed = problems
+        if !problems.isEmpty {
+            m.start()
+            look(chosen: chosen)
+        }
+    }
+
+    /// The preferences are removed; a copy goes to the Trash like the rest of the custom setup.
+    private func deletePreferences(_ id: String, _ problems: inout [String]) {
+        if let values = UserDefaults.standard.persistentDomain(forName: id) {
+            let copy = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("X52 Pro preferences.plist")
+            do {
+                try? FileManager.default.removeItem(at: copy)
+                let data = try PropertyListSerialization.data(fromPropertyList: values, format: .xml, options: 0)
+                try data.write(to: copy)
+                try moveToTrash(copy)
+            } catch { problems.append("Preferences: \(error.localizedDescription)") }
+        }
+        UserDefaults.standard.removePersistentDomain(forName: id)
+    }
+
+    /// Asks once more, uninstalls, and quits when all went well.
+    func run(m: Model, closeOthers: () -> Void) {
+        let ask = NSAlert()
+        ask.alertStyle = .critical
+        ask.messageText = "Uninstall X52 Pro?"
+        ask.informativeText = deleteCustom
+            ? "The plugin, ready-made profiles and guides are deleted. Your own profiles and settings go to the Trash."
+            : "The plugin, ready-made profiles and guides are deleted. Your own profiles and settings are kept."
+        ask.addButton(withTitle: "Cancel")
+        ask.addButton(withTitle: "Uninstall").hasDestructiveAction = true
+        guard ask.runModal() == .alertSecondButtonReturn else { return }
+        closeOthers()
+        perform(m: m)
+        guard failed.isEmpty && !blocked else { return }
+        var text = deleteCustom ? "Your own profiles and settings are in the Trash." : "Your own profiles and settings were kept."
+        if !unknown.isEmpty { text += "\n\nLeft in place (not made by X52 Pro):\n" + unknown.joined(separator: "\n") }
+        if !missing.isEmpty { text += "\n\nNot reachable, so not cleaned:\n" + missing.joined(separator: "\n") }
+        var appGone = false
+        if sandboxDir == nil && appIsInApplications { appGone = (try? moveToTrash(Bundle.main.bundleURL)) != nil }
+        text += appGone ? "\n\nThe app is in the Trash." : "\n\nNow drag the X52 Pro app to the Trash."
+        let done = NSAlert()
+        done.messageText = "X52 Pro is uninstalled"
+        done.informativeText = text
+        done.addButton(withTitle: "Quit")
+        done.runModal()
+        NSApp.terminate(nil)
+    }
+}
+
+struct UninstallView: View {
+    @ObservedObject var m: Model
+    @ObservedObject var s: UninstallState
+    let closeOthers: () -> Void
+    let close: () -> Void
+    private let byHand = Bundle.main.url(forResource: "Uninstall by hand", withExtension: "pdf", subdirectory: "guides")
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Uninstall X52 Pro").font(.title2.bold())
+            if s.blocked {
+                Text("X-Plane is running. Quit it first.").foregroundStyle(.orange)
+                Button("Check again") { s.look(chosen: m.xplane) }
+            }
+            Text("Your custom setup: your profiles, calibration and settings.")
+            Picker("", selection: $s.deleteCustom) {
+                Text("Keep my custom setup").tag(false)
+                Text("Delete it too (moved to the Trash)").tag(true)
+            }
+            .pickerStyle(.radioGroup).labelsHidden()
+            Text("Also removed: start at login, the app's caches and privacy entries, and the app itself. X-Plane's own settings are not touched.")
+                .font(.callout).fixedSize(horizontal: false, vertical: true)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    PathList(title: "Could not remove", paths: s.failed, color: .orange)
+                    PathList(title: s.deleteCustom ? "Your own files, moved to the Trash" : "Your own files, kept", paths: s.custom)
+                    PathList(title: "Not made by X52 Pro, left in place", paths: s.unknown)
+                    PathList(title: "X-Plane folders that cannot be reached", paths: s.missing)
+                    PathList(title: "Will be removed", paths: s.remove)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack {
+                Button("How to remove it by hand") { if let u = byHand { NSWorkspace.shared.open(u) } }.disabled(byHand == nil)
+                Spacer()
+                Button("Cancel", action: close).keyboardShortcut(.cancelAction)
+                Button("Uninstall...", role: .destructive) { s.run(m: m, closeOthers: closeOthers) }.disabled(s.blocked)
+            }
+        }
+        .padding(20)
+        .frame(width: 620, height: 600, alignment: .topLeading)
     }
 }
