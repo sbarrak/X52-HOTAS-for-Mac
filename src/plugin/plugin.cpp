@@ -1045,11 +1045,12 @@ bool App::redo() {
     return canRedo() && history.redo(text) && applyHistory(*this, text);
 }
 
-// The aircraft's description as X-Plane keeps it ("Cessna Citation X"); the app uses it to find the aircraft's
-// joystick settings, since X-Plane stores those per aircraft.
+// The aircraft's name as X-Plane shows it ("Cessna Skyhawk"); the app uses it to find the aircraft's joystick
+// settings, since X-Plane stores those per aircraft under this name (Miscellaneous.prf, acf_profile). Not the
+// description (acf_descrip): that is other text ("Cessna 172 SP Skyhawk - 180HP"), and some aircraft have none.
 void App::saveAircraftDescription() {
     char buf[512] = {0};
-    XPLMDataRef ref = XPLMFindDataRef("sim/aircraft/view/acf_descrip");
+    XPLMDataRef ref = XPLMFindDataRef("sim/aircraft/view/acf_ui_name");
     if (!ref) return;
     int n = XPLMGetDatab(ref, buf, 0, (int)sizeof buf - 1);
     buf[n > 0 ? n : 0] = 0;

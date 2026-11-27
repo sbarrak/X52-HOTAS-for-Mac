@@ -107,8 +107,10 @@ XPLMDataRef XPLMFindDataRef(const char* name) {
 int XPLMGetDatai(XPLMDataRef r) { return (int)refValue(r); }
 float XPLMGetDataf(XPLMDataRef r) { return (float)refValue(r); }
 double XPLMGetDatad(XPLMDataRef r) { return refValue(r); }
-int XPLMGetDatab(XPLMDataRef, void* out, int offset, int n) {
-    const std::string& d = sim().acfDescrip;
+int XPLMGetDatab(XPLMDataRef r, void* out, int offset, int n) {
+    size_t i = (size_t)(intptr_t)r;
+    bool uiName = i >= 1 && i <= refNames.size() && refNames[i - 1] == "sim/aircraft/view/acf_ui_name";
+    const std::string& d = uiName ? sim().acfUiName : sim().acfDescrip;
     if (!out) return (int)d.size();
     int got = 0;
     for (; got < n && offset + got < (int)d.size(); ++got) ((char*)out)[got] = d[offset + got];

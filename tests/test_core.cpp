@@ -1701,6 +1701,8 @@ TEST(x_plane_numbers_buttons_after_the_hat_and_keeps_joystick_settings_per_aircr
     CHECK_EQ(controlProfileFor(misc, "Cessna Citation X"), std::string("Cesna___X"));
     CHECK_EQ(controlProfileFor(misc, "Unknown plane"), std::string(""));
     CHECK_EQ(controlProfileFor(misc, ""), std::string(""));
+    // As X-Plane writes it: the key is the UI name ("Cessna Skyhawk"), not the description (#125).
+    CHECK_EQ(controlProfileFor("P acf_profile Cessna___Skyhawk My___rules\n", "Cessna Skyhawk"), std::string("My___rules"));
 }
 
 TEST(the_brightness_page_shows_percent_and_follows_the_wheel) {
