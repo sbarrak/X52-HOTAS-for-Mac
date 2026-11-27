@@ -3320,10 +3320,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         NSApp.activate(ignoringOtherApps: true)
         let a = NSAlert()
         a.messageText = "A new version is available: \(r.version)"
-        a.informativeText = "You have \(appVersion). The release page has the download and what changed."
+        a.informativeText = "Due to the app being in the initial development stages, constant updates and feature additions have been going on. Stay tuned to what is changing.\n\n"
+            + "You have \(appVersion). The release page has the download and what changed."
+        a.accessoryView = whatIsNewLink(r)
         a.addButton(withTitle: "Open release page")
         a.addButton(withTitle: "Later")
         if a.runModal() == .alertFirstButtonReturn { NSWorkspace.shared.open(r.page) }
+    }
+
+    /// The link in the update window: the new version's release page, which lists the changes and their issues.
+    private func whatIsNewLink(_ r: UpdateCheck.Release) -> NSView {
+        let para = NSMutableParagraphStyle()
+        para.alignment = .center
+        let link = NSTextField(labelWithAttributedString: NSAttributedString(
+            string: "See what is new in \(r.version)",
+            attributes: [.link: r.page, .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize), .paragraphStyle: para]))
+        link.allowsEditingTextAttributes = true   // a label needs these two for its link to be clickable
+        link.isSelectable = true
+        link.frame = NSRect(x: 0, y: 0, width: 228, height: link.intrinsicContentSize.height)
+        return link
     }
 
     @objc func toggleAutoUpdate() { UpdateCheck.automatic.toggle() }
