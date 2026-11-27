@@ -48,6 +48,22 @@ final class Model: ObservableObject {
     @Published var folder = ""
     @Published var xplane = ""          // the X-Plane 12 folder in use ("" when none was found)
     @Published var tab = 0              // selected tab of the settings window
+    // Basic or Advanced: how much the window shows. An app preference, never part of a profile. The first one is
+    // chosen here, before anything else is saved (see x52_view_initial).
+    let viewAtLaunch = UserDefaults.standard.object(forKey: "advancedView") as? Bool
+    @Published var advanced: Bool = {
+        let d = UserDefaults.standard
+        let saved: Int32 = (d.object(forKey: "advancedView") as? Bool).map { $0 ? 1 : 0 } ?? -1
+        let used = ["profileKey", "xplaneFolder", "lastUpdateCheck", "manualTemplate"].contains { d.object(forKey: $0) != nil }
+        let on = x52_view_initial(saved, used ? 1 : 0) != 0
+        d.set(on, forKey: "advancedView")
+        return on
+    }()
+    func setAdvanced(_ on: Bool) {
+        UserDefaults.standard.set(on, forKey: "advancedView")
+        advanced = on
+        if !visibleTabs(on).contains(where: { $0.0 == tab }) { tab = 6 }   // the tab showing is not in Basic: Buttons
+    }
     @Published var liveOpen: Set<Int> = []     // live light rules shown opened
     @Published var liveChecked: Set<Int> = []  // ticked for "Remove selected"
     @Published var liveStatus: [Int: String] = [:]   // what X-Plane makes of each opened rule's / alarm's datarefs (see statusKey)
@@ -2897,6 +2913,25 @@ struct PageSource: View {
 let tabList: [(Int, String)] = [(6, "Buttons"), (0, "Lights"), (1, "Live lights"), (2, "Alarms"), (3, "Screen & clock"),
                                 (8, "Pages"), (5, "Master & brightness"), (7, "Axes"), (4, "Test")]
 
+// Basic shows fewer tabs, in the same order.
+func visibleTabs(_ advanced: Bool) -> [(Int, String)] {
+    advanced ? tabList : tabList.filter { [6, 0, 2, 3, 7, 4].contains($0.0) }
+}
+
+// Basic says when the profile in use has something it hides, so nothing acts unseen.
+struct AdvancedNotice: View {
+    @ObservedObject var m: Model
+    let text: String
+    var body: some View {
+        HStack(spacing: 6) {
+            Text("\(text)  ·").foregroundStyle(.secondary)
+            Button("Show") { m.setAdvanced(true) }
+                .buttonStyle(.link).help("Switches to the Advanced view")
+        }
+        .font(.callout)
+    }
+}
+
 // A short show on the stick: lights, colours and the screen. Stop ends it early.
 struct DemoButton: View {
     @ObservedObject var m: Model
@@ -2914,9 +2949,12 @@ struct DemoButton: View {
 
 struct SettingsView: View {
     @ObservedObject var m: Model
+    // The folder paths: always in Advanced, and in Basic only while X-Plane (or its command list) is not found.
+    private var showFolders: Bool { m.advanced || m.xplane.isEmpty || x52_catalog_size(0) == 0 }
     private func stepTab(_ d: Int) {
-        guard let i = tabList.firstIndex(where: { $0.0 == m.tab }) else { return }
-        m.tab = tabList[max(0, min(tabList.count - 1, i + d))].0
+        let tabs = visibleTabs(m.advanced)
+        guard let i = tabs.firstIndex(where: { $0.0 == m.tab }) else { return }
+        m.tab = tabs[max(0, min(tabs.count - 1, i + d))].0
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -2941,8 +2979,14 @@ struct SettingsView: View {
                         .help("Brings back “\(profileTitle(m.lastDeleted))”")
                 }
                 UndoRedoButtons(m: m)
+                Picker("View", selection: Binding(get: { m.advanced }, set: { m.setAdvanced($0) })) {
+                    Text("Basic").tag(false)
+                    Text("Advanced").tag(true)
+                }
+                .labelsHidden().pickerStyle(.segmented).fixedSize().accessibilityLabel("View")
+                .help("Basic shows the everyday settings, Advanced shows everything. Your profiles are not changed.")
                 ProfilePicker(m: m) { m.select($0) }
-                    .frame(width: 280)
+                    .frame(minWidth: 200, maxWidth: 280)
                 Menu {
                     Button("New blank profile...") { m.newBlank() }
                     Button("Save as new profile...") { x52_copy_ask(); m.tick() }
@@ -2970,7 +3014,7 @@ struct SettingsView: View {
             // A scrolling strip of tabs, so a narrow window never hides some behind a ">>" menu.
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    ForEach(Array(tabList.enumerated()), id: \.element.0) { n, entry in
+                    ForEach(Array(visibleTabs(m.advanced).enumerated()), id: \.element.0) { n, entry in
                         let on = m.tab == entry.0
                         Button { m.tab = entry.0 } label: {
                             Text(entry.1).lineLimit(1).padding(.horizontal, 12).frame(height: 26)
@@ -2986,7 +3030,15 @@ struct SettingsView: View {
                 }
                 .arrowKeys(left: { stepTab(-1) }, right: { stepTab(1) })
             }
-            Group {
+            if !m.advanced {
+                let used = Int(x52_hidden_tabs())
+                let names = tabList.filter { used & (1 << $0.0) != 0 }.map { $0.1 }
+                if !names.isEmpty { AdvancedNotice(m: m, text: "In Advanced: " + names.joined(separator: ", ")) }
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                if !m.advanced && x52_hidden_settings(Int32(m.tab)) != 0 {
+                    AdvancedNotice(m: m, text: "Advanced settings in use")
+                }
                 switch m.tab {
                 case 6: ButtonsTab(m: m)
                 case 0: LightsTab(m: m)
@@ -3006,8 +3058,10 @@ struct SettingsView: View {
                     Text("X-Plane 12 was not found. Choose its folder to install the plugin.")
                         .font(.caption).foregroundStyle(.orange)
                 } else {
-                    Text("X-Plane: \(m.xplane)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                        .truncationMode(.head).help("The X-Plane 12 folder in use")
+                    if showFolders {
+                        Text("X-Plane: \(m.xplane)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            .truncationMode(.head).help("The X-Plane 12 folder in use")
+                    }
                     Text(m.pluginState == 2 ? "Plugin installed" : m.pluginState == 1 ? "Plugin out of date" : "Plugin not installed")
                         .font(.caption).foregroundStyle(m.pluginState == 2 ? Color.green : Color.orange)
                     if m.pluginState != 2 {
@@ -3021,12 +3075,14 @@ struct SettingsView: View {
                 Text(m.pluginMessage).font(.caption).fixedSize(horizontal: false, vertical: true)
             }
             HStack {
-                Text(m.folder).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
-                    .help("Where the profiles are saved")
+                if showFolders {
+                    Text(m.folder).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
+                        .help("Where the profiles are saved")
+                }
                 Spacer()
                 Button("Open guides") { m.openGuides() }.controlSize(.small)
                     .help("The folder with the manual and the button maps (Documents/X52 Pro)")
-                Button("X-Plane folder...") { m.chooseXPlaneFolder() }.controlSize(.small)
+                if showFolders { Button("X-Plane folder...") { m.chooseXPlaneFolder() }.controlSize(.small) }
             }
         }
         .padding(16)
@@ -3290,11 +3346,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         let saved = UserDefaults.standard.string(forKey: "profileKey")
         model.snapshotMode = true
+        model.setAdvanced(!CommandLine.arguments.contains("--basic"))
         if let p = profile { model.select(p) }
         openSettings()
         window?.setContentSize(NSSize(width: 960, height: 800))
-        let shots: [(String, Int)] = [("buttons", 6), ("lights", 0), ("live-lights", 1), ("alarms", 2), ("screen", 3),
-                                      ("pages", 8), ("master", 5), ("axes", 7), ("test", 4)]
+        let all: [(String, Int)] = [("buttons", 6), ("lights", 0), ("live-lights", 1), ("alarms", 2), ("screen", 3),
+                                    ("pages", 8), ("master", 5), ("axes", 7), ("test", 4)]
+        let shots = all.filter { shot in visibleTabs(model.advanced).contains { $0.0 == shot.1 } }
         var n = 0
         func next() {
             if n < shots.count {
@@ -3333,6 +3391,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                     draw(setupWindow, to: dir + "/setup-\(step + 1).png"); next()
                 }
             } else {
+                if let v = model.viewAtLaunch { UserDefaults.standard.set(v, forKey: "advancedView") }
+                else { UserDefaults.standard.removeObject(forKey: "advancedView") }
                 if let s = saved { UserDefaults.standard.set(s, forKey: "profileKey") }
                 else { UserDefaults.standard.removeObject(forKey: "profileKey") }
                 NSApp.terminate(nil)
