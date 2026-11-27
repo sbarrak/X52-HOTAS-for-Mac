@@ -988,3 +988,44 @@ TEST(a_ready_made_profile_has_nothing_to_undo) {
     CHECK(!a.canUndo() && !a.canRedo());
     CHECK(!a.undo());
 }
+
+TEST(the_first_view_is_advanced_after_earlier_use_and_basic_for_a_new_user) {
+    CHECK_EQ(x52_view_initial(-1, 0), 0);
+    CHECK_EQ(x52_view_initial(-1, 1), 1);
+    CHECK_EQ(x52_view_initial(0, 1), 0);     // a saved choice wins
+    CHECK_EQ(x52_view_initial(1, 0), 1);
+}
+
+TEST(a_plain_profile_has_nothing_hidden_in_basic) {
+    std::string dir = freshDir("view_plain");
+    { std::ofstream f(dir + "/default.x52"); f << "x52pro-profile 12\nname = default\n"; }
+    x52_start("", dir.c_str(), "default");
+    CHECK_EQ(x52_hidden_tabs(), 0);
+    for (int tab = 0; tab <= 8; ++tab) CHECK_EQ(x52_hidden_settings(tab), 0);
+    std::string before = slurp(dir + "/default.x52");
+    x52_hidden_tabs();
+    x52_hidden_settings(7);
+    CHECK_EQ(slurp(dir + "/default.x52"), before);   // asking never writes
+    x52_stop();
+}
+
+TEST(hidden_tabs_and_settings_are_reported_when_the_profile_uses_them) {
+    std::string dir = freshDir("view_used");
+    { std::ofstream f(dir + "/default.x52"); f << "x52pro-profile 12\nname = default\n"; }
+    x52_start("", dir.c_str(), "default");
+    CHECK(x52_rule_add() >= 0);
+    CHECK_EQ(x52_hidden_tabs(), 1 << 1);
+    x52_set("radio_side", 1);
+    CHECK_EQ(x52_hidden_tabs(), (1 << 1) | (1 << 8));
+    x52_bright_set(0, "sim/cockpit2/electrical/instrument_brightness_ratio[0]", 0, 1, 10, 127);
+    CHECK_EQ(x52_hidden_tabs(), (1 << 1) | (1 << 5) | (1 << 8));
+    CHECK_EQ(x52_hidden_settings(3), 1);             // screen brightness follows a dataref
+    CHECK_EQ(x52_hidden_settings(0), 0);
+    x52_set("stick_smoothing", 100);
+    CHECK_EQ(x52_hidden_settings(7), 1);
+    x52_set("stick_smoothing", 60);
+    CHECK_EQ(x52_hidden_settings(7), 0);
+    x52_set("axis_roll_deadzone", 10);               // visible in Basic: not reported
+    CHECK_EQ(x52_hidden_settings(7), 0);
+    x52_stop();
+}

@@ -226,6 +226,14 @@ void x52_set_mode_name(int mode, const char* name);
 int x52_get(const char* name);
 void x52_set(const char* name, int value);
 
+// The Basic and Advanced views (an app preference, never part of a profile).
+// The view to open with: `saved` is -1 (never chosen), 0 Basic or 1 Advanced; without a saved choice an app that was
+// used before opens in Advanced and a new one in Basic.
+int x52_view_initial(int saved, int used_before);
+// Tab numbers are the app's: 0 Lights, 1 Live lights, 3 Screen & clock, 5 Master & brightness, 7 Axes, 8 Pages.
+int x52_hidden_tabs(void);              // bit 1 << tab: a tab Basic hides that the profile in use fills
+int x52_hidden_settings(int tab);       // 1: a setting Basic hides on this visible tab is in use
+
 // Every analog control the stick reports, one line each: "name<TAB>percent<TAB>value text<TAB>raw<TAB>moving 1/0<TAB>usage".
 // Settings by name for the flight axes: axis_override, axis_<roll|pitch|yaw|throttle>_deadzone (0..40 %),
 // _expo (0..100 %) and _invert; stick_smoothing (0..200 ms) and stick_damping (0..100); for the right wheel: dial_accel and dial_factor (2..50); throttle_plugin (the plugin drives the throttle on its own), slider_flaps (the slider

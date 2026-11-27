@@ -926,6 +926,40 @@ void x52_set(const char* name, int value) {
     });
 }
 
+int x52_view_initial(int saved, int used_before) {
+    return saved == 0 || saved == 1 ? saved : used_before ? 1 : 0;
+}
+
+int x52_hidden_tabs(void) {
+    if (!agent) return 0;
+    Profile p = agent->profile();
+    int tabs = 0;
+    if (!p.rules.empty()) tabs |= 1 << 1;
+    if (!p.masterScreen.dataref.empty() || !p.masterLights.dataref.empty() || p.brightScreen.active() || p.brightLights.active())
+        tabs |= 1 << 5;
+    bool wheel = !p.wheelOrder.empty() || !p.wheelHidden.empty();
+    for (const WheelSet& w : p.modeWheel) wheel = wheel || w.own;
+    if (!p.pages.pages.empty() || wheel || p.radioSide) tabs |= 1 << 8;
+    return tabs;
+}
+
+int x52_hidden_settings(int tab) {
+    if (!agent) return 0;
+    const Profile p = agent->profile(), d;
+    if (tab == 0) return p.brightLights.active();
+    if (tab == 3)
+        return p.brightScreen.active() || p.modeBannerMs != d.modeBannerMs || p.clutchLatched != d.clutchLatched ||
+               p.dial.on != d.dial.on || p.dial.factor != d.dial.factor;
+    if (tab == 7) {
+        const AxisSettings &a = p.axes, &b = d.axes;
+        return a.smoothingMs != b.smoothingMs || a.damping != b.damping || a.lowerRotary.deadzone != b.lowerRotary.deadzone ||
+               a.upperRotary.deadzone != b.upperRotary.deadzone || a.slider.deadzone != b.slider.deadzone ||
+               a.lowerFrom != b.lowerFrom || a.lowerTo != b.lowerTo || a.upperFrom != b.upperFrom || a.upperTo != b.upperTo ||
+               a.zoomSteps != b.zoomSteps || a.wheelZoomSteps != b.wheelZoomSteps;
+    }
+    return 0;
+}
+
 const char* x52_axes(void) {
     static std::string out;
     out.clear();
