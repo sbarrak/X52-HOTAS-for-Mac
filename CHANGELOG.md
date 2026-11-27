@@ -31,6 +31,11 @@
 - **Reverse did not deploy in the Citation X and King Air C90B (#121).** Symptom: holding D in landing did nothing. Cause: these two models do not follow X-Plane's reverse-hold command; the reverse toggle works. Fix: D is "Reverse on/off" in these two (a tap in, a tap out). Fixed in 1.6.4.
 - **The King Air C90B's flight director button did nothing (#121).** Symptom: C in takeoff did not turn the FD on, and HDG, NAV and ALT then did nothing either (they need the FD). Cause: the C90B uses its own FD switch, not X-Plane's FD command. Fix: C uses the cockpit's FD switch. Fixed in 1.6.4.
 
+## 1.6.3
+
+### Changed
+- **New app icon (#122).** The icon in the Dock, Command+Tab and Finder is new artwork: the stick linked to an aircraft. It is kept as a picture in `assets/AppIcon.png`; `tools/make_icon.swift` now builds every icon size from it in the usual macOS rounded shape, instead of drawing the old icon in code.
+
 ## 1.6.2
 
 ### Fixed
