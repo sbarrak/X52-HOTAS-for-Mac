@@ -1,0 +1,38 @@
+# X52 Pro: read me first
+
+You need an Apple Silicon Mac (M1 or later), macOS 13 or newer, X-Plane 12 and an X52 or X52 Pro stick.
+
+## 1. Drag
+
+Drag X52 Pro onto the Applications folder in the download window.
+
+## 2. Open
+
+Open X52 Pro from Applications.
+
+## 3. If macOS blocks the app
+
+macOS may say that X52 Pro cannot be opened, because it is not signed with a paid Apple developer account. This happens once.
+
+On macOS 15 or newer:
+- Press Done in that message.
+- Open System Settings > Privacy & Security.
+- Scroll down to Security and press Open Anyway next to X52 Pro.
+- Confirm with your password, then the installation continues.
+
+On macOS 13 or 14: right-click X52 Pro in Applications, choose Open, then Open again.
+
+## 4. Setup
+
+The setup window appears.
+- Check the X-Plane 12 folder it shows, or choose it.
+- Tick what to install: the plugin, the ready-made aircraft profiles and the guides.
+- Press Install, then restart X-Plane.
+
+Profiles of your own are never overwritten. The guides go to Documents/X52 Pro; Open guides in the app opens that folder.
+
+In X-Plane, Settings > Joystick: set each button your profile programs to Do nothing.
+
+## Uninstall
+
+In the app's menu choose Uninstall X52 Pro... It removes what was installed and asks whether to keep or delete your own profiles and settings. Dragging only the app to the Trash leaves the plugin and the profiles in X-Plane. The guide "Uninstall by hand" in the guides folder lists every file.

@@ -175,9 +175,9 @@ add(bullet("Chapter 7 covers testing, troubleshooting and the profile file, and 
 add(h1("2  Install and first start"));
 add(h2("2.1  From the download"));
 add(...numbered([
-  `Unzip \`X52-Pro-${version}.zip\` and drag **X52 Pro** into **Applications**.`,
-  "Open it. The first time, right-click it and choose **Open**, because the app is not signed with a paid Apple developer account.",
-  "In the window that opens, press **Install plugin**. The app finds X-Plane 12 by itself, Steam or not. If it cannot, press **X-Plane folder...** at the bottom right and pick the X-Plane 12 folder.",
+  `Open \`X52-Pro-${version}.dmg\` and drag **X52 Pro** onto **Applications**.`,
+  "Open it. The app is not signed with a paid Apple developer account, so the first time macOS blocks it. On macOS 15 or newer press **Done**, open **System Settings > Privacy & Security** and press **Open Anyway**. On macOS 13 or 14 right-click the app and choose **Open**.",
+  "The **setup window** shows the X-Plane 12 folder it found, or asks you to choose it. Tick what to install (the plugin, the ready-made aircraft profiles, the guides) and press **Install**. Your own profiles are never overwritten. The guides go to `Documents/X52 Pro`; **Open guides** opens that folder, and **Setup...** in the menu opens the window again.",
   "Restart X-Plane. The plugin is loaded when X-Plane starts.",
 ]));
 add(h2("2.2  From the source"));
@@ -187,10 +187,13 @@ add(p("The app reads the install list X-Plane keeps in `~/Library/Preferences/x-
 add(h2("2.4  Keystrokes need one permission"));
 add(p("If a button should type a keyboard key, macOS needs to be told that X-Plane may do that. Open **System Settings > Privacy & Security > Accessibility** and allow **X-Plane**. The plugin's Settings tab shows whether this is granted. Buttons that run X-Plane commands or write datarefs do not need it."));
 add(h2("2.5  The menu bar icon and the window"));
-add(p("Once running, the app lives in the menu bar, with the app's own icon. **Double-click** the icon to open the app's window; **right-click** it (or Control-click) for its menu. A single click does nothing. The menu shows the version and the state of the stick, and has **About X52 Pro**, **Check for updates...**, **Check for updates automatically**, **Open settings...**, **Open pages editor...**, **Calibrate stick...**, **Start at login** and **Quit X52 Pro**. While a window is open the app also appears in the Dock. **Command-Q** quits it: the stick is no longer driven by the app. **Command-H** only hides it, and it keeps running; closing the window also leaves it running in the menu bar."));
+add(p("Once running, the app lives in the menu bar, with the app's own icon. **Double-click** the icon to open the app's window; **right-click** it (or Control-click) for its menu. A single click does nothing. The menu shows the version and the state of the stick, and has **About X52 Pro**, **Check for updates...**, **Check for updates automatically**, **Open settings...**, **Open pages editor...**, **Calibrate stick...**, **Open guides**, **Setup...**, **Uninstall X52 Pro...**, **Start at login** and **Quit X52 Pro**. While a window is open the app also appears in the Dock. **Command-Q** quits it: the stick is no longer driven by the app. **Command-H** only hides it, and it keeps running; closing the window also leaves it running in the menu bar."));
 add(p("The stick forgets its lights when it loses power, so the app sends them again whenever the stick is plugged in. Lights, screen and clock settings hold in any program; the button programming stays inside X-Plane."));
 add(h2("2.6  The app and the plugin working together"));
 add(p("They share the same profile files. While X-Plane is running, the plugin drives the stick and the app stays quiet: it still saves what you change, and the plugin applies it within a second. When X-Plane quits, the app takes over again. Without X-Plane installed, profiles live in `~/Library/Application Support/X52Pro/`; with it, in `X-Plane 12/Output/preferences/X52Pro/`."));
+
+add(h2("2.7  Uninstall"));
+add(p("Choose **Uninstall X52 Pro...** in the menu bar icon's menu or the app menu, with X-Plane closed. It removes the plugin, the ready-made profiles, the guides, start at login, caches, the app's privacy entries and the app itself, and asks whether to **keep** your own setup (your profiles, stick calibration and app settings) or **delete** it, which moves it to the Trash. Files that X52 Pro did not make are listed and left in place, and X-Plane's own settings are not touched. If something cannot be removed, the app stays so you can run it again. The guide **Uninstall by hand** lists every file for removing it without the app."));
 
 // ---- 3
 add(h1("3  How it works: the ideas"));
@@ -471,7 +474,7 @@ add(p("Profiles are plain text, so you can edit and share them. The app and the 
 })));
 add(p("The profile in use for each aircraft is kept in `profile-choices.txt` next to the profiles. The plugin also learns X-Plane's own number for each button you press (saved in `xplane-map.txt`) and records the aircraft's name for the app (`xplane-aircraft.txt`)."));
 add(h2("7.4  Build and test from the source"));
-add(p("`make` builds everything into `bin/` and runs the tests. `make install-app` puts the app in Applications. `make release` makes `bin/X52-Pro-<version>.zip`, ready to share. The version number is in the file `VERSION`; change it there and everything (the app's About box and window titles, the plugin's name in X-Plane, and the zip) follows."));
+add(p("`make` builds everything into `bin/` and runs the tests. `make install-app` puts the app in Applications. `make release` makes `bin/X52-Pro-<version>.dmg`, ready to share. The version number is in the file `VERSION`; change it there and everything (the app's About box and window titles, the plugin's name in X-Plane, and the disk image) follows."));
 
 // ---- appendix
 add(h1("Appendix A  Button numbers"));

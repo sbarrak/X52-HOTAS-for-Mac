@@ -70,7 +70,8 @@ The screen gets Flight, Engine and Fuel pages after the built-in radio pages.
 ## Installing
 
 The plugin picks a profile by the aircraft's `.acf` file name: `aircraft-<acf name>.x52` in
-`X-Plane 12/Output/preferences/X52Pro/`. Copy the `.x52` files there. They never change once
+`X-Plane 12/Output/preferences/X52Pro/`. The app's **setup window** puts the ready-made ones there (**Setup...** in
+its menu); by hand, copy the `.x52` files there. They never change once
 installed, so copying a newer version over one is safe; your own changes live in your copies. Then, in X-Plane, set every button these profiles use to **Do nothing**
 (Settings > Joystick), or X-Plane and the plugin both act on it.
 

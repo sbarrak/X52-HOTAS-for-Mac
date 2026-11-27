@@ -86,14 +86,26 @@ It is a new program, not a conversion: the Logitech installer contains no source
 You need an Apple Silicon Mac (M1 or later), macOS 13 or newer, X-Plane 12 and an X52 or
 X52 Pro stick.
 
-**From a download (`X52-Pro-<version>.zip`, on the [Releases page](https://github.com/sbarrak/X52-HOTAS-for-Mac/releases/latest))**
+**From a download (`X52-Pro-<version>.dmg`, on the [Releases page](https://github.com/sbarrak/X52-HOTAS-for-Mac/releases/latest))**
 
-1. Unzip it and drag **X52 Pro** into **Applications**.
-2. Open it. The first time, right-click it and choose **Open**, because the app is not
-   signed with a paid Apple developer account.
-3. In the window, press **Install plugin**. The app finds X-Plane 12 by itself, Steam
-   or not. If it cannot, press **X-Plane folder...** and pick it.
+1. Open the disk image and drag **X52 Pro** onto **Applications**.
+2. Open it. The app is not signed with a paid Apple developer account, so the first time macOS blocks it: on
+   macOS 15 or newer press **Done**, open **System Settings > Privacy & Security** and press **Open Anyway**; on
+   macOS 13 or 14 right-click the app and choose **Open**.
+3. The **setup window** shows the X-Plane 12 folder it found (or asks you to choose it) and installs what you tick:
+   the plugin, the ready-made aircraft profiles and the guides (manual and button maps, in `Documents/X52 Pro`).
 4. Restart X-Plane.
+
+Setup comes back when a newer app finds older files, and any time from **Setup...** in the menu. A profile of your
+own is never overwritten, even under a ready-made profile's name. **Open guides** opens the guides folder.
+
+## Uninstall
+
+**Uninstall X52 Pro...** (menu bar icon's menu, or the app menu) removes the plugin, the ready-made profiles, the
+guides, start at login, caches, the app's privacy entries and the app itself. You choose whether your own setup
+(your profiles, stick calibration and app settings) is kept, or moved to the Trash. Files X52 Pro did not make are
+listed and left, and X-Plane's own settings are not touched. If something cannot be removed, the app stays so you
+can run it again. Without the app: [uninstall by hand](docs/install/uninstall-by-hand.txt).
 
 **From the source**
 
@@ -112,7 +124,7 @@ make install-app
 
 This builds `X52 Pro.app` and copies it to `/Applications`. Open it once; it then lives
 in the menu bar, with the app's icon. **Double-click** the icon to open the window; **right-click** it (or
-Control-click) for the menu: **Open settings...**, **Start at login**, **Quit** and more. **Command-Q** quits the
+Control-click) for the menu: **Open settings...**, **Open guides**, **Setup...**, **Uninstall X52 Pro...**, **Start at login**, **Quit** and more. **Command-Q** quits the
 app; **Command-H** hides it and it keeps running.
 
 - **Lights** – a colour for every light in each of the three modes, and brightness.
@@ -463,11 +475,13 @@ make
 Builds everything into `bin/` and runs the tests: `tests/test_core.cpp` (profiles, modes, hold,
 macros, screen pages and cursor, screen and light protocol), `tests/test_plugin.cpp`
 (the real plugin driven through a stand-in for X-Plane: window clicks, typing, button
-presses) `tests/test_agent.cpp` (the menu bar app's saving rules) and `tests/test_xplane.cpp`
-(finding X-Plane and installing the plugin). `make release` makes `bin/X52-Pro-<version>.zip`; the version comes from the `VERSION` file.
+presses) `tests/test_agent.cpp` (the menu bar app's saving rules), `tests/test_xplane.cpp`
+(finding X-Plane and installing the plugin) and `tests/test_setup.cpp` (installing and uninstalling everything,
+in a made-up home folder). `make release` makes `bin/X52-Pro-<version>.dmg`; the version comes from the `VERSION` file.
 
 **Pictures and manual.** The pictures in `docs/images` are drawn by the app itself: `bin/X52Pro.app/Contents/MacOS/X52Pro
---snapshot <folder> --profile aircraft-Cessna_CitationX` writes one PNG per tab. The Word manual is made from them by
+--snapshot <folder> --profile aircraft-Cessna_CitationX` writes one PNG per tab. With `X52_SANDBOX=<folder>` in
+the environment, setup and uninstall see only that folder, so they can be tried without touching the real install. The Word manual is made from them by
 `node docs/manual/build_manual.js` (it needs the `docx` npm package).
 
 ## License, credits and trademarks

@@ -3,7 +3,7 @@
 #   make test         run the unit tests
 #   make install-app  put the app in /Applications (it installs the plugin into X-Plane itself)
 #   make install      copy the plugin straight into X-Plane
-#   make release      bin/X52-Pro-<version>.zip, ready to share (the version is in the VERSION file)
+#   make release      bin/X52-Pro-<version>.dmg, ready to share (the version is in the VERSION file)
 # Built programs land in bin/, intermediate files and test programs in build/.
 
 # X-Plane keeps a list of its installs; use the first one, or set XPLANE="/path/to/X-Plane 12".
@@ -112,10 +112,15 @@ $(APPBIN): src/app/main.swift src/app/setup.swift src/app/Info.plist $(APPSRC) $
 # The ready-made profiles and the guides the app installs. Copied every time (their names have spaces, so make
 # cannot watch them), then the app is signed.
 RES = $(APP)/Contents/Resources
-bundle: $(APPBIN)
+build/%.pdf: docs/install/%.txt tools/make_text_pdf.swift
+	@mkdir -p build
+	swift tools/make_text_pdf.swift $< $@
+
+bundle: $(APPBIN) build/uninstall-by-hand.pdf
 	rm -rf "$(RES)/profiles" "$(RES)/guides" && mkdir -p "$(RES)/profiles" "$(RES)/guides"
 	for f in profiles/*.x52; do if grep -q '^standard = 1' "$$f"; then cp "$$f" "$(RES)/profiles/" || exit 1; fi; done
 	cp docs/manual/X52-Pro-Manual.docx docs/mapping/*.pdf "$(RES)/guides/"
+	cp build/uninstall-by-hand.pdf "$(RES)/guides/Uninstall by hand.pdf"
 	codesign --force --sign - "$(APP)"
 	@# Finder and the Dock keep an app's old icon until the app folder itself is newer and macOS is told about it.
 	touch "$(APP)"
@@ -136,10 +141,17 @@ install: $(XPL)
 	mv -f "$(XPLANE)/Resources/plugins/X52Pro/mac_x64/X52Pro.xpl.new" "$(XPLANE)/Resources/plugins/X52Pro/mac_x64/X52Pro.xpl"
 	@echo "Installed to $(XPLANE)/Resources/plugins/X52Pro"
 
-release: app
-	rm -f $(BIN)/X52-Pro*.zip
-	cd $(BIN) && rm -rf "X52 Pro.app" && cp -R X52Pro.app "X52 Pro.app" && ditto -c -k --keepParent "X52 Pro.app" X52-Pro-$(VERSION).zip && rm -rf "X52 Pro.app"
-	@echo "Made $(BIN)/X52-Pro-$(VERSION).zip"
+# The disk image people download: the app (it carries the plugin, profiles and guides), a shortcut to
+# Applications to drag it to, and the first steps.
+DMG = $(BIN)/X52-Pro-$(VERSION).dmg
+release: app build/read-me-first.pdf
+	rm -rf $(BIN)/X52-Pro*.zip $(BIN)/X52-Pro*.dmg build/dmg && mkdir -p build/dmg
+	cp -R $(APP) "build/dmg/X52 Pro.app"
+	ln -s /Applications build/dmg/Applications
+	cp build/read-me-first.pdf "build/dmg/Read me first.pdf"
+	hdiutil create -quiet -volname "X52 Pro $(VERSION)" -srcfolder build/dmg -fs HFS+ -format UDZO -ov $(DMG)
+	rm -rf build/dmg
+	@echo "Made $(DMG)"
 
 clean:
 	rm -rf build $(BIN)

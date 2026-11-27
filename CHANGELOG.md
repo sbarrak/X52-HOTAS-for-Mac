@@ -4,6 +4,10 @@
 
 ### Added
 - **A setup window (#139).** It shows the X-Plane 12 folder it found (or asks for it), asks what to install, and installs the plugin, the ready-made profiles and the guides (the manual and the button maps, in `Documents/X52 Pro`). Profiles of your own are never overwritten. **Open guides** opens the folder; **Setup...** opens the window again.
+- **Uninstall (#139).** **Uninstall X52 Pro...** removes everything that was installed and asks whether to keep your own profiles and settings or move them to the Trash. The steps for removing it by hand are in the guides.
+
+### Changed
+- **The download is a disk image (#139).** Drag **X52 Pro** to **Applications**; "Read me first" says how to allow the app in Privacy & Security.
 
 ## 1.7.1
 

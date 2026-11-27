@@ -1,6 +1,6 @@
 #!/bin/bash
 # Double-click to install X52 Pro: builds the app if needed, puts it in /Applications and
-# opens it. The app then finds X-Plane 12 and installs the plugin with one button.
+# opens it. Its setup window then finds X-Plane 12 and installs the plugin, profiles and guides.
 cd "$(dirname "$0")" || exit 1
 
 pause() { read -r -p "Press Return to close."; }
@@ -23,5 +23,5 @@ make install-app >/dev/null || { echo "Could not copy the app to /Applications."
 xattr -dr com.apple.quarantine "/Applications/X52 Pro.app" 2>/dev/null
 open "/Applications/X52 Pro.app"
 echo
-echo "Installed. In the window that just opened, press Install plugin, then restart X-Plane."
+echo "Installed. Follow the setup window that just opened, then restart X-Plane."
 sleep 3
