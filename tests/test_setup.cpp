@@ -162,6 +162,153 @@ TEST(odd_paths_survive_the_record) {
     CHECK_EQ((int)std::count(rec.files.begin(), rec.files.end(), w.xpl()), 1);
 }
 
+static UninstallPlan installedPlan(const World& w) { return planUninstall(w.p, {w.xp}); }
+static Report removeAll(const UninstallPlan& plan) {
+    Report r = removeFiles(plan);
+    pruneFolders(plan);
+    return r;
+}
+
+TEST(uninstall_removes_what_was_installed) {
+    World w("gone");
+    install(w.p, w.xp, InstallChoice{});
+    put(w.prof + "/.plugin-active", "");
+    put(w.prof + "/xplane-map.txt", "x");
+    put(w.prof + "/xplane-aircraft.txt", "x");
+    put(w.prof + "/plugin-off", "x");
+    put(w.prof + "/default.x52.tmp", "x");
+    put(w.guides + "/.DS_Store", "x");
+    put(w.p.home + "/Library/Caches/serbar.x52pro.app/a/b", "x");
+    put(w.p.home + "/Library/HTTPStorages/serbar.x52pro.app.binarycookies", "x");
+    put(w.p.home + "/Library/Saved Application State/serbar.x52pro.app.savedState/s", "x");
+    put(w.p.home + "/Library/Caches/other.app/keep", "x");
+    UninstallPlan plan = installedPlan(w);
+    CHECK(plan.custom.empty());
+    CHECK(plan.unknown.empty());
+    Report r = removeAll(plan);
+    CHECK(r.failed.empty());
+    CHECK(!there(w.xp + "/Resources/plugins/X52Pro"));
+    CHECK(there(w.xp + "/Resources/plugins"));
+    CHECK(!there(w.prof));
+    CHECK(there(w.xp + "/Output/preferences"));
+    CHECK(!there(w.guides));
+    CHECK(!there(supportDir(w.p)));
+    CHECK(!there(w.p.home + "/Library/Caches/serbar.x52pro.app"));
+    CHECK(!there(w.p.home + "/Library/HTTPStorages/serbar.x52pro.app.binarycookies"));
+    CHECK(!there(w.p.home + "/Library/Saved Application State/serbar.x52pro.app.savedState"));
+    CHECK(there(w.p.home + "/Library/Caches/other.app/keep"));
+}
+
+TEST(custom_setup_is_listed_apart_and_not_removed) {
+    World w("custom");
+    install(w.p, w.xp, InstallChoice{});
+    const std::vector<std::string> own = {w.prof + "/My 737.x52", w.prof + "/old.x52.deleted", w.prof + "/profile-choices.txt",
+                                          w.prof + "/stick-calibration.txt", supportDir(w.p) + "/home made.x52"};
+    for (const std::string& f : own) put(f, mine("keep me"));
+    UninstallPlan plan = installedPlan(w);
+    for (const std::string& f : own) CHECK(has(plan.custom, f));
+    CHECK_EQ((int)plan.custom.size(), (int)own.size());
+    removeAll(plan);
+    for (const std::string& f : own) CHECK(there(f));
+    CHECK(!there(w.prof + "/default.x52"));
+}
+
+TEST(a_users_file_with_a_ready_made_name_survives_uninstall) {
+    World w("userkeeps");
+    put(w.prof + "/default.x52", mine("hands off"));
+    install(w.p, w.xp, InstallChoice{});
+    UninstallPlan plan = installedPlan(w);
+    CHECK(has(plan.custom, w.prof + "/default.x52"));
+    removeAll(plan);
+    CHECK_EQ(get(w.prof + "/default.x52"), mine("hands off"));
+}
+
+TEST(a_deleted_ready_made_profile_is_removed) {
+    World w("deletedready");
+    put(w.prof + "/aircraft-old.x52.deleted", ready("old"));
+    UninstallPlan plan = installedPlan(w);
+    CHECK(has(plan.remove, w.prof + "/aircraft-old.x52.deleted"));
+}
+
+TEST(unknown_files_links_and_subfolders_are_left) {
+    World w("unknown");
+    install(w.p, w.xp, InstallChoice{});
+    put(w.d + "/outside/ready.x52", ready("outside"));
+    symlink((w.d + "/outside/ready.x52").c_str(), (w.prof + "/link.x52").c_str());
+    put(w.prof + "/backup/default.x52", ready("backup"));
+    put(w.prof + "/notes.md", "notes");
+    put(w.guides + "/my notes.txt", "notes");
+    put(w.xp + "/Resources/plugins/X52Pro/readme", "x");
+    UninstallPlan plan = installedPlan(w);
+    const std::vector<std::string> left = {w.prof + "/link.x52", w.prof + "/backup", w.prof + "/notes.md",
+                                           w.guides + "/my notes.txt", w.xp + "/Resources/plugins/X52Pro/readme"};
+    for (const std::string& f : left) CHECK(has(plan.unknown, f));
+    removeAll(plan);
+    for (const std::string& f : left) CHECK(there(f));
+    CHECK(there(w.prof + "/backup/default.x52"));
+    CHECK(there(w.d + "/outside/ready.x52"));
+    CHECK(!there(w.xpl()));
+}
+
+TEST(a_linked_profile_folder_is_not_entered) {
+    World w("linkdir");
+    put(w.d + "/synced/default.x52", ready("synced"));
+    symlink((w.d + "/synced").c_str(), w.prof.c_str());
+    UninstallPlan plan = installedPlan(w);
+    CHECK(has(plan.unknown, w.prof));
+    removeAll(plan);
+    CHECK(there(w.d + "/synced/default.x52"));
+}
+
+TEST(hand_installs_without_a_record_are_found) {
+    World w("hand");
+    put(w.xpl(), "by hand");
+    put(w.prof + "/default.x52", ready("by hand"));
+    UninstallPlan plan = installedPlan(w);
+    CHECK(has(plan.remove, w.xpl()));
+    CHECK(has(plan.remove, w.prof + "/default.x52"));
+}
+
+TEST(a_recorded_x_plane_is_covered_even_when_not_found) {
+    World w("recorded");
+    install(w.p, w.xp, InstallChoice{});
+    UninstallPlan plan = planUninstall(w.p, {});
+    CHECK(has(plan.remove, w.xpl()));
+    CHECK_EQ((int)planUninstall(w.p, {w.xp}).remove.size(), (int)plan.remove.size());   // not listed twice
+}
+
+TEST(a_missing_x_plane_folder_is_reported_not_fatal) {
+    World w("unplugged");
+    install(w.p, w.xp, InstallChoice{});
+    rename(w.xp.c_str(), (w.xp + " away").c_str());
+    UninstallPlan plan = planUninstall(w.p, {});
+    CHECK(has(plan.missing, w.xp));
+    CHECK(removeAll(plan).failed.empty());
+    CHECK(!there(w.guides));
+}
+
+TEST(a_file_that_cannot_be_removed_is_listed_and_the_rest_go) {
+    World w("stuck");
+    install(w.p, w.xp, InstallChoice{});
+    chmod(w.prof.c_str(), 0555);
+    Report r = removeAll(installedPlan(w));
+    chmod(w.prof.c_str(), 0755);
+    CHECK(has(r.failed, w.prof + "/default.x52: Permission denied"));
+    CHECK(!there(w.xpl()));
+    CHECK(!there(w.guides));
+}
+
+TEST(a_folder_that_cannot_be_read_is_a_failure) {
+    World w("unreadable");
+    install(w.p, w.xp, InstallChoice{});
+    chmod(w.guides.c_str(), 0000);
+    UninstallPlan plan = installedPlan(w);
+    Report r = removeAll(plan);
+    chmod(w.guides.c_str(), 0755);
+    CHECK(has(plan.unreadable, w.guides));
+    CHECK(!r.failed.empty());
+}
+
 int main() {
     char tmpl[] = "/tmp/x52setupXXXXXX";
     root = mkdtemp(tmpl);

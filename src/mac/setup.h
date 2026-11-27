@@ -38,4 +38,17 @@ bool readRecord(const SetupPaths& p, InstallRecord& out);   // false: setup neve
 // True when setup never finished, or something that was chosen is missing or older than the app's copy.
 bool setupNeeded(const SetupPaths& p, const std::string& xplaneDir);
 
+struct UninstallPlan {
+    std::vector<std::string> remove;       // always removed (files)
+    std::vector<std::string> custom;       // the user's setup: kept, or moved to the Trash by the app
+    std::vector<std::string> unknown;      // left alone
+    std::vector<std::string> folders;      // removed afterwards when empty, deepest first
+    std::vector<std::string> missing;      // recorded X-Plane folders that are not there
+    std::vector<std::string> unreadable;   // folders that could not be looked into
+};
+// What taking everything out would do, for the X-Plane folders found now and the recorded ones. Changes nothing.
+UninstallPlan planUninstall(const SetupPaths& p, const std::vector<std::string>& foundXPlanes);
+Report removeFiles(const UninstallPlan& plan);   // the `remove` list; unreadable folders count as failed
+void pruneFolders(const UninstallPlan& plan);
+
 }  // namespace x52

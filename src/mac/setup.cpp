@@ -116,6 +116,88 @@ bool sameBytes(const std::string& a, const std::string& b) {
     return readFile(a, x) && readFile(b, y) && x == y;
 }
 
+enum class Kind { Missing, File, Folder, Other };
+// What is at `path` itself: a symbolic link is Other, whatever it points to.
+Kind kindOf(const std::string& path) {
+    struct stat st;
+    if (lstat(path.c_str(), &st) != 0) return Kind::Missing;
+    return S_ISREG(st.st_mode) ? Kind::File : S_ISDIR(st.st_mode) ? Kind::Folder : Kind::Other;
+}
+
+// The names in one of our folders. A folder that is not there, is a link, or cannot be read gives nothing
+// (the last two are noted in the plan). A folder that can be looked into is pruned afterwards.
+std::vector<std::string> openOurFolder(const std::string& dir, UninstallPlan& plan) {
+    Kind kind = kindOf(dir);
+    if (kind == Kind::Missing) return {};
+    if (kind != Kind::Folder) {
+        addOnce(plan.unknown, dir);
+        return {};
+    }
+    if (access(dir.c_str(), R_OK | X_OK) != 0) {
+        addOnce(plan.unreadable, dir);
+        return {};
+    }
+    addOnce(plan.folders, dir);
+    return namesIn(dir);
+}
+
+void planPlugin(const std::string& xp, UninstallPlan& plan) {
+    const std::string dir = xp + "/Resources/plugins/X52Pro";
+    for (const std::string& n : openOurFolder(dir, plan)) {
+        const std::string path = dir + "/" + n;
+        if (n == "mac_x64" && kindOf(path) == Kind::Folder) {
+            for (const std::string& m : openOurFolder(path, plan)) {
+                bool ours = (m == "X52Pro.xpl" || m == "X52Pro.xpl.new" || m == ".DS_Store") && kindOf(path + "/" + m) == Kind::File;
+                addOnce(ours ? plan.remove : plan.unknown, path + "/" + m);
+            }
+        } else {
+            addOnce(n == ".DS_Store" ? plan.remove : plan.unknown, path);
+        }
+    }
+}
+
+void planProfiles(const std::string& dir, UninstallPlan& plan) {
+    static const char* const generated[] = {".DS_Store", ".plugin-active", "plugin-off", "xplane-aircraft.txt",
+                                            "xplane-map.txt", "install-record.txt"};
+    for (const std::string& n : openOurFolder(dir, plan)) {
+        const std::string path = dir + "/" + n;
+        std::vector<std::string>* list = &plan.unknown;
+        if (kindOf(path) != Kind::File) {
+        } else if (std::find(std::begin(generated), std::end(generated), n) != std::end(generated) || endsWith(n, ".tmp") ||
+                   endsWith(n, ".new")) {
+            list = &plan.remove;
+        } else if (endsWith(n, ".x52") || endsWith(n, ".x52.deleted")) {
+            list = isReadyMadeFile(path) ? &plan.remove : &plan.custom;
+        } else if (n == "profile-choices.txt" || n == "stick-calibration.txt") {
+            list = &plan.custom;
+        }
+        addOnce(*list, path);
+    }
+}
+
+void planGuides(const SetupPaths& p, const InstallRecord& rec, UninstallPlan& plan) {
+    const std::string dir = guidesDir(p);
+    std::vector<std::string> shipped = bundledGuides(p);
+    for (const std::string& n : openOurFolder(dir, plan)) {
+        const std::string path = dir + "/" + n;
+        bool ours = kindOf(path) == Kind::File &&
+                    (n == ".DS_Store" || std::find(shipped.begin(), shipped.end(), n) != shipped.end() ||
+                     std::find(rec.files.begin(), rec.files.end(), path) != rec.files.end());
+        addOnce(ours ? plan.remove : plan.unknown, path);
+    }
+}
+
+// The app's own caches: everything in them goes (a link is removed itself, never followed).
+void planCache(const std::string& path, UninstallPlan& plan) {
+    Kind kind = kindOf(path);
+    if (kind == Kind::Missing) return;
+    if (kind != Kind::Folder) {
+        addOnce(plan.remove, path);
+        return;
+    }
+    for (const std::string& n : openOurFolder(path, plan)) planCache(path + "/" + n, plan);
+}
+
 }  // namespace
 
 std::string supportDir(const SetupPaths& p) { return p.home + "/Library/Application Support/X52Pro"; }
@@ -207,6 +289,49 @@ bool setupNeeded(const SetupPaths& p, const std::string& xplaneDir) {
         for (const std::string& n : bundledGuides(p))
             if (!sameBytes(p.resources + "/guides/" + n, guidesDir(p) + "/" + n)) return true;
     return false;
+}
+
+UninstallPlan planUninstall(const SetupPaths& p, const std::vector<std::string>& foundXPlanes) {
+    UninstallPlan plan;
+    InstallRecord rec;
+    readRecord(p, rec);
+    std::vector<std::string> xplanes;
+    for (const std::string& x : foundXPlanes) addOnce(xplanes, withoutSlash(x));
+    for (const std::string& x : rec.xplanes) addOnce(xplanes, x);
+    for (const std::string& x : xplanes) {
+        if (!isXPlaneDir(x)) {
+            plan.missing.push_back(x);
+            continue;
+        }
+        planPlugin(x, plan);
+        planProfiles(profilesDir(p, x), plan);
+    }
+    planProfiles(supportDir(p), plan);
+    planGuides(p, rec, plan);
+    const std::string library = p.home + "/Library";
+    planCache(library + "/Caches/serbar.x52pro.app", plan);
+    for (const std::string& n : namesIn(library + "/HTTPStorages"))
+        if (n.compare(0, 17, "serbar.x52pro.app") == 0) planCache(library + "/HTTPStorages/" + n, plan);
+    planCache(library + "/Saved Application State/serbar.x52pro.app.savedState", plan);
+    // A folder inside another is longer, so longest first empties them from the inside.
+    std::stable_sort(plan.folders.begin(), plan.folders.end(),
+                     [](const std::string& a, const std::string& b) { return a.size() > b.size(); });
+    return plan;
+}
+
+Report removeFiles(const UninstallPlan& plan) {
+    Report r;
+    for (const std::string& f : plan.remove)
+        if (unlink(f.c_str()) == 0 || errno == ENOENT)
+            r.done.push_back(f);
+        else
+            r.failed.push_back(f + ": " + strerror(errno));
+    for (const std::string& d : plan.unreadable) r.failed.push_back(d + ": could not be read");
+    return r;
+}
+
+void pruneFolders(const UninstallPlan& plan) {
+    for (const std::string& d : plan.folders) rmdir(d.c_str());
 }
 
 }  // namespace x52
