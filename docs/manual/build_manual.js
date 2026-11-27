@@ -468,7 +468,7 @@ add(p("Profiles are plain text, so you can edit and share them. The app and the 
   indent: { left: 200, right: 120 },
   spacing: { before: i === 0 ? 80 : 0, after: i === a.length - 1 ? 160 : 0 },
 })));
-add(p("The profile in use for each aircraft is kept in `profile-choices.txt` next to the profiles. The plugin also learns X-Plane's own number for each button you press (saved in `xplane-map.txt`) and records the aircraft's description for the app (`xplane-aircraft.txt`)."));
+add(p("The profile in use for each aircraft is kept in `profile-choices.txt` next to the profiles. The plugin also learns X-Plane's own number for each button you press (saved in `xplane-map.txt`) and records the aircraft's name for the app (`xplane-aircraft.txt`)."));
 add(h2("7.4  Build and test from the source"));
 add(p("`make` builds everything into `bin/` and runs the tests. `make install-app` puts the app in Applications. `make release` makes `bin/X52-Pro-<version>.zip`, ready to share. The version number is in the file `VERSION`; change it there and everything (the app's About box and window titles, the plugin's name in X-Plane, and the zip) follows."));
 

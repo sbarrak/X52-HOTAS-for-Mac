@@ -618,7 +618,7 @@ struct FileCache {
 }  // namespace
 
 // The file with the joystick assignments that apply now: the aircraft's control profile (found through the aircraft
-// description the plugin saved and Miscellaneous.prf), else the main settings file.
+// name the plugin saved and Miscellaneous.prf), else the main settings file.
 static std::string assignmentFile() {
     static FileCache aircraftFile, miscFile;
     if (xplaneDir.empty() || !agent) return "";

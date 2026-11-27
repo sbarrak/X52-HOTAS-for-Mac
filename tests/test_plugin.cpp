@@ -1432,11 +1432,16 @@ TEST(the_plugin_learns_which_x_plane_slot_a_stick_button_is) {
     gApp->learner.map().clear();
 }
 
-TEST(the_plugin_saves_the_aircraft_description_for_the_app) {
+// X-Plane keeps an aircraft's joystick profile under its UI name, not its description (#125).
+TEST(the_plugin_saves_the_aircraft_name_for_the_app) {
     sim().datarefs["sim/aircraft/view/acf_descrip"] = 0;
-    sim().acfDescrip = "Cessna Citation X";
-    gApp->loadForAircraft("Cessna_CitationX");
-    CHECK(has(slurp(sim().root + "/Output/preferences/X52Pro/xplane-aircraft.txt"), "Cessna Citation X"));
+    sim().datarefs["sim/aircraft/view/acf_ui_name"] = 0;
+    sim().acfDescrip = "Cessna 172 SP Skyhawk - 180HP";
+    sim().acfUiName = "Cessna Skyhawk";
+    gApp->loadForAircraft("Cessna_172SP");
+    std::string saved = slurp(sim().root + "/Output/preferences/X52Pro/xplane-aircraft.txt");
+    CHECK(has(saved, "Cessna Skyhawk"));
+    CHECK(!has(saved, "180HP"));
     gApp->loadForAircraft("Cessna_172SP");
 }
 

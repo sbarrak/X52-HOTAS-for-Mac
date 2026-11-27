@@ -29,7 +29,7 @@ aircraft does not have it, the button is left empty rather than given something 
 | T3 up / down | APU start / off | autothrottle / level change (airliners), FLC | TOGA (airliners), pitot heat |
 | Throttle hat up, right, down, left | landing, taxi, strobes, nav lights | ALT select + / speed + (airliners) or VS + / ALT - / speed - or VS - | the same lights as takeoff |
 | Scroll wheel | zoom | heading bug, click: HDG sync | pitch trim, click: takeoff trim |
-| Hat 2 | pitch trim, rudder trim (helicopters: cyclic trim; empty in the R22) | same | same |
+| Hat 2 | pitch trim, rudder trim (helicopters: cyclic trim; empty in the R22, no fore/aft in the S-76) | same | same |
 
 - **Wheel brakes on E** begin when E goes down and end when it comes up (no hold delay), and stay on across a mode
   or pinkie change until E is let go. The parking brake is each aircraft's own control (A held).

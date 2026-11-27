@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.5
+
+### Changed
+- **The S-76's hat 2 has no pitch trim (#125).** X-Plane's pitch trim does nothing in the S-76 (tested with the stick), so hat 2 up and down are empty there; left and right are still the cyclic trim.
+- **Every app icon is kept (#125).** The artwork of each icon used is in `assets/icons/`, so earlier icons are not lost when the icon changes.
+
+### Fixed
+- **The app did not find the aircraft's own X-Plane joystick settings (#125).** Symptom: with a joystick profile chosen for the aircraft in X-Plane, the app still read the main joystick settings (for example when showing which buttons X-Plane has bound). Cause: X-Plane keeps those profiles under the aircraft's name as it shows it ("Cessna Skyhawk"), but the plugin saved the aircraft's description ("Cessna 172 SP Skyhawk - 180HP"), which is other text, and is empty in some aircraft (the RV-10). Fix: the plugin saves the aircraft's name. Fixed in 1.6.5.
+
 ## 1.6.4
 
 ### Changed

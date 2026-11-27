@@ -20,7 +20,7 @@ int xplaneButtonNumber(int slot);
 
 // X-Plane keeps one set of joystick assignments per aircraft, in "control profiles/<name> - Joysticks.prf", and
 // Miscellaneous.prf says which one an aircraft uses ("P acf_profile <key> <name>", the key being the aircraft's
-// description with spaces written as ___). "" when the aircraft has none (then the main settings file applies).
+// UI name, acf_ui_name, with spaces written as ___). "" when the aircraft has none (then the main settings file applies).
 std::string controlProfileKey(const std::string& aircraftDescription);
 std::string controlProfileFor(const std::string& miscellaneousPrfText, const std::string& aircraftDescription);
 

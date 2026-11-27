@@ -279,8 +279,9 @@ CIVIL = {
     # in the R22 (its only trim handle freezes the cyclic), so hat 2 stays empty (hat_trim=False).
     "Robinson R22 Beta II": dict(lights=_lights(drop=("right", "beacon")), park=None, dial_e="carb",
                                  fuel_pumps=False, hat_trim=False),
+    # X-Plane's pitch trim does nothing in the S-76 (tested with the stick, #125): hat 2 up/down stay empty.
     "Sikorsky S-76C": dict(lights=_lights(up=_landing_group(2, 3), x_right=_tog("Search light", "generic_01_light_tog")),
-                           park="sim/flight_controls/brakes_toggle_max", avionics=True),
+                           park="sim/flight_controls/brakes_toggle_max", avionics=True, hat_pitch=False),
     # A glider: no lights, no parking brake; the airbrake handle is the speed brake.
     "Schleicher ASK 21": dict(lights={}, park=None, avionics=True, dial_i="speedbrake"),
 }
@@ -402,8 +403,9 @@ def civil(f):
     if not c.get("hat_trim", True):
         pass
     elif k == "heli":
-        any_[SHAT_U] = ("Cyclic trim fwd", S("flight_controls/pitch_trim_down"))
-        any_[SHAT_D] = ("Cyclic trim aft", S("flight_controls/pitch_trim_up"))
+        if c.get("hat_pitch", True):
+            any_[SHAT_U] = ("Cyclic trim fwd", S("flight_controls/pitch_trim_down"))
+            any_[SHAT_D] = ("Cyclic trim aft", S("flight_controls/pitch_trim_up"))
         any_[SHAT_L] = ("Cyclic trim L", S("flight_controls/aileron_trim_left"))
         any_[SHAT_R] = ("Cyclic trim R", S("flight_controls/aileron_trim_right"))
     elif k != "ultralight":
