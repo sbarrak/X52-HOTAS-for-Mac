@@ -138,6 +138,12 @@ public:
     void tryBright(int which, int level);
     int triedBright() const;
 
+    // The Demo button's show on the screen and lights (see core/demo.h). It ends by itself, and the stick goes back
+    // to what the profile says. Not while the plugin drives the stick.
+    void startDemo();
+    void stopDemo() { demoStart_ = -1; }
+    bool demoRunning() const;
+
     void previewMode(int mode, bool pinkie = false); // show this mode's lights for a few seconds
     void setTest(bool on);                          // report moving controls too
     void setText(const std::string& l0, const std::string& l1, const std::string& l2);
@@ -188,6 +194,7 @@ private:
     double tryBrightUntil_ = 0;
     int tryMaster_ = -1;
     double tryMasterUntil_ = 0;
+    double demoStart_ = -1;                  // when the Demo show started; negative: not running
     int tryIndex_ = -1;
     double tryUntil_ = 0;
     bool watchPages_ = false;

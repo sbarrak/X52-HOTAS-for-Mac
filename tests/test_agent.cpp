@@ -175,6 +175,20 @@ TEST(an_alarm_can_be_tried_on_the_stick_and_alarms_are_saved_in_order) {
     CHECK(ag.lightColor(LedA, 10.0) == plain);
 }
 
+TEST(the_demo_starts_and_stops_without_touching_the_profile) {
+    std::string dir = freshDir("demo");
+    Agent ag;
+    ag.open(dir, "default");
+    int before = ag.revision();
+    CHECK(!ag.demoRunning());
+    ag.startDemo();
+    CHECK(ag.demoRunning());
+    ag.stopDemo();
+    CHECK(!ag.demoRunning());
+    CHECK_EQ(ag.revision(), before);
+    CHECK_EQ(slurp(dir + "/default.x52"), std::string(""));   // nothing was saved
+}
+
 TEST(a_master_switch_can_be_tried_on_the_stick_without_the_sim) {
     std::string dir = freshDir("master");
     Agent ag;

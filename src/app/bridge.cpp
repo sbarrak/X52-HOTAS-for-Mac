@@ -999,6 +999,12 @@ void x52_text(const char* l0, const char* l1, const char* l2) {
 void x52_clear_text(void) {
     if (agent) agent->clearText();
 }
+void x52_demo(int on) {
+    if (!agent) return;
+    if (on) agent->startDemo();
+    else agent->stopDemo();
+}
+int x52_demo_running(void) { return agent && agent->demoRunning() ? 1 : 0; }
 
 // ---- the user's own screen pages
 

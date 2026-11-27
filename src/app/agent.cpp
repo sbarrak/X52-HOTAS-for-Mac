@@ -3,6 +3,8 @@
 
 #include <algorithm>
 
+#include "../core/demo.h"
+
 #include <sys/stat.h>
 
 #include <chrono>
@@ -405,6 +407,12 @@ void Agent::tryMaster(int which) {
 
 int Agent::triedMaster() const { return tryMaster_ >= 0 && now() < tryMasterUntil_ ? tryMaster_ : -1; }
 
+void Agent::startDemo() {
+    if (!pluginActive_) demoStart_ = now();
+}
+
+bool Agent::demoRunning() const { return demoStart_ >= 0 && now() - demoStart_ < kDemoSeconds; }
+
 void Agent::previewMode(int mode, bool pinkie) {
     preview_ = mode >= 1 && mode <= 3 ? mode : 0;
     previewPinkie_ = pinkie;
@@ -507,6 +515,7 @@ void Agent::tick() {
             deviceRunning_ = true;
         }
         pluginActive_ = busy;
+        if (busy) stopDemo();
     }
     if (deviceRunning_) {
         updateLive(t);
@@ -573,6 +582,16 @@ void Agent::push(double t) {
     for (int c = 0; c < 2; ++c) s.clockOffset[c] = clockOffsetFromFirst(profile_.clockOffset[c], first);
     for (int c = 0; c < 3; ++c) s.h12[c] = profile_.clock12h[c];
     s.dateFormat = profile_.dateFormat;
+    double demo = demoStart_ >= 0 ? t - demoStart_ : -1;
+    if (demo >= 0 && demo < kDemoSeconds) {   // the show covers everything but the clocks, master switches included
+        DemoFrame f = demoFrame(demo);
+        for (int i = 0; i < kMfdLines; ++i) s.lines[i] = screen_.l[i] = f.lines.l[i];
+        for (int l = 0; l < kLedCount; ++l) s.leds[l] = f.leds[l];
+        s.mfdBrightness = f.mfdBrightness;
+        s.ledBrightness = f.ledBrightness;
+        s.shift = false;
+        s.blink = false;
+    }
     device_.setState(s);
 }
 
