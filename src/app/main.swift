@@ -101,11 +101,11 @@ final class Model: ObservableObject {
     func start() {
         let d = UserDefaults.standard
         // The folder chosen by hand if it is still an X-Plane, else the first one found.
-        let chosen = d.string(forKey: "xplaneFolder") ?? ""
+        let chosen = sandboxDir == nil ? d.string(forKey: "xplaneFolder") ?? "" : sandboxChoice
+        x52_setup_init(userHome, Bundle.main.resourcePath ?? "")
         xplane = x52_valid_xplane(chosen) != 0 ? chosen : str(x52_find_xplane()).split(separator: "\n").map(String.init).first ?? ""
         refreshPlugin()
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("X52Pro").path
+        let support = userHome + "/Library/Application Support/X52Pro"
         try? FileManager.default.createDirectory(atPath: support, withIntermediateDirectories: true)
         x52_start(xplane, support, d.string(forKey: "profileKey") ?? "default")
         folder = str(x52_dir())
@@ -410,6 +410,19 @@ final class Model: ObservableObject {
         pluginMessage = str(x52_install_plugin(xplane, bundledPlugin))
         if pluginMessage.isEmpty { pluginMessage = "Installed. Restart X-Plane to load it." }
         refreshPlugin()
+    }
+    private var sandboxChoice = ""   // in a sandbox the choice is not kept in the preferences
+    // The X-Plane folder confirmed in the setup window.
+    func useXPlane(_ path: String) {
+        pluginMessage = ""
+        if sandboxDir == nil { UserDefaults.standard.set(path, forKey: "xplaneFolder") } else { sandboxChoice = path }
+        start()
+    }
+    // Opens the guides folder; when it is not there, the setup window, which installs it.
+    func openGuides() {
+        let dir = str(x52_setup_guides_dir())
+        if FileManager.default.fileExists(atPath: dir) { NSWorkspace.shared.open(URL(fileURLWithPath: dir)) }
+        else { (NSApp.delegate as? AppDelegate)?.openSetup() }
     }
     func chooseXPlaneFolder() {
         let panel = NSOpenPanel()
@@ -3011,6 +3024,8 @@ struct SettingsView: View {
                 Text(m.folder).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
                     .help("Where the profiles are saved")
                 Spacer()
+                Button("Open guides") { m.openGuides() }.controlSize(.small)
+                    .help("The folder with the manual and the button maps (Documents/X52 Pro)")
                 Button("X-Plane folder...") { m.chooseXPlaneFolder() }.controlSize(.small)
             }
         }
@@ -3117,6 +3132,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         menu.addItem(withTitle: "Open settings...", action: #selector(openSettings), keyEquivalent: ",").target = self
         menu.addItem(withTitle: "Open pages editor...", action: #selector(openPagesEditor), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Calibrate stick...", action: #selector(openCalibration), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Open guides", action: #selector(openGuides), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Setup...", action: #selector(openSetup), keyEquivalent: "").target = self
         loginLine.target = self
         menu.addItem(loginLine)
         menu.addItem(.separator())
@@ -3140,7 +3157,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
 
         // Opened by hand (not at login): show the window so there is something to see.
-        if !CommandLine.arguments.contains("--background") && !launchedAsLoginItem() { openSettings() }
+        if !CommandLine.arguments.contains("--background") && !launchedAsLoginItem() {
+            openSettings()
+            // On top: not set up yet, a newer app found older files, or opened from the download itself.
+            if runningFromDownload || x52_setup_needed(model.xplane) != 0 { openSetup() }
+        }
     }
 
     // A double click on the menu bar icon opens the window, a single one does nothing. Anything else (right
@@ -3168,6 +3189,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Settings...", action: #selector(openSettings), keyEquivalent: ",").target = self
         appMenu.addItem(withTitle: "Pages Editor...", action: #selector(openPagesEditor), keyEquivalent: "e").target = self
+        appMenu.addItem(withTitle: "Setup...", action: #selector(openSetup), keyEquivalent: "").target = self
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Hide X52 Pro", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         let others = appMenu.addItem(withTitle: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
@@ -3276,6 +3298,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [self] in
                     draw(pagesWindow, to: dir + "/pages-editor.png"); next()
                 }
+            } else if sandboxDir != nil && n < shots.count + 4 {
+                let step = n - shots.count - 1; n += 1
+                if step == 0 { openSetup() }
+                if step == 1 { model.useXPlane(setupState.folder); setupState.step = 1 }
+                if step == 2 { setupState.install(); model.refreshPlugin() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [self] in
+                    draw(setupWindow, to: dir + "/setup-\(step + 1).png"); next()
+                }
             } else {
                 if let s = saved { UserDefaults.standard.set(s, forKey: "profileKey") }
                 else { UserDefaults.standard.removeObject(forKey: "profileKey") }
@@ -3380,6 +3410,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
     }
+
+    var setupWindow: NSWindow?
+    let setupState = SetupState()
+    @objc func openSetup() {
+        if setupWindow == nil {
+            let w = NSWindow(contentRect: .zero, styleMask: [.titled, .closable, .miniaturizable],
+                             backing: .buffered, defer: false)
+            w.title = "X52 Pro \(appVersion): Setup"
+            w.isReleasedWhenClosed = false
+            w.contentView = NSHostingView(rootView: SetupView(m: model, s: setupState, close: { [weak self] in self?.setupWindow?.close() }))
+            w.setContentSize(NSSize(width: 580, height: 480))
+            w.center()
+            setupWindow = w
+        }
+        if setupWindow?.isVisible != true { setupState.begin(current: model.xplane) }
+        showInDock()
+        NSApp.unhide(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        setupWindow?.makeKeyAndOrderFront(nil)
+    }
+    @objc func openGuides() { model.openGuides() }
 
     // The pages editor gets a window of its own: there is a lot to see side by side.
     var pagesWindow: NSWindow?

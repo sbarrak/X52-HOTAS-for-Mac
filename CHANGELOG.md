@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.7.2
+
+### Added
+- **A setup window (#139).** It shows the X-Plane 12 folder it found (or asks for it), asks what to install, and installs the plugin, the ready-made profiles and the guides (the manual and the button maps, in `Documents/X52 Pro`). Profiles of your own are never overwritten. **Open guides** opens the folder; **Setup...** opens the window again.
+
 ## 1.7.1
 
 ### Changed

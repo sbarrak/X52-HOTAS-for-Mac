@@ -19,6 +19,7 @@
 #include "../core/pageview.h"
 #include "../core/update.h"
 #include "../core/xpjoy.h"
+#include "../mac/setup.h"
 #include "../mac/xplane.h"
 #include "agent.h"
 
@@ -28,6 +29,36 @@ namespace {
 
 Agent* agent = nullptr;
 std::string xplaneDir;
+SetupPaths setupPaths;
+Report installReport;
+UninstallPlan uninstallPlan;
+
+std::string joined(const std::vector<std::string>& lines) {
+    std::string out;
+    for (const std::string& l : lines) out += (out.empty() ? "" : "\n") + l;
+    return out;
+}
+
+// False only in a sandbox (X52_SANDBOX=<folder>), for a path outside it.
+bool allowed(const std::string& path) {
+    const char* box = getenv("X52_SANDBOX");
+    if (!box) return true;
+    std::string dir = std::string(box) + "/";
+    return path.compare(0, dir.size(), dir) == 0 && path.find("/../") == std::string::npos;
+}
+
+// Where X-Plane is looked for. In a sandbox the search stays inside it, so the real installs are never seen.
+SearchRoots searchRoots() {
+    if (const char* box = getenv("X52_SANDBOX")) {
+        std::string d = box;
+        return {d + "/home", d + "/apps", d + "/disks"};
+    }
+    SearchRoots roots;
+    const char* home = getenv("HOME");
+    roots.home = home ? home : "";
+    return roots;
+}
+
 std::vector<CatalogEntry> commandList, datarefList;
 std::string catalogFor;   // the X-Plane folder the lists were read from
 
@@ -99,13 +130,62 @@ bool okLed(int mode, int led) { return mode >= 1 && mode <= 3 && led >= 0 && led
 
 const char* x52_find_xplane(void) {
     static std::string out;
-    const char* home = getenv("HOME");
-    SearchRoots roots;
-    roots.home = home ? home : "";
-    out.clear();
-    for (const std::string& d : findXPlane(roots)) out += (out.empty() ? "" : "\n") + d;
+    std::vector<std::string> found;
+    for (const std::string& d : findXPlane(searchRoots()))
+        if (allowed(d)) found.push_back(d);
+    out = joined(found);
     return out.c_str();
 }
+
+void x52_setup_init(const char* home, const char* resources) {
+    setupPaths = {home ? home : "", resources ? resources : ""};
+    installReport = Report{};
+    uninstallPlan = UninstallPlan{};
+}
+int x52_setup_needed(const char* xplane_dir) { return setupNeeded(setupPaths, xplane_dir ? xplane_dir : "") ? 1 : 0; }
+int x52_setup_profile_count(void) { return bundledProfileCount(setupPaths); }
+void x52_setup_install(const char* xplane_dir, int plugin, int profiles, int guides) {
+    std::string xp = xplane_dir ? xplane_dir : "";
+    if (!allowed(setupPaths.home) || (!xp.empty() && !allowed(xp))) {
+        installReport = Report{};
+        installReport.failed.push_back("Outside the sandbox: nothing written.");
+        return;
+    }
+    installReport = install(setupPaths, xp, {plugin != 0, profiles != 0, guides != 0});
+}
+const char* x52_setup_report(int which) {
+    static std::string s;
+    s = joined(which == 0 ? installReport.done : which == 1 ? installReport.kept : installReport.failed);
+    return s.c_str();
+}
+const char* x52_setup_guides_dir(void) {
+    static std::string s;
+    s = guidesDir(setupPaths);
+    return s.c_str();
+}
+void x52_uninstall_plan(const char* chosen_xplane) {
+    uninstallPlan = UninstallPlan{};
+    if (!allowed(setupPaths.home)) return;
+    std::vector<std::string> found;
+    for (const std::string& d : findXPlane(searchRoots())) found.push_back(d);
+    if (chosen_xplane && isXPlaneDir(chosen_xplane)) found.push_back(chosen_xplane);
+    found.erase(std::remove_if(found.begin(), found.end(), [](const std::string& d) { return !allowed(d); }), found.end());
+    uninstallPlan = planUninstall(setupPaths, found);
+    for (auto* list : {&uninstallPlan.remove, &uninstallPlan.custom, &uninstallPlan.folders})
+        list->erase(std::remove_if(list->begin(), list->end(), [](const std::string& f) { return !allowed(f); }), list->end());
+}
+const char* x52_uninstall_list(int which) {
+    static std::string s;
+    s = joined(which == 0 ? uninstallPlan.remove : which == 1 ? uninstallPlan.custom
+               : which == 2 ? uninstallPlan.unknown : uninstallPlan.missing);
+    return s.c_str();
+}
+const char* x52_uninstall_remove(void) {
+    static std::string s;
+    s = joined(removeFiles(uninstallPlan).failed);
+    return s.c_str();
+}
+void x52_uninstall_prune(void) { pruneFolders(uninstallPlan); }
 
 int x52_valid_xplane(const char* dir) { return dir && isXPlaneDir(dir); }
 

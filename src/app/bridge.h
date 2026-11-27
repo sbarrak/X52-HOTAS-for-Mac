@@ -13,6 +13,20 @@ int x52_plugin_state(const char* xplane_dir, const char* bundled_xpl);
 // Empty string on success, otherwise what went wrong.
 const char* x52_install_plugin(const char* xplane_dir, const char* bundled_xpl);
 
+// ---- Setup and uninstall (see src/mac/setup.h). Lists are one path or sentence per line. With X52_SANDBOX=<folder>
+// in the environment (for trying these out) nothing outside that folder is looked for, written or removed.
+void x52_setup_init(const char* home, const char* resources);   // call first
+int x52_setup_needed(const char* xplane_dir);
+int x52_setup_profile_count(void);
+void x52_setup_install(const char* xplane_dir, int plugin, int profiles, int guides);
+const char* x52_setup_report(int which);       // the last install: 0 done, 1 kept (the user's own files), 2 failed
+const char* x52_setup_guides_dir(void);
+// Looks at the X-Plane folders found, the recorded ones and `chosen_xplane` ("" for none). Changes nothing.
+void x52_uninstall_plan(const char* chosen_xplane);
+const char* x52_uninstall_list(int which);     // 0 remove, 1 the user's own setup, 2 left alone, 3 X-Plane folders not there
+const char* x52_uninstall_remove(void);        // removes list 0; returns what failed
+void x52_uninstall_prune(void);                // removes the folders that are now empty
+
 void x52_start(const char* xplane_dir, const char* fallback_dir, const char* key);
 void x52_stop(void);
 void x52_tick(void);
