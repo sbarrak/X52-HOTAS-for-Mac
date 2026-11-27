@@ -3110,7 +3110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         image?.accessibilityDescription = "X52 Pro"
         item.button?.image = image
         if image == nil { item.button?.title = "X52" }
-        item.button?.toolTip = "X52 Pro: double-click to open, right-click for the menu"
+        item.button?.toolTip = "X52 Pro: click to open, right-click for the menu"
         item.button?.target = self
         item.button?.action = #selector(iconClicked)
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseDown])
@@ -3140,6 +3140,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit X52 Pro", action: #selector(quit), keyEquivalent: "q").target = self
         installEditMenu()
+        // After the window has gone, see whether any is left.
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { [weak self] _ in
+            DispatchQueue.main.async { self?.leaveDockIfNoWindow() }
+        }
 
         // Hidden option for the project's own pictures: `X52Pro --snapshot <folder>` draws the windows into PNG files.
         if let i = CommandLine.arguments.firstIndex(of: "--snapshot"), i + 1 < CommandLine.arguments.count {
@@ -3165,11 +3169,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         }
     }
 
-    // A double click on the menu bar icon opens the window, a single one does nothing. Anything else (right
-    // click, Control-click, VoiceOver's press) opens the menu.
+    // A left click on the menu bar icon opens the window. Anything else (right click, Control-click, VoiceOver's
+    // press) opens the menu.
     @objc func iconClicked() {
         if let e = NSApp.currentEvent, e.type == .leftMouseUp, !e.modifierFlags.contains(.control) {
-            if e.clickCount == 2 { openSettings() }
+            openSettings()
             return
         }
         // A status item with a menu opens it on every click, so it has one only while the menu is up.
@@ -3225,10 +3229,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         NSApp.mainMenu = main
     }
 
-    // In the Dock and Command+Tab while there is a window to switch to; menu bar only otherwise.
+    // In the Dock and Command+Tab while there is a window to switch to; menu bar only when the app is hidden
+    // (Command+H) or its last window is closed. A minimised window lives in the Dock, so it counts.
     func showInDock() {
         if NSApp.activationPolicy() != .regular { NSApp.setActivationPolicy(.regular) }
     }
+    private func leaveDockIfNoWindow() {
+        let ours = [window, pagesWindow, calibrationWindow, setupWindow, uninstallWindow].compactMap { $0 }
+        if !ours.contains(where: { $0.isVisible || $0.isMiniaturized }) { NSApp.setActivationPolicy(.accessory) }
+    }
+    func applicationDidHide(_ note: Notification) { NSApp.setActivationPolicy(.accessory) }
+    func applicationDidUnhide(_ note: Notification) { showInDock() }
 
     // Clicking the Dock icon with no window open brings the settings back.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

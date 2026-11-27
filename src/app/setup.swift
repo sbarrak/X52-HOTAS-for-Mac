@@ -22,6 +22,11 @@ var xplaneIsRunning: Bool {
     NSWorkspace.shared.runningApplications.contains { ($0.localizedName ?? "").hasPrefix("X-Plane") }
 }
 
+/// X-Plane.app in the chosen folder, shown in Finder so it can be added to a list in Privacy & Security.
+func showXPlaneApp(in folder: String) {
+    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: folder + "/X-Plane.app")])
+}
+
 func openAccessibilitySettings() {
     if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
         NSWorkspace.shared.open(url)
@@ -199,9 +204,13 @@ struct SetupView: View {
                     Text("Restart X-Plane to load what was installed.").bold()
                     Text("In X-Plane, Settings > Joystick: set each button your profile programs to Do nothing.")
                         .fixedSize(horizontal: false, vertical: true)
-                    Text("Profiles that send keystrokes also need X-Plane allowed in Privacy & Security > Accessibility.")
+                    Divider()
+                    Text("X52 Pro needs no keyboard permission, and the ready-made profiles type no keys. Only if you add keystrokes to a profile of your own: allow X-Plane (it types them, so X52 Pro is not listed) in Privacy & Security > Accessibility. If X-Plane is not in the list, press + there and choose it.")
                         .fixedSize(horizontal: false, vertical: true)
-                    Button("Open Accessibility settings") { openAccessibilitySettings() }
+                    HStack {
+                        Button("Open Accessibility settings") { openAccessibilitySettings() }
+                        if !s.folder.isEmpty { Button("Show X-Plane in Finder") { showXPlaneApp(in: s.folder) } }
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

@@ -123,9 +123,10 @@ make install-app
 ```
 
 This builds `X52 Pro.app` and copies it to `/Applications`. Open it once; it then lives
-in the menu bar, with the app's icon. **Double-click** the icon to open the window; **right-click** it (or
+in the menu bar, with the app's icon. **Click** the icon to open the window; **right-click** it (or
 Control-click) for the menu: **Open settings...**, **Open guides**, **Setup...**, **Uninstall X52 Pro...**, **Start at login**, **Quit** and more. **Command-Q** quits the
 app; **Command-H** hides it and it keeps running.
+The app is in the Dock only while a window is open: hiding it or closing the last window takes the Dock icon away.
 
 - **Lights** – a colour for every light in each of the three modes, and brightness.
 - **Screen and clock** – screen brightness, what Clock 1 shows (GMT, the simulator's local time, the Mac's
