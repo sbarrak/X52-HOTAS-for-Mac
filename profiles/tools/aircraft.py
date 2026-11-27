@@ -40,8 +40,10 @@ AIRCRAFT = [
          acfs=["RV-10"], kind="piston", gear=False, flaps=True, ap=True, mixture=True, prop=True),
     dict(name="Cirrus SR22", folder="Cirrus SR22", icon="Cirrus SR22_icon11.png",
          acfs=["Cirrus SR22"], kind="piston", gear=False, flaps=True, ap=True, mixture=True),
+    # Flaps: its cockpit has a flap lever (flaps_up / flaps_down) and the .acf two detents (12 and 24 degrees).
+    # No carb heat control in its cockpit.
     dict(name="Aero-Works Aerolite 103", folder="Aero-Works Aerolite 103", icon="Aerolite_103_icon11.png",
-         acfs=["Aerolite_103"], kind="ultralight", gear=False, flaps=False, ap=False, carb=True, master=False),
+         acfs=["Aerolite_103"], kind="ultralight", gear=False, flaps=True, ap=False, mixture=True, master=False),
     dict(name="BETA Technologies Alia-250", folder="BETA Technologies Alia-250", icon="ALIA-250_icon11.png",
          acfs=["ALIA-250"], kind="electric", gear=False, flaps=True, ap=True),
     dict(name="Beechcraft Baron 58", folder="Beechcraft Baron 58", icon="Baron_58_icon11.png",
@@ -79,6 +81,217 @@ AIRCRAFT = [
          acfs=["ASK21"], kind="glider", gear=False, flaps=False, ap=False, master=False),
 ]
 
+# ---------------------------------------------------------------- civil aircraft: what each cockpit really has
+# Checked in each aircraft's cockpit objects (ATTR_manip_* commands and their tooltips) and .acf (issue #121).
+# A light is one of:
+#   ("tog", label, command)                       one switch: a tap toggles it
+#   ("grp", label, dataref, [on...], [off...])    several lamps set together: they follow the first lamp's switch
+#                                                 (off -> all on, on -> all off), so mixed states end up the same
+#   ("pair", label, [(switch dataref, toggle)...]) several lamps with toggle commands only: tap = each one that is
+#                                                 off goes on, hold = each one that is on goes off
+#   ("step", label up, command up, label down, command down)
+#                                                 a selector with three positions: tap = one up, hold = one down
+# A slot left out stays empty: a blank slot is better than a button that does something else.
+SW = "sim/cockpit2/switches/"
+
+
+def _tog(label, c):
+    return ("tog", label, c if c.startswith("laminar/") else "sim/lights/" + c)
+
+
+GENERIC_LIGHTS = dict(up=_tog("Landing lights", "landing_lights_toggle"), right=_tog("Taxi light", "taxi_lights_toggle"),
+                      down=_tog("Strobes", "strobe_lights_toggle"), left=_tog("Nav lights", "nav_lights_toggle"),
+                      beacon=_tog("Beacon", "beacon_lights_toggle"))
+
+
+def _lights(drop=(), **extra):
+    d = {k: v for k, v in GENERIC_LIGHTS.items() if k not in drop}
+    d.update(extra)
+    return d
+
+
+def _landing_group(*lamps, first=None):
+    """Landing lamps that have their own on/off commands (landing_0N_light_on/off), set together."""
+    idx = (first if first is not None else lamps[0]) - 1
+    return ("grp", "Landing lights", SW + "landing_lights_switch[%d]" % idx,
+            ["sim/lights/landing_%02d_light_on" % n for n in lamps], ["sim/lights/landing_%02d_light_off" % n for n in lamps])
+
+
+# Autothrottle: arm the A/T switch first (nothing happens when it is armed), then engage / disengage (tested in the 737).
+MD82_ATS = "laminar/md82/autopilot/autothrottle_switch"
+A333_PROBE = "laminar/A333/buttons/window_probe_ice"
+GEAR_HANDLE = "sim/cockpit2/controls/gear_handle_down"
+B738_GUARD = "laminar/B738/button_switch/guard_cover_pos[0]"
+ARM_TOGGLE = ["sim/autopilot/autothrottle_arm", "sim/autopilot/autothrottle_toggle"]
+
+
+def _switch(ref, toggle):
+    """(on, off) steps for a two-way switch that has only a toggle command: each one toggles only when needed."""
+    return (["save:" + ref, "restoreif:%s=0,0.5,%s" % (ref, toggle)], ["save:" + ref, "restoreif:%s=0.5,1,%s" % (ref, toggle)])
+
+
+def _switches(*pairs):
+    """(on, off) steps for several such switches set together."""
+    on, off = [], []
+    for ref, toggle in pairs:
+        a, b = _switch(ref, toggle)
+        on += a
+        off += b
+    return on, off
+
+
+CITX_BATT = _switches(("laminar/CitX/electrical/battery_left", "laminar/CitX/electrical/cmd_battery_left_toggle"),
+                      ("laminar/CitX/electrical/battery_right", "laminar/CitX/electrical/cmd_battery_right_toggle"))
+CITX_APU = "laminar/CitX/APU/master_switch"
+CITX_PITOT = _switches(("laminar/CitX/ice/pitot_static_left", "laminar/CitX/ice/cmd_pitot_static_left_toggle"),
+                       ("laminar/CitX/ice/pitot_static_right", "laminar/CitX/ice/cmd_pitot_static_right_toggle"))
+
+CIVIL = {
+    # The KAP140 autopilot (the classic and the seaplane) has no FLC; the G1000's GFC700 has (tested).
+    "Cessna 172 SP Skyhawk": dict(lights=_lights(), park="sim/flight_controls/brakes_toggle_max", avionics=True,
+                                  no_flc=("Cessna_172SP", "Cessna_172SP_seaplane"), dial_e="mixture"),
+    "Piper PA-18 Super Cub": dict(lights=_lights(drop=("down",)), park="sim/flight_controls/brakes_toggle_max",
+                                  avionics=True, dial_i="carb", dial_e="mixture", fuel_pumps=False),
+    "Stinson L-5 Sentinel": dict(lights=_lights(drop=("right",)), park="sim/flight_controls/brakes_toggle_max",
+                                 dial_i="carb", dial_e="mixture", fuel_pumps=False),
+    "Van's RV-10": dict(lights=_lights(drop=("beacon",), up=_landing_group(1)), park="sim/flight_controls/park_brake_toggle",
+                        avionics=True, dial_i="prop", dial_e="mixture", apr=False),
+    "Cirrus SR22": dict(lights=_lights(drop=("right", "beacon"), up=_landing_group(1),
+                                       x_right=_tog("Wing inspection", "generic_13_light_tog")),
+                        park="sim/flight_controls/park_brake_toggle", avionics=True, dial_e="mixture"),
+    # No exterior lights and no parking-brake control in the cockpit; its master switch has its own commands.
+    "Aero-Works Aerolite 103": dict(lights={}, park="sim/flight_controls/brakes_toggle_max",
+                                    battery=("laminar/aerolite/switch/master_on", "laminar/aerolite/switch/master_off", "Master"),
+                                    dial_e="mixture", fuel_pumps=False),
+    "BETA Technologies Alia-250": dict(lights=_lights(drop=("right",), x_up=_tog("Search light", "generic_01_light_tog")),
+                                       park="sim/flight_controls/brakes_toggle_max"),
+    "Beechcraft Baron 58": dict(lights=_lights(up=_landing_group(1, 2), x_right=_tog("Wing ice light", "generic_01_light_tog")),
+                                park="sim/flight_controls/park_brake_toggle", avionics=True, dial_i="prop", dial_e="mixture"),
+    "Beechcraft King Air C90B": dict(lights=_lights(up=_landing_group(1, 2), x_right=_tog("Wing ice light", "generic_02_light_tog"),
+                                                    x_down=_tog("Recognition", "generic_03_light_tog")),
+                                     park="sim/flight_controls/park_brake_toggle", avionics=True, dial_i="prop", dial_e="rudder",
+                                     # Tested: X-Plane's flight director command does nothing here (its HDG, NAV and ALT
+                                     # work only with the FD on): the cockpit's own FD switch. Reverse does not follow
+                                     # the reverse-hold command; the toggle works (a tap in, a tap out).
+                                     fd="laminar/c90/avionics/switch/fd",
+                                     rev=("Reverse on/off", "cmd:sim/engines/thrust_reverse_toggle")),
+    "Lancair Evolution": dict(lights=_lights(drop=("right", "beacon"), up=_landing_group(1)),
+                              park="sim/flight_controls/brakes_toggle_max", dial_i="prop", apr=False),
+    "Cirrus Vision SF50": dict(lights=_lights(drop=("right", "beacon")), park="sim/flight_controls/park_brake_toggle"),
+    # Ground recognition / off / anti-collision is one selector (so no separate beacon on D).
+    # Tested: its landing lights follow only its own L / R toggles; the park handle is a lever (no command);
+    # the autothrottle and spoiler arm commands do nothing in this model.
+    "Cessna Citation X": dict(lights=dict(up=("pair", "Landing lights", [(SW + "landing_lights_switch[0]", "laminar/CitX/lights/cmd_landing_left_toggle"),
+                                                                        (SW + "landing_lights_switch[1]", "laminar/CitX/lights/cmd_landing_right_toggle")]),
+                                          right=_tog("Taxi light", "laminar/CitX/lights/cmd_taxi_toggle"),
+                                          down=("step", "Anti-coll sel up", "laminar/CitX/lights/cmd_gnd_rec_anti_coll_up",
+                                                "Anti-coll sel down", "laminar/CitX/lights/cmd_gnd_rec_anti_coll_dwn"),
+                                          left=_tog("Nav lights", "laminar/CitX/lights/cmd_navigation_toggle"),
+                                          x_down=_tog("Recognition", "laminar/CitX/lights/cmd_recognition_toggle"),
+                                          x_right=_tog("Wing lights", "laminar/CitX/ice/cmd_wing_light_toggle")),
+                              park="sim/flight_controls/park_brake_toggle", athr=None, spoiler_arm=False,
+                              dial_i="speedbrake", dial_e="rudder",
+                              # Tested: X-Plane's battery, avionics and pitot heat commands do not move its switches (the
+                              # aircraft keeps its own state), so each uses the cockpit switch's own toggle, only when needed.
+                              battery=CITX_BATT + ("Battery",),
+                              avionics=_switch("laminar/CitX/electrical/avionics", "laminar/CitX/electrical/cmd_avionics_toggle"),
+                              pitot=CITX_PITOT + ("Pitot heat on", "Pitot heat off"),
+                              # X-Plane's APU commands leave its switches alone: the APU master on (when off), then the
+                              # starter; off is the starter down, then the master off. Reverse: only the toggle works.
+                              apu=(_switch(CITX_APU, "laminar/CitX/APU/master_switch_toggle")[0] + ["wait:500", "laminar/CitX/APU/starter_switch_up"],
+                                   ["laminar/CitX/APU/starter_switch_dwn"] + _switch(CITX_APU, "laminar/CitX/APU/master_switch_toggle")[1]),
+                              rev=("Reverse on/off", "cmd:sim/engines/thrust_reverse_toggle")),
+    # Four landing lights (wing root L/R, belly L/R) with an all-on spring switch; position (STROBE & STEADY / OFF /
+    # STEADY) and taxi are selectors; generic lights 1 wing, 2 logo, 3/4 runway turnoff L/R.
+    "Boeing 737-800": dict(lights=dict(up=("grp", "Landing lights", SW + "landing_lights_switch[0]",
+                                           ["laminar/B738/spring_switch/landing_lights_all"], ["sim/lights/landing_lights_off"]),
+                                       right=("step", "Taxi light +", "laminar/B738/toggle_switch/taxi_light_brightness_pos_dn",
+                                              "Taxi light -", "laminar/B738/toggle_switch/taxi_light_brightness_pos_up"),
+                                       left=("step", "Position sel up", "laminar/B738/toggle_switch/position_light_up",
+                                             "Position sel down", "laminar/B738/toggle_switch/position_light_down"),
+                                       beacon=_tog("Beacon", "beacon_lights_toggle"),
+                                       x_up=("pair", "Runway turnoff", [(SW + "generic_lights_switch[2]", "sim/lights/generic_03_light_tog"),
+                                                                         (SW + "generic_lights_switch[3]", "sim/lights/generic_04_light_tog")]),
+                                       x_right=_tog("Wing lights", "generic_01_light_tog"),
+                                       x_left=_tog("Logo light", "generic_02_light_tog")),
+                           park="sim/flight_controls/park_brake_toggle", athr=ARM_TOGGLE, dial_i="speedbrake", dial_e="rudder",
+                           # The battery switch has a guard: off opens it first; closing it puts the switch back on.
+                           battery=(["sim/electrical/battery_1_on", "sim/electrical/battery_2_on", "save:" + B738_GUARD,
+                                     "restoreif:%s=0.5,1,laminar/B738/guard_cover00" % B738_GUARD],
+                                    ["save:" + B738_GUARD, "restoreif:%s=0,0.5,laminar/B738/guard_cover00" % B738_GUARD,
+                                     "wait:1000", "sim/electrical/battery_1_off", "sim/electrical/battery_2_off"], "Battery"),
+                           # The APU switch is OFF / ON / START (spring back to ON): a tap moves it down a notch, so tap
+                           # for ON, then hold for START; T3 down moves it up a notch (ON to OFF).
+                           # The gear lever is UP / OFF / DOWN (-1 is OFF), so a toggle needs two taps from OFF to
+                           # DOWN: a tap puts it UP when it is down and DOWN otherwise.
+                           gear=["save:" + GEAR_HANDLE,
+                                 "restoreif:%s=0.5,1.5,sim/flight_controls/landing_gear_up" % GEAR_HANDLE,
+                                 "restoreif:%s=-0.4,0.4,sim/flight_controls/landing_gear_down" % GEAR_HANDLE,
+                                 "restoreif:%s=-1.5,-0.6,sim/flight_controls/landing_gear_toggle" % GEAR_HANDLE],
+                           apu=("laminar/B738/spring_toggle_switch/APU_start_pos_dn",
+                                "laminar/B738/spring_toggle_switch/APU_start_pos_up")),
+    # Strobe OFF / AUTO / ON, NAV & LOGO and nose OFF / TAXI / TO are selectors; generic 1 runway turnoff, 2 wing.
+    "Airbus A330-300": dict(lights=dict(up=_landing_group(1),
+                                        right=("step", "Nose sel up", "laminar/A333/switch/lighting/taxi_light_up",
+                                               "Nose sel down", "laminar/A333/switch/lighting/taxi_light_dn"),
+                                        down=("step", "Strobe sel up", "laminar/A333/toggle_switch/strobe_pos_up",
+                                              "Strobe sel down", "laminar/A333/toggle_switch/strobe_pos_dn"),
+                                        left=("step", "Nav & logo up", "laminar/A333/toggle_switch/nav_light_pos_up",
+                                              "Nav & logo down", "laminar/A333/toggle_switch/nav_light_pos_dn"),
+                                        beacon=_tog("Beacon", "beacon_lights_toggle"),
+                                        x_up=_tog("Runway turnoff", "generic_01_light_tog"),
+                                        x_right=_tog("Wing lights", "generic_02_light_tog")),
+                            park="sim/flight_controls/brakes_toggle_max", fd="sim/autopilot/fdir_command_bars_toggle",
+                            athr="laminar/A333/autopilot/a_thr_toggle", dial_i="speedbrake", dial_e="rudder",
+                            # The APU has push buttons that need a real press: MASTER SW (on/off) on T3 down, START up.
+                            apu=("laminar/A333/buttons/APU_start", "laminar/A333/buttons/APU_master",
+                                 "APU start", "APU master on/off"),
+                            # X-Plane's pitot heat commands do nothing here: the PROBE/WINDOW HEAT button is ON or
+                            # AUTO (the probes are heated automatically with the engines running).
+                            pitot=(["save:" + A333_PROBE, "restoreif:%s=0,0.5,laminar/A333/buttons/probe_window_heat_toggle" % A333_PROBE],
+                                   ["save:" + A333_PROBE, "restoreif:%s=0.5,1,laminar/A333/buttons/probe_window_heat_toggle" % A333_PROBE],
+                                   "Probe heat ON", "Probe heat AUTO")),
+    # Wing landing lights L/R and the nose light are selectors (up / down); nav and strobe are one selector;
+    # generic 1 tail logo, 4 wings and engines.
+    # Tested: their "up" commands move towards OFF / RETRACT, so a tap uses "dwn" (lights on) and a hold "up".
+    "McDonnell Douglas MD-82": dict(lights=dict(up=("step", "Landing lts +", ["laminar/md82cmd/switches/landing_lights_switch_L_dwn",
+                                                                         "laminar/md82cmd/switches/landing_lights_switch_R_dwn"],
+                                                     "Landing lts -", ["laminar/md82cmd/switches/landing_lights_switch_L_up",
+                                                                       "laminar/md82cmd/switches/landing_lights_switch_R_up"]),
+                                                right=("step", "Nose light +", "laminar/md82cmd/switches/landing_lights_switch_nose_dwn",
+                                                       "Nose light -", "laminar/md82cmd/switches/landing_lights_switch_nose_up"),
+                                                left=("step", "Nav/strobe +", "laminar/md82cmd/switches/navstrobe_lights_switch_dwn",
+                                                      "Nav/strobe -", "laminar/md82cmd/switches/navstrobe_lights_switch_up"),
+                                                beacon=_tog("Beacon", "beacon_lights_toggle"),
+                                                x_right=_tog("Wing lights", "generic_04_light_tog"),
+                                                x_left=_tog("Logo light", "generic_01_light_tog")),
+                                    park="sim/flight_controls/brakes_toggle_max", athr=["save:" + MD82_ATS, "restoreif:%s=0,0.5,laminar/md82cmd/autopilot/autothrottle_switch" % MD82_ATS,
+                                 "wait:800", "restoreif:%s=0,0.5,laminar/md82cmd/autopilot/airspeed_is_knots" % MD82_ATS,
+                                 "restoreif:%s=0.5,1,laminar/md82cmd/autopilot/autothrottle_switch" % MD82_ATS],
+                           # The A/T needs its own switch on first, then the IAS (knots) button engages it; the switch
+                           # turns it off. X-Plane's autothrottle commands do nothing here.
+                           dial_i="speedbrake", dial_e="rudder",
+                           # Pitot and stall heat is a knob (OFF in the middle; any other position heats the probes):
+                           # X-Plane's pitot heat commands are undone by it, so T3 turns the knob a notch each way.
+                           pitot=("laminar/md82cmd/ice/selheatknob_up", "laminar/md82cmd/ice/selheatknob_dwn",
+                                  "Probe heat knob +", "Probe heat knob -")),
+    # No electric fuel pump (nor in the PA-18, L-5 and Aerolite: fuel_pumps=False); X-Plane's trim does nothing
+    # in the R22 (its only trim handle freezes the cyclic), so hat 2 stays empty (hat_trim=False).
+    "Robinson R22 Beta II": dict(lights=_lights(drop=("right", "beacon")), park=None, dial_e="carb",
+                                 fuel_pumps=False, hat_trim=False),
+    "Sikorsky S-76C": dict(lights=_lights(up=_landing_group(2, 3), x_right=_tog("Search light", "generic_01_light_tog")),
+                           park="sim/flight_controls/brakes_toggle_max", avionics=True),
+    # A glider: no lights, no parking brake; the airbrake handle is the speed brake.
+    "Schleicher ASK 21": dict(lights={}, park=None, avionics=True, dial_i="speedbrake"),
+}
+
+# For profiles/default.x52 (any aircraft without its own profile): X-Plane's generic commands.
+GENERIC = dict(name="Any aircraft", kind="airliner", gear=True, flaps=True, ap=True, at=False, rev=True, autobrake=True,
+               speedbrake=True)
+CIVIL["Any aircraft"] = dict(lights=_lights(), park="sim/flight_controls/brakes_toggle_max", avionics=True)
+
+DIAL_USE = {None: 0, "speedbrake": 1, "zoom": 2, "prop": 3, "mixture": 4, "rudder": 5, "carb": 8}
+
 DEFAULTS = dict(engines=1, gear=False, flaps=False, ap=False, at=False, mixture=False, prop=False, carb=False,
                 tailwheel=False, rev=False, speedbrake=False, apu=False, autobrake=False, caution=False,
                 hook=False, sweep=False, governor=False, master=True)
@@ -115,9 +328,258 @@ def mode_names(f):
     return {1: "Takeoff", 2: "Cruise", 3: "Landing"}
 
 
+def _steps(c):
+    """Commands to steps. An item that is already a step (save:, restoreif:, wait:, set:, cmd:) is kept as it is."""
+    keep = ("save:", "restoreif:", "wait:", "set:", "cmd:")
+    return " ; ".join(x if x.startswith(keep) else "cmd:" + x for x in ([c] if isinstance(c, str) else c))
+
+
+def civil(f):
+    """The shared civil layout (issue #121). Returns (L, H): {layer: {button: (label, steps)}} for the presses and
+    {layer: {button: (label, steps)}} for the holds. Layer 0 is every mode, 1-3 the modes, 4-6 the modes with the
+    pinkie held. A shifted layer starts as a full copy of its mode (a shifted binding falls back to Any mode, not
+    to the unshifted mode), then changes only the buttons meant to change."""
+    k = f["kind"]
+    c = CIVIL[f["name"]]
+    lt = c["lights"]
+    L = {layer: {} for layer in range(7)}
+    H = {layer: {} for layer in range(7)}
+    any_, m1, m2, m3 = L[ANY], L[1], L[2], L[3]
+    airliner = f["at"]   # a dedicated speed selector and TOGA
+
+    def put(layer, button, spec, hold=None):
+        """spec: a light (see CIVIL) or (label, steps)."""
+        if spec is None:
+            return
+        kind = spec[0]
+        if kind == "tog":
+            L[layer][button] = (spec[1], _steps(spec[2]))
+        elif kind == "grp":
+            _, label, ref, on, off = spec
+            steps = ["save:" + ref] + ["restoreif:%s=0,0.5,%s" % (ref, x) for x in on] + \
+                    ["restoreif:%s=0.5,1,%s" % (ref, x) for x in off]
+            L[layer][button] = (label, " ; ".join(steps))
+        elif kind == "pair":
+            _, label, lamps = spec
+            saves = ["save:" + ref for ref, _ in lamps]
+            L[layer][button] = (label + " on", " ; ".join(saves + ["restoreif:%s=0,0.5,%s" % (r, t) for r, t in lamps]))
+            H[layer][button] = (label + " off", " ; ".join(saves + ["restoreif:%s=0.5,1,%s" % (r, t) for r, t in lamps]))
+        elif kind == "step":
+            _, lu, cu, ld, cd = spec
+            L[layer][button] = (lu, _steps(cu))
+            H[layer][button] = (ld, _steps(cd))
+        else:
+            L[layer][button] = spec
+        if hold:
+            H[layer][button] = hold
+
+    # ---- every mode
+    if f["ap"]:
+        any_[TRIGGER] = ("AP disconnect", S("autopilot/servos_off_any"))
+        any_[TRIGGER2] = ("Contact ATC", S("operation/contact_atc"))   # stage 2 is only reached through stage 1
+        any_[B] = ("AP on/off", S("autopilot/servos_toggle"))
+    else:
+        any_[TRIGGER] = ("Contact ATC", S("operation/contact_atc"))
+    any_[E] = ("Brakes (hold)", S("flight_controls/brakes_regular"))   # down = brakes on, up = off: no hold delay
+    if k == "glider":
+        any_[B] = ("Airbrakes in", S("flight_controls/speed_brakes_up_one"))
+        any_[C] = ("Airbrakes out", S("flight_controls/speed_brakes_down_one"))
+    elif f["governor"]:
+        any_[B] = ("Governor", S("engines/governor_toggle"))
+        any_[C] = ("Carb heat", S("engines/carb_heat_toggle"))
+    elif k in ("piston", "ultralight") and not f["ap"]:
+        any_[B] = ("Magnetos both", S("magnetos/magnetos_both_1"))
+        any_[C] = ("Starter (hold)", S("starters/engage_starter_1"))
+    # A: tap = gear in takeoff and landing (none in cruise), the tow release in the glider; hold = parking brake.
+    park = ("Parking brake", _steps(c["park"])) if c["park"] else None
+    for mode in (1, 2, 3):
+        if k == "glider":
+            L[mode][A] = ("Tow release", S("flight_controls/glider_all_release"))   # the cockpit's own release
+        elif f["gear"] and mode != 2:
+            L[mode][A] = ("Gear up/down", _steps(c.get("gear", "sim/flight_controls/landing_gear_toggle")))
+        if park:
+            H[mode][A] = park   # alone (no tap) on fixed gear and in cruise
+    if not c.get("hat_trim", True):
+        pass
+    elif k == "heli":
+        any_[SHAT_U] = ("Cyclic trim fwd", S("flight_controls/pitch_trim_down"))
+        any_[SHAT_D] = ("Cyclic trim aft", S("flight_controls/pitch_trim_up"))
+        any_[SHAT_L] = ("Cyclic trim L", S("flight_controls/aileron_trim_left"))
+        any_[SHAT_R] = ("Cyclic trim R", S("flight_controls/aileron_trim_right"))
+    elif k != "ultralight":
+        any_[SHAT_U] = ("Trim nose down", S("flight_controls/pitch_trim_down"))
+        any_[SHAT_D] = ("Trim nose up", S("flight_controls/pitch_trim_up"))
+        if k != "glider":
+            any_[SHAT_L] = ("Rudder trim L", S("flight_controls/rudder_trim_left"))
+            any_[SHAT_R] = ("Rudder trim R", S("flight_controls/rudder_trim_right"))
+    any_[MOUSE] = ("Cockpit view", S("view/3d_cockpit_cmnd_look"))
+    any_[POV1_U] = ("Look up", S("general/rot_up"))
+    any_[POV1_R] = ("Look right", S("general/rot_right"))
+    any_[POV1_D] = ("Look down", S("general/rot_down"))
+    any_[POV1_L] = ("Look left", S("general/rot_left"))
+    for i, d in enumerate(("up", "right", "down", "left")):
+        any_[NUB_U + i] = ("Pan " + d, S("general/" + d))
+        any_[NUB_U + 4 + i] = ("Pan %s fast" % d, S("general/%s_fast" % d))
+    any_[MFD_PREV] = ("Screen page -", cmd("x52pro/mfd_page_prev"))
+    any_[MFD_NEXT] = ("Screen page +", cmd("x52pro/mfd_page_next"))
+    any_[MFD_UP] = ("Screen cursor up", cmd("x52pro/mfd_up"))
+    any_[MFD_DOWN] = ("Screen cursor down", cmd("x52pro/mfd_down"))
+    any_[MFD_SELECT] = ("Screen select", cmd("x52pro/mfd_select"))
+
+    def light_hat(m):
+        """The exterior lights, the same four directions in modes 1 and 3."""
+        for d, b in (("up", THAT_U), ("right", THAT_R), ("down", THAT_D), ("left", THAT_L)):
+            put(m, b, lt.get(d))
+
+    def view_hat(m):
+        m[THAT_U] = ("Cockpit view", S("view/3d_cockpit_cmnd_look"))
+        m[THAT_D] = ("Chase view", S("view/chase"))
+        m[THAT_R] = ("Circle view", S("view/circle"))
+        m[THAT_L] = ("Free camera", S("view/free_camera"))
+
+    def trim_wheel(m):
+        if k == "ultralight":
+            return
+        m[SCROLL_F] = ("Trim nose down", S("flight_controls/pitch_trim_down"))
+        m[SCROLL_B] = ("Trim nose up", S("flight_controls/pitch_trim_up"))
+        if k not in ("heli", "glider"):
+            m[SCROLL_C] = ("Take-off trim", S("flight_controls/pitch_trim_takeoff"))
+
+    # ---- Mode 1: ground & takeoff
+    put(1, D, lt.get("beacon"))
+    if k != "glider" or c.get("avionics"):
+        # Batteries 1 and 2 together (the S-76 has two; a second one that does not exist is left alone).
+        on, off, name = c.get("battery", (["sim/electrical/battery_1_on", "sim/electrical/battery_2_on"],
+                                          ["sim/electrical/battery_1_off", "sim/electrical/battery_2_off"], "Battery"))
+        m1[T1U] = (name + " on", _steps(on))
+        m1[T1D] = (name + " off", _steps(off))
+    if c.get("avionics"):
+        # True: X-Plane's avionics commands; (on, off): the aircraft's own switch.
+        on, off = c["avionics"] if isinstance(c["avionics"], tuple) else ("sim/systems/avionics_on", "sim/systems/avionics_off")
+        m1[T2U] = ("Avionics on", _steps(on))
+        m1[T2D] = ("Avionics off", _steps(off))
+    if f["apu"]:
+        up, dn, lup, ldn = (tuple(c["apu"]) + ("APU start", "APU off"))[:4] if c.get("apu") else \
+            ("sim/electrical/APU_start", "sim/electrical/APU_off", "APU start", "APU off")
+        m1[T3U] = (lup, _steps(up))
+        m1[T3D] = (ldn, _steps(dn))
+    elif f["governor"]:
+        m1[T3U] = ("Governor on", S("engines/governor_on"))
+        m1[T3D] = ("Governor off", S("engines/governor_off"))
+    elif f["tailwheel"]:
+        m1[T3U] = ("Tailwheel lock", S("flight_controls/tail_wheel_lock_toggle"))
+    elif k == "heli":
+        m1[T3U] = ("Rotor RPM +", S("flight_controls/rotor_rpm_trim_up"))
+        m1[T3D] = ("Rotor RPM -", S("flight_controls/rotor_rpm_trim_down"))
+    if f["ap"]:
+        m1[C] = ("Flight director", _steps(c.get("fd", "sim/autopilot/fdir_toggle")))
+    light_hat(1)
+    m1[SCROLL_F] = ("Zoom in", S("general/zoom_in"))
+    m1[SCROLL_B] = ("Zoom out", S("general/zoom_out"))
+    m1[SCROLL_C] = ("Chase view", S("view/chase"))
+
+    # ---- Mode 2: cruise
+    if f["ap"]:
+        if c.get("apr", True):   # the Lancair's and RV-10's autopilots have no approach mode
+            m2[C] = ("AP approach", S("autopilot/approach"))
+        # Tested in all of them: X-Plane's wing leveler does nothing with the autopilot off in the King Air and
+        # the Citation X and only turns the flight director on in the G1000 aircraft; return to level (the SR22's
+        # and SF50's own LVL button) engages the autopilot wings level in every one.
+        m2[D] = ("AP wing leveler", S("autopilot/return_to_level"))
+        m2[T1U] = ("AP HDG", S("autopilot/heading"))
+        m2[T1D] = ("AP NAV", S("autopilot/NAV"))
+        m2[T2U] = ("AP ALT hold", S("autopilot/altitude_hold"))
+        m2[T2D] = ("AP VS", S("autopilot/vertical_speed"))
+        if airliner:
+            athr = c.get("athr", "sim/autopilot/autothrottle_toggle")
+            if athr:
+                m2[T3U] = ("Autothrottle", _steps(athr))
+            m2[T3D] = ("AP level change", S("autopilot/level_change"))
+        elif f.get("acf") not in c.get("no_flc", ()):
+            m2[T3U] = ("AP FLC", S("autopilot/level_change"))
+        m2[THAT_U] = ("ALT select +", S("autopilot/altitude_up"))
+        m2[THAT_D] = ("ALT select -", S("autopilot/altitude_down"))
+        if airliner:
+            m2[THAT_R] = ("Speed +", S("autopilot/airspeed_up"))
+            m2[THAT_L] = ("Speed -", S("autopilot/airspeed_down"))
+        else:
+            m2[THAT_R] = ("VS +", S("autopilot/vertical_speed_up"))
+            m2[THAT_L] = ("VS -", S("autopilot/vertical_speed_down"))
+        m2[SCROLL_F] = ("HDG bug +", S("autopilot/heading_up"))
+        m2[SCROLL_B] = ("HDG bug -", S("autopilot/heading_down"))
+        m2[SCROLL_C] = ("HDG sync", S("autopilot/heading_sync"))
+    else:
+        if k not in ("glider",):
+            if k not in ("ultralight", "heli"):   # the R22 has carb heat on C; the Aerolite neither
+                m2[D] = ("Carb heat", S("engines/carb_heat_toggle")) if f["carb"] else ("Pitot heat", S("ice/pitot_heat0_tog"))
+            m2[T1U] = ("Fuel tank left", S("fuel/fuel_tank_selector_lft_one"))
+            m2[T1D] = ("Fuel tank right", S("fuel/fuel_tank_selector_rgt_one"))
+            if c.get("fuel_pumps", True):
+                m2[T2U] = ("Fuel pumps on", S("fuel/fuel_pumps_on"))
+                m2[T2D] = ("Fuel pumps off", S("fuel/fuel_pumps_off"))
+            if not f["carb"] and k != "ultralight":   # the carburettor aircraft never had pitot heat here (carb heat: dial, D)
+                m2[T3U] = ("Pitot heat on", S("ice/pitot_heat0_on"))
+                m2[T3D] = ("Pitot heat off", S("ice/pitot_heat0_off"))
+        view_hat(m2)
+        trim_wheel(m2)
+
+    # ---- Mode 3: approach & landing
+    if f["ap"] and c.get("apr", True):
+        m3[C] = ("AP approach", S("autopilot/approach"))
+    if f["rev"]:
+        m3[D] = c.get("rev", ("Reverse (hold)", S("engines/thrust_reverse_hold")))
+    if f["autobrake"]:
+        m3[T1U] = ("Autobrake up", S("flight_controls/brakes_up_auto"))
+        m3[T1D] = ("Autobrake down", S("flight_controls/brakes_dn_auto"))
+    elif f["ap"]:
+        m3[T1U] = ("AP HDG", S("autopilot/heading"))
+        m3[T1D] = ("AP NAV", S("autopilot/NAV"))
+    if f["speedbrake"] and c.get("spoiler_arm", True):
+        m3[T2U] = ("Spoilers arm", S("flight_controls/speed_brakes_arm_toggle"))
+        m3[T2D] = ("Spoilers retract", S("flight_controls/speed_brakes_up_all"))
+    elif k in ("piston", "turboprop", "heli", "jet") and c.get("fuel_pumps", True):
+        m3[T2U] = ("Fuel pumps on", S("fuel/fuel_pumps_on"))
+        m3[T2D] = ("Fuel pumps off", S("fuel/fuel_pumps_off"))
+    if airliner:
+        m3[T3U] = ("TOGA", S("autopilot/take_off_go_around"))
+    elif k not in ("glider", "ultralight") and not f["carb"]:   # carb heat (here before) is on a dial now
+        m3[T3U] = ("Pitot heat on", S("ice/pitot_heat0_on"))
+        m3[T3D] = ("Pitot heat off", S("ice/pitot_heat0_off"))
+    light_hat(3)
+    trim_wheel(m3)
+
+    # ---- the pinkie: a full copy of each mode, then the changes
+    for mode in (1, 2, 3):
+        L[mode + 3] = dict(L[mode])
+        H[mode + 3] = dict(H[mode])
+        L[mode + 3][SCROLL_F] = ("Zoom in", S("general/zoom_in"))
+        L[mode + 3][SCROLL_B] = ("Zoom out", S("general/zoom_out"))
+        L[mode + 3].pop(SCROLL_C, None)   # zoom only: the click keeps its Any-mode job (none)
+        if mode != 2:   # the extra lights, the same directions in modes 1 and 3
+            for d, b in (("x_up", THAT_U), ("x_right", THAT_R), ("x_down", THAT_D), ("x_left", THAT_L)):
+                if lt.get(d):
+                    H[mode + 3].pop(b, None)
+                    put(mode + 3, b, lt[d])
+        else:
+            if f["ap"]:
+                L[5][C] = ("Flight director", _steps(c.get("fd", "sim/autopilot/fdir_toggle")))
+            if airliner:
+                L[5][THAT_R] = ("VS +", S("autopilot/vertical_speed_up"))
+                L[5][THAT_L] = ("VS -", S("autopilot/vertical_speed_down"))
+    if airliner:   # TOGA took T3 in landing: the pitot heat that was there is on the pinkie
+        on, off, lon, loff = c.get("pitot", ("sim/ice/pitot_heat0_on", "sim/ice/pitot_heat0_off",
+                                             "Pitot heat on", "Pitot heat off"))
+        L[6][T3U] = (lon, _steps(on))
+        L[6][T3D] = (loff, _steps(off))
+    # The R22's rotor RPM trim (pinkie + T3) is gone: it does nothing there (tested with the stick).
+    return L, H
+
+
 def layout(f):
     """{layer: {button: (label, steps)}} - layer 0 is every mode."""
     k = f["kind"]
+    if k != "fighter":
+        return civil(f)[0]
     jetlike = k in ("jet", "airliner", "fighter")
     L = {ANY: {}, 1: {}, 2: {}, 3: {}, 5: {}}   # 5 = mode 2 + pinkie (the F-14 only)
     any_, m1, m2, m3 = L[ANY], L[1], L[2], L[3]   # m2 is cruise, m3 is landing
@@ -290,7 +752,7 @@ def layout(f):
 
     # ---- Mode 3: landing (approach, flaps, speedbrake, reverse, autobrake)
     if f["rev"]:
-        m3[D] = ("Reverse (hold)", S("engines/thrust_reverse_hold"))   # the lights are the same lights as in mode 1: on the hat, left
+        m3[D] = c.get("rev", ("Reverse (hold)", S("engines/thrust_reverse_hold")))   # the lights are the same lights as in mode 1: on the hat, left
     elif f["speedbrake"]:
         m3[D] = ("Speedbrake", S("flight_controls/speed_brakes_toggle"))
     elif k != "glider":
@@ -369,7 +831,10 @@ def layout(f):
             m2[THAT_L] = ("Chase view", S("view/chase"))
         trim_wheel(m2)
     elif f["ap"]:
-        m2[D] = ("AP wing leveler", S("autopilot/wing_leveler"))
+        # Tested in all of them: X-Plane's wing leveler does nothing with the autopilot off in the King Air and
+        # the Citation X and only turns the flight director on in the G1000 aircraft; return to level (the SR22's
+        # and SF50's own LVL button) engages the autopilot wings level in every one.
+        m2[D] = ("AP wing leveler", S("autopilot/return_to_level"))
         m2[E] = ("Flight director", S("autopilot/fdir_toggle"))
         m2[T1U] = ("AP HDG", S("autopilot/heading"))
         m2[T1D] = ("AP NAV", S("autopilot/NAV"))
@@ -428,6 +893,8 @@ def releases(f):
 def holds(f):
     """{layer: {button: (label, steps)}} - what a button does when held longer than the hold time (400 ms).
     A: the parking brake, in every mode (its tap is the gear or the landing light)."""
+    if f["kind"] != "fighter":
+        return civil(f)[1]
     return {m: {A: ("Parking brake", S("flight_controls/brakes_toggle_max"))} for m in ((1, 2, 3, 5) if f.get("f14") else (1, 2, 3))}
 
 
@@ -455,7 +922,7 @@ def rules(f):
         r.append(("fire", "fire > 0.5 green off sim/flightmodel/controls/parkbrake", "Fire: lit while the parking brake is set"))
     if f["gear"]:
         r.append(("a", "a > 0.99 green off sim/flightmodel2/gear/deploy_ratio[0]", "A: green when the gear is down and locked, off when up"))
-    elif f["kind"] != "glider":
+    elif f["kind"] == "fighter":   # civil fixed-gear A no longer has the landing light (issue #121)
         r.append(("a", "a > 0.5 green mode sim/cockpit2/switches/landing_lights_on", "A: green while the landing light is on"))
     if f["flaps"]:
         r.append(("b", "b > 0.01 amber green sim/cockpit2/controls/flap_handle_deploy_ratio", "B: amber while flaps are out, green when up"))
@@ -472,17 +939,25 @@ def axes(f):
     # X-Plane's own axis assignment did not reach the controls (seen live in the Citation X: the stick and the
     # throttle moved in X-Plane's joystick values, the yoke and throttle stayed at 0), so the plugin drives the
     # stick and twist everywhere, and the throttle in every aircraft but the helicopters (their lever is the collective).
+    if f["kind"] == "fighter":
+        dial_i, dial_e = (1 if f["speedbrake"] else 0), 2
+    else:
+        c = CIVIL[f["name"]]
+        dial_i, dial_e = DIAL_USE[c.get("dial_i")], DIAL_USE[c.get("dial_e", "zoom")]
     return ["axis_override = 1", "throttle_plugin = %d" % (0 if f["kind"] == "heli" else 1),
             "axis_roll = 5 0 0", "axis_pitch = 5 0 0", "axis_yaw = 5 0 0", "axis_throttle = 5 0 1",
             "slider_flaps = %d" % (1 if f["flaps"] else 0),
             # Invert flaps off: the X52 slider pushed away from you deploys the flaps, towards you retracts them
             # (confirmed by the user in the Citation X cockpit).
             "slider_invert = 0",
-            # The lower dial (i) sets the speed brake in four steps where the aircraft has one; the E dial zooms.
-            "rotary_lower = %d" % (1 if f["speedbrake"] else 0), "rotary_lower_invert = 0",
-            "rotary_upper = 2", "rotary_upper_invert = 0",
-            # The part of a lever job's range one full turn covers (percent); used once a dial is set to one.
-            "rotary_lower_range = 0 100", "rotary_upper_range = 0 100",
+            # The dials (issue #121): the lower one (i) is the prop, speed brake, airbrakes or carb heat; the upper
+            # one (E) the mixture, rudder trim or carb heat; zoom where the aircraft has nothing better for it.
+            # Fighters: speed brake and zoom.
+            "rotary_lower = %d" % dial_i, "rotary_lower_invert = 0",
+            "rotary_upper = %d" % dial_e, "rotary_upper_invert = 0",
+            # The part of a lever job's range one full turn covers (percent). The mixture stops at 5 %, so a dial
+            # turned right down does not cut the engine (idle cut-off stays in the cockpit).
+            "rotary_lower_range = 0 100", "rotary_upper_range = %s" % ("5 100" if dial_e == DIAL_USE["mixture"] else "0 100"),
             # Zoom strength: X-Plane zoom steps per full turn of the E dial (tried in the Citation X; 24 was too little).
             "rotary_zoom_steps = 96"]
 
