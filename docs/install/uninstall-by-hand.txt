@@ -1,0 +1,53 @@
+# Uninstall X52 Pro by hand
+
+The easy way is Uninstall X52 Pro... in the app's menu. These steps do the same without the app.
+
+In Finder, Go > Go to Folder (Shift + Command + G) opens any folder named below. ~ is your home folder. "X-Plane 12" stands for your X-Plane folder; if you have more than one, repeat steps 3 and 4 for each.
+
+## 1. Quit
+
+Quit X-Plane. Quit X52 Pro (right-click its menu bar icon, Quit X52 Pro).
+
+## 2. Start at login
+
+System Settings > General > Login Items: if X52 Pro is listed, remove it.
+
+## 3. The plugin
+
+Delete the folder X-Plane 12/Resources/plugins/X52Pro
+
+## 4. The profiles
+
+Folder: X-Plane 12/Output/preferences/X52Pro
+
+To remove everything, delete the folder.
+
+To keep your own setup, keep these and delete the rest:
+- your own profiles: .x52 and .x52.deleted files that do not contain the line "standard = 1"
+- profile-choices.txt (which of your profiles each aircraft uses)
+- stick-calibration.txt
+
+## 5. The app's folders
+
+Delete the ones that exist:
+- ~/Documents/X52 Pro (the guides; move anything you added there first)
+- ~/Library/Application Support/X52Pro (apply the rule of step 4: it can hold profiles)
+- ~/Library/Caches/serbar.x52pro.app
+- ~/Library/HTTPStorages/serbar.x52pro.app
+- ~/Library/HTTPStorages/serbar.x52pro.app.binarycookies
+- ~/Library/Saved Application State/serbar.x52pro.app.savedState
+
+## 6. Settings
+
+To remove the app's settings, delete ~/Library/Preferences/serbar.x52pro.app.plist
+Keep this file if you want to keep your setup.
+
+## 7. Privacy entries
+
+System Settings > Privacy & Security: remove X52 Pro from any list that shows it. The Accessibility entry for X-Plane belongs to X-Plane; remove it only if nothing else needs it.
+
+## 8. The app
+
+Move X52 Pro from Applications to the Trash.
+
+X-Plane's own settings, such as buttons you set to Do nothing, are not changed by installing or uninstalling. Manuals and templates you exported stay where you saved them.

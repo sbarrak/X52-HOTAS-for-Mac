@@ -348,6 +348,65 @@ TEST(buttons_are_programmed_from_the_app_and_found_in_x_plane_lists) {
     x52_stop();
 }
 
+// Setup and uninstall delete files, so this test works only inside its own folder: X52_SANDBOX keeps the
+// X-Plane search there, and nothing is removed unless every listed path is inside it.
+static bool allInside(const char* list, const std::string& dir) {
+    std::istringstream in(list);
+    for (std::string line; std::getline(in, line);)
+        if (line.compare(0, dir.size() + 1, dir + "/") != 0) return false;
+    return true;
+}
+
+TEST(setup_bridge_installs_and_reports) {
+    std::string d = freshDir("setup"), xp = d + "/apps/X-Plane 12", res = d + "/res";
+    for (const char* sub : {"/home", "/apps", "/apps/X-Plane 12", "/apps/X-Plane 12/Resources", "/apps/X-Plane 12/Resources/plugins",
+                            "/apps/X-Plane 12/Output", "/apps/X-Plane 12/Output/preferences", "/res", "/res/profiles", "/res/guides"})
+        mkdir((d + sub).c_str(), 0755);
+    std::ofstream(res + "/X52Pro.xpl") << "plugin";
+    std::ofstream(res + "/profiles/default.x52") << "x52pro-profile 3\nstandard = 1\n";
+    std::ofstream(res + "/guides/Manual.docx") << "manual";
+    setenv("X52_SANDBOX", d.c_str(), 1);
+    CHECK_EQ(std::string(x52_find_xplane()), xp);   // nothing outside the sandbox is seen
+    x52_setup_init((d + "/home").c_str(), res.c_str());
+    CHECK_EQ(x52_setup_needed(xp.c_str()), 1);
+    CHECK_EQ(x52_setup_profile_count(), 1);
+    x52_setup_install(xp.c_str(), 1, 1, 1);
+    CHECK(has(x52_setup_report(0), "default.x52"));
+    CHECK_EQ(std::string(x52_setup_report(1)), std::string(""));
+    CHECK_EQ(std::string(x52_setup_report(2)), std::string(""));
+    CHECK_EQ(x52_setup_needed(xp.c_str()), 0);
+    CHECK_EQ(std::string(x52_setup_guides_dir()), d + "/home/Documents/X52 Pro");
+    std::ofstream(xp + "/Output/preferences/X52Pro/Mine.x52") << "x52pro-profile 3\n";
+    x52_uninstall_plan(xp.c_str());
+    CHECK(has(x52_uninstall_list(0), "default.x52"));
+    CHECK(has(x52_uninstall_list(1), "Mine.x52"));
+    bool safe = allInside(x52_uninstall_list(0), d) && allInside(x52_uninstall_list(1), d);
+    CHECK(safe);
+    if (safe) {
+        CHECK_EQ(std::string(x52_uninstall_remove()), std::string(""));
+        CHECK_EQ(std::string(x52_uninstall_forget()), std::string(""));
+        x52_uninstall_prune();
+        CHECK(access((xp + "/Resources/plugins/X52Pro").c_str(), F_OK) != 0);
+        CHECK(access((xp + "/Output/preferences/X52Pro/Mine.x52").c_str(), F_OK) == 0);
+    }
+    unsetenv("X52_SANDBOX");
+}
+
+TEST(the_sandbox_refuses_folders_outside_it) {
+    std::string d = freshDir("box"), outside = freshDir("outside");
+    for (const char* sub : {"/Resources", "/Resources/plugins", "/Resources/plugins/X52Pro", "/Resources/plugins/X52Pro/mac_x64"})
+        mkdir((outside + sub).c_str(), 0755);
+    std::ofstream(outside + "/Resources/plugins/X52Pro/mac_x64/X52Pro.xpl") << "not ours to touch";
+    setenv("X52_SANDBOX", d.c_str(), 1);
+    x52_setup_init((d + "/home").c_str(), (d + "/res").c_str());
+    x52_uninstall_plan(outside.c_str());
+    CHECK_EQ(std::string(x52_uninstall_list(0)), std::string(""));
+    x52_setup_install(outside.c_str(), 1, 1, 0);
+    CHECK_EQ(std::string(x52_setup_report(0)), std::string(""));
+    CHECK(!std::string(x52_setup_report(2)).empty());
+    unsetenv("X52_SANDBOX");
+}
+
 int main() {
     const char* scratch = getenv("TMPDIR");
     std::string base = std::string(scratch ? scratch : "/tmp") + "/x52agent.XXXXXX";

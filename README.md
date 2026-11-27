@@ -59,9 +59,12 @@ Need a map of your own profile? **Export Current Template...** (in the menu next
 
 ## Install
 
-1. **[Download](https://github.com/sbarrak/X52-HOTAS-for-Mac/releases/latest)** the zip. Unzip it. Drag **X52 Pro** to **Applications**.
-2. Open it (the first time, right-click, then **Open**). Press **Install plugin**.
-3. Restart X-Plane. **Done.**
+1. **[Download](https://github.com/sbarrak/X52-HOTAS-for-Mac/releases/latest)** the disk image. Open it. Drag **X52 Pro** to **Applications**.
+2. Open it. If macOS blocks it the first time: **System Settings > Privacy & Security > Open Anyway** (macOS 13 and 14: right-click, then **Open**).
+3. The setup window shows your X-Plane folder. Press **Install**: plugin, aircraft profiles and guides.
+4. Restart X-Plane. **Done.**
+
+To remove it, choose **Uninstall X52 Pro...** in the app's menu, or follow the [steps by hand](docs/install/uninstall-by-hand.txt).
 
 <sub>Tip: set the buttons you program to *Do nothing* in X-Plane's Settings > Joystick.</sub>
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.7.2
+
+### Added
+- **A setup window (#139).** It shows the X-Plane 12 folder it found (or asks for it), asks what to install, and installs the plugin, the ready-made profiles and the guides (the manual and the button maps, in `Documents/X52 Pro`). Profiles of your own are never overwritten. **Open guides** opens the folder; **Setup...** opens the window again.
+- **Uninstall (#139).** **Uninstall X52 Pro...** removes everything that was installed and asks whether to keep your own profiles and settings or move them to the Trash. The steps for removing it by hand are in the guides.
+
+### Changed
+- **The download is a disk image (#139).** Drag **X52 Pro** to **Applications**; "Read me first" says how to allow the app in Privacy & Security.
+- **One left click on the menu bar icon opens the window (#139).** It took a double click before; a right click still opens the menu.
+
+### Fixed
+- **The Dock icon stayed after the app was hidden (#139).** Symptom: after Command+H, or after closing the last window, the app's icon stayed in the Dock. Cause: the app joined the Dock when a window opened and nothing took it out again. Fix: hiding the app or closing its last window removes the Dock icon; a minimised window keeps it. Fixed in 1.7.2.
+- **A double click on the menu bar icon did not open the window (#139).** Symptom: double-clicking the icon did nothing. Cause: the window opened only when macOS reported the second click as a double click. Fix: one left click opens it. Fixed in 1.7.2.
+- **The setup window's keyboard permission step was confusing (#139).** Symptom: Accessibility settings opened and X52 Pro was not in the list. Cause: X-Plane types the keystrokes, not X52 Pro, and the text did not say so. Fix: the text says that X52 Pro needs no permission and the ready-made profiles type no keys, and **Show X-Plane in Finder** helps add X-Plane. Fixed in 1.7.2.
+
 ## 1.7.1
 
 ### Changed
