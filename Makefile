@@ -19,6 +19,7 @@ DOCX   = src/core/zipfile.cpp src/core/docxfill.cpp
 MAC    = src/mac/x52device.cpp src/mac/x52input.cpp src/mac/keysend.cpp src/mac/xplane.cpp src/mac/simlink.cpp
 PLUGIN = src/plugin/plugin.cpp src/plugin/ui.cpp src/plugin/store.cpp
 AGENT  = src/app/agent.cpp src/plugin/store.cpp
+SETUP  = src/mac/setup.cpp
 HEADERS = $(wildcard src/core/*.h src/mac/*.h src/plugin/*.h src/app/*.h)
 
 XPDEFS = -DXPLM200=1 -DXPLM210=1 -DXPLM300=1 -DXPLM301=1 -DXPLM303=1 -DXPLM400=1 -DAPL=1 -DIBM=0 -DLIN=0 \
@@ -60,9 +61,14 @@ build/test_simlink: tests/test_simlink.cpp tests/check.h src/mac/simlink.cpp src
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) -o $@ tests/test_simlink.cpp src/mac/simlink.cpp
 
-test: build/test_core build/test_plugin build/test_agent build/test_xplane build/test_simlink build/test_manual
+build/test_setup: tests/test_setup.cpp tests/check.h $(SETUP) src/mac/xplane.cpp src/plugin/store.cpp $(CORE) $(HEADERS)
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) -o $@ tests/test_setup.cpp $(SETUP) src/mac/xplane.cpp src/plugin/store.cpp $(CORE)
+
+test: build/test_setup build/test_core build/test_plugin build/test_agent build/test_xplane build/test_simlink build/test_manual
 	./build/test_simlink
 	./build/test_xplane
+	./build/test_setup
 	./build/test_core
 	./build/test_manual
 	./build/test_plugin

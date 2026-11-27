@@ -173,8 +173,10 @@ bool Store::restore(const std::string& key) const {
     return rename((pathFor(key) + ".deleted").c_str(), pathFor(key).c_str()) == 0;
 }
 
-bool Store::isStandard(const std::string& key) const {
-    std::ifstream f(pathFor(key));
+bool Store::isStandard(const std::string& key) const { return isReadyMadeFile(pathFor(key)); }
+
+bool isReadyMadeFile(const std::string& path) {
+    std::ifstream f(path);
     for (std::string line; std::getline(f, line);) {
         if (line.compare(0, 8, "standard") != 0) continue;
         size_t eq = line.find('=');

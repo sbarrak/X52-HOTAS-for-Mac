@@ -7,6 +7,9 @@
 
 namespace x52 {
 
+// True when the file at `path` is a ready-made profile (it says standard = 1).
+bool isReadyMadeFile(const std::string& path);
+
 struct Store {
     std::string dir;
     std::string pathFor(const std::string& key) const;
