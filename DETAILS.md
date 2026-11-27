@@ -111,7 +111,9 @@ make install-app
 ```
 
 This builds `X52 Pro.app` and copies it to `/Applications`. Open it once; it then lives
-in the menu bar (game controller icon): **Open settings...**, **Start at login**, **Quit**.
+in the menu bar, with the app's icon. **Double-click** the icon to open the window; **right-click** it (or
+Control-click) for the menu: **Open settings...**, **Start at login**, **Quit** and more. **Command-Q** quits the
+app; **Command-H** hides it and it keeps running.
 
 - **Lights** – a colour for every light in each of the three modes, and brightness.
 - **Screen and clock** – screen brightness, what Clock 1 shows (GMT, the simulator's local time, the Mac's

@@ -3059,6 +3059,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     let model = Model()
     var item: NSStatusItem!
     var window: NSWindow?
+    let iconMenu = NSMenu()   // the menu bar icon's menu (right-click or Control-click)
     let statusLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     let loginLine = NSMenuItem(title: "Start at login", action: #selector(toggleLogin), keyEquivalent: "")
     let updateLine = NSMenuItem(title: "Check for updates...", action: #selector(checkForUpdatesByHand), keyEquivalent: "")
@@ -3070,12 +3071,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         model.openPagesEditor = { [weak self] in self?.openPagesEditor() }
         model.openCalibration = { [weak self] in self?.openCalibration() }
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        let image = NSImage(systemSymbolName: "gamecontroller.fill", accessibilityDescription: "X52 Pro")
-        image?.isTemplate = true
+        // The app's own icon, in colour. A copy: its size is changed for the menu bar only.
+        let image = NSApp.applicationIconImage.copy() as? NSImage
+        image?.size = NSSize(width: 20, height: 20)
+        image?.accessibilityDescription = "X52 Pro"
         item.button?.image = image
         if image == nil { item.button?.title = "X52" }
+        item.button?.toolTip = "X52 Pro: double-click to open, right-click for the menu"
+        item.button?.target = self
+        item.button?.action = #selector(iconClicked)
+        item.button?.sendAction(on: [.leftMouseUp, .rightMouseDown])
 
-        let menu = NSMenu()
+        let menu = iconMenu
         menu.delegate = self
         statusLine.isEnabled = false
         menu.addItem(statusLine)
@@ -3096,7 +3103,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         menu.addItem(loginLine)
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit X52 Pro", action: #selector(quit), keyEquivalent: "q").target = self
-        item.menu = menu
         installEditMenu()
 
         // Hidden option for the project's own pictures: `X52Pro --snapshot <folder>` draws the windows into PNG files.
@@ -3119,9 +3125,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         if !CommandLine.arguments.contains("--background") && !launchedAsLoginItem() { openSettings() }
     }
 
+    // A double click on the menu bar icon opens the window, a single one does nothing. Anything else (right
+    // click, Control-click, VoiceOver's press) opens the menu.
+    @objc func iconClicked() {
+        if let e = NSApp.currentEvent, e.type == .leftMouseUp, !e.modifierFlags.contains(.control) {
+            if e.clickCount == 2 { openSettings() }
+            return
+        }
+        // A status item with a menu opens it on every click, so it has one only while the menu is up.
+        item.menu = iconMenu
+        item.button?.performClick(nil)
+        item.menu = nil
+    }
+
     // The menu bar while a window is open (the app is then in the Dock and in Command+Tab). It also gives
-    // the text fields Command+C, V, X, A and Z. Command+Q only puts the app back in the menu bar: the stick
-    // keeps being driven. "Quit Completely" here, or Quit in the menu bar icon's menu, stops it.
+    // the text fields Command+C, V, X, A and Z. Command+Q quits; Command+H hides the app, which keeps
+    // driving the stick.
     func installEditMenu() {
         let main = NSMenu()
         let appItem = NSMenuItem()
@@ -3136,8 +3155,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         let others = appMenu.addItem(withTitle: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
         others.keyEquivalentModifierMask = [.command, .option]
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Quit X52 Pro (keeps running in the menu bar)", action: #selector(backToMenuBar), keyEquivalent: "q").target = self
-        appMenu.addItem(withTitle: "Quit Completely", action: #selector(quit), keyEquivalent: "").target = self
+        appMenu.addItem(withTitle: "Quit X52 Pro", action: #selector(quit), keyEquivalent: "q").target = self
         appItem.submenu = appMenu
         let editItem = NSMenuItem()
         main.addItem(editItem)
@@ -3168,24 +3186,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
     // In the Dock and Command+Tab while there is a window to switch to; menu bar only otherwise.
     func showInDock() {
         if NSApp.activationPolicy() != .regular { NSApp.setActivationPolicy(.regular) }
-    }
-
-    // Command+Q (and Quit in the Dock): close the windows and leave only the menu bar icon.
-    @objc func backToMenuBar() {
-        for w in [window, pagesWindow] { w?.performClose(nil) }
-        NSApp.setActivationPolicy(.accessory)
-    }
-
-    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if reallyQuit { return .terminateNow }
-        // Log out, restart and shut down must still be able to end the app.
-        if let event = NSAppleEventManager.shared().currentAppleEvent, event.eventID == kAEQuitApplication,
-           let reason = event.attributeDescriptor(forKeyword: kAEQuitReason)?.enumCodeValue,
-           [kAELogOut, kAEReallyLogOut, kAEShowRestartDialog, kAERestart, kAEShowShutdownDialog, kAEShutDown].map({ OSType($0) }).contains(reason) {
-            return .terminateNow
-        }
-        backToMenuBar()
-        return .terminateCancel
     }
 
     // Clicking the Dock icon with no window open brings the settings back.
@@ -3261,7 +3261,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             } else {
                 if let s = saved { UserDefaults.standard.set(s, forKey: "profileKey") }
                 else { UserDefaults.standard.removeObject(forKey: "profileKey") }
-                reallyQuit = true
                 NSApp.terminate(nil)
             }
         }
@@ -3359,6 +3358,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
             window = w
         }
         showInDock()
+        NSApp.unhide(nil)   // it may be hidden (Command+H)
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
     }
@@ -3417,11 +3417,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenu
         calibrationWindow?.makeKeyAndOrderFront(nil)
     }
 
-    var reallyQuit = false
-    @objc func quit() {
-        reallyQuit = true
-        NSApp.terminate(nil)
-    }
+    @objc func quit() { NSApp.terminate(nil) }
 
     func applicationWillTerminate(_ note: Notification) { model.stop() }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
