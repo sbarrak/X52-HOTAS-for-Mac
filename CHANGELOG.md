@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.7
+
+### Changed
+- **The menu bar icon and quitting work like other Mac apps (#129).** The menu bar shows the app's own icon. A double-click on it opens the window, a right-click (or Control-click) opens the menu, and a single click does nothing. **Command-Q** now quits the app (before, it only went back to the menu bar, and **Quit Completely** is gone); **Command-H** hides it and it keeps running.
+
 ## 1.6.6
 
 ### Changed
