@@ -428,6 +428,9 @@ Other things to know:
 
 ## Test the stick
 
+**See what it can do:** press **Demo** at the top of the app's window. For about 12 seconds the lights change colour and
+flash and the screen shows messages and scrolls a list; **Stop** ends it early. Your profile is not changed.
+
 **Without X-Plane:** double-click `Test Stick.command`. It opens a small menu:
 name controls (move or press anything and the stick's screen says what it is), write a
 message on the screen, set the lights, clear the screen, list the controls.

@@ -68,6 +68,7 @@ final class Model: ObservableObject {
     @Published var pluginMessage = ""
     @Published var loginItem = false
     @Published var testLines = ["", "", ""]   // text typed on the Test tab
+    @Published var demoRunning = false        // the Demo button's show is playing on the stick
     @Published var axes: [AxisRow] = []       // every analog control, while the Axes tab is showing
     @Published var calibration: [String] = [] // the stick calibration: what to say, then one line per measured axis
     @Published var calibrating = false
@@ -183,6 +184,7 @@ final class Model: ObservableObject {
         }
         if calibrationOpen { set(\.calLive, parseCalLive(str(x52_calibration_live()))) }
         set(\.liveStatus, statusMap())
+        set(\.demoRunning, x52_demo_running() != 0)
         set(\.tried, Int(x52_alarm_tried()))
         set(\.masterTried, Int(x52_master_tried()))
         set(\.brightTried, Int(x52_bright_tried()))
@@ -2882,6 +2884,21 @@ struct PageSource: View {
 let tabList: [(Int, String)] = [(6, "Buttons"), (0, "Lights"), (1, "Live lights"), (2, "Alarms"), (3, "Screen & clock"),
                                 (8, "Pages"), (5, "Master & brightness"), (7, "Axes"), (4, "Test")]
 
+// A short show on the stick: lights, colours and the screen. Stop ends it early.
+struct DemoButton: View {
+    @ObservedObject var m: Model
+    var body: some View {
+        Button { x52_demo(m.demoRunning ? 0 : 1); m.tick() } label: {
+            Label(m.demoRunning ? "Stop" : "Demo", systemImage: m.demoRunning ? "stop.fill" : "play.fill")
+                .frame(width: 58)
+        }
+        .disabled(!m.demoRunning && (!m.connected || m.pluginActive))
+        .help(m.pluginActive ? "The Demo is not available while X-Plane drives the stick."
+              : !m.connected ? "Connect the stick to see the Demo."
+              : "See what the stick can do: lights, colours and the screen, for a few seconds. Your profile is not changed.")
+    }
+}
+
 struct SettingsView: View {
     @ObservedObject var m: Model
     private func stepTab(_ d: Int) {
@@ -2904,6 +2921,7 @@ struct SettingsView: View {
                 Divider().frame(height: 14)
                 Circle().fill(m.pluginActive ? Color.blue : m.connected ? Color.green : Color.gray).frame(width: 9, height: 9)
                 Text(m.statusText).lineLimit(1).truncationMode(.middle).help(m.statusText)
+                DemoButton(m: m)
                 Spacer()
                 if !m.lastDeleted.isEmpty {
                     Button("Undo delete") { m.undoDelete() }

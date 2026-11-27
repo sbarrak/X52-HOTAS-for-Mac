@@ -14,7 +14,7 @@ CXX     = clang++
 VERSION  = $(shell cat VERSION)
 CXXFLAGS = -std=c++17 -O2 -Wall -Wextra $(ARCH) -fvisibility=hidden -DX52_VERSION='"$(VERSION)"'
 
-CORE   = src/core/profile.cpp src/core/mfd.cpp src/core/pages.cpp src/core/sidepages.cpp src/core/keys.cpp src/core/engine.cpp src/core/catalog.cpp src/core/xpjoy.cpp src/core/pagetree.cpp src/core/pageview.cpp src/core/axes.cpp src/core/update.cpp src/core/manual.cpp
+CORE   = src/core/profile.cpp src/core/mfd.cpp src/core/pages.cpp src/core/sidepages.cpp src/core/keys.cpp src/core/engine.cpp src/core/catalog.cpp src/core/xpjoy.cpp src/core/pagetree.cpp src/core/pageview.cpp src/core/axes.cpp src/core/update.cpp src/core/manual.cpp src/core/demo.cpp
 DOCX   = src/core/zipfile.cpp src/core/docxfill.cpp
 MAC    = src/mac/x52device.cpp src/mac/x52input.cpp src/mac/keysend.cpp src/mac/xplane.cpp src/mac/simlink.cpp
 PLUGIN = src/plugin/plugin.cpp src/plugin/ui.cpp src/plugin/store.cpp
@@ -26,6 +26,7 @@ XPDEFS = -DXPLM200=1 -DXPLM210=1 -DXPLM300=1 -DXPLM301=1 -DXPLM303=1 -DXPLM400=1
 XPINC  = -I$(SDK)/CHeaders/XPLM -I$(SDK)/CHeaders/Widgets
 FRAMEWORKS = -framework IOKit -framework CoreFoundation -framework ApplicationServices
 BIN = bin
+LSREGISTER = /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 XPL = $(BIN)/X52Pro.xpl
 
 APP = $(BIN)/X52Pro.app
@@ -102,11 +103,15 @@ $(APPBIN): src/app/main.swift src/app/Info.plist $(APPSRC) $(HEADERS) $(XPL) bui
 	cp src/app/Info.plist "$(APP)/Contents/Info.plist"
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" -c "Set :CFBundleVersion $(VERSION)" "$(APP)/Contents/Info.plist"
 	codesign --force --sign - "$(APP)"
+	@# Finder and the Dock keep an app's old icon until the app folder itself is newer and macOS is told about it.
+	touch "$(APP)"
+	-$(LSREGISTER) -f "$(APP)"
 
 install-app: app
 	-pkill -f "X52 Pro.app/Contents/MacOS/X52Pro"
 	rm -rf "/Applications/X52 Pro.app"
 	cp -R "$(APP)" "/Applications/X52 Pro.app"
+	-$(LSREGISTER) -f "/Applications/X52 Pro.app"
 	@echo "Installed /Applications/X52 Pro.app"
 
 # Copy next to the old file and swap it in, so a running X-Plane is not disturbed.

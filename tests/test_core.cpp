@@ -6,6 +6,7 @@
 #include <cmath>
 #include "../src/core/axes.h"
 #include "../src/core/catalog.h"
+#include "../src/core/demo.h"
 #include "../src/core/xpjoy.h"
 #include "../src/core/pagetree.h"
 #include "../src/core/pageview.h"
@@ -1426,6 +1427,55 @@ TEST(every_comparison_works) {
 }
 
 int main() { return runAllTests(); }
+
+// ---- the Demo show
+
+TEST(the_demo_has_an_end_and_every_screen_line_fits) {
+    CHECK(kDemoSeconds >= 8 && kDemoSeconds <= 15);   // short: a showcase, not a film
+    for (double t = 0; t < kDemoSeconds; t += 0.05) {
+        DemoFrame f = demoFrame(t);
+        for (int i = 0; i < kMfdLines; ++i) CHECK_EQ(mfdText(f.lines.l[i]), f.lines.l[i]);   // nothing is cut off
+        CHECK(f.ledBrightness >= 0 && f.ledBrightness <= 127);
+        CHECK(f.mfdBrightness >= 20 && f.mfdBrightness <= 127);   // the screen stays readable
+    }
+}
+
+TEST(the_demo_shows_every_colour_on_every_coloured_light) {
+    for (int led = 0; led < kLedCount; ++led) {
+        bool seen[4] = {};
+        for (double t = 0; t < kDemoSeconds; t += 0.05) seen[(int)demoFrame(t).leds[led]] = true;
+        CHECK(seen[(int)Color::Off]);
+        if (led == LedFire || led == LedThrottle) CHECK(seen[(int)Color::Green]);   // one colour: any colour is "lit"
+        else CHECK(seen[(int)Color::Green] && seen[(int)Color::Amber] && seen[(int)Color::Red]);
+    }
+}
+
+TEST(the_demo_flashes_no_faster_than_three_times_a_second) {
+    for (int led = 0; led < kLedCount; ++led) {
+        for (double from = 0; from + 1.0 <= kDemoSeconds; from += 0.1) {
+            int turnedOn = 0;
+            bool wasOn = demoFrame(from).leds[led] != Color::Off;
+            for (double t = from; t < from + 1.0; t += 0.01) {
+                bool on = demoFrame(t).leds[led] != Color::Off;
+                if (on && !wasOn) ++turnedOn;
+                wasOn = on;
+            }
+            CHECK(turnedOn <= 3);
+        }
+    }
+}
+
+TEST(the_demo_scrolls_a_list_down_and_back_up) {
+    std::vector<int> tops;   // the number of the item on the top line, each time it changes
+    for (double t = 0; t < kDemoSeconds; t += 0.05) {
+        const std::string& l = demoFrame(t).lines.l[0];
+        size_t at = l.find("ITEM ");
+        if (at == std::string::npos) continue;
+        int n = std::stoi(l.substr(at + 5));
+        if (tops.empty() || tops.back() != n) tops.push_back(n);
+    }
+    CHECK(tops == (std::vector<int>{1, 2, 3, 4, 3, 2, 1}));
+}
 
 
 // ---- alarms, second conditions, ordering

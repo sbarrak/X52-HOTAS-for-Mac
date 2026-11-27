@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.0
+
+### Added
+- **A Demo button (#130).** Next to the connection status at the top of the app's window. It plays a show of about 12 seconds on the stick: the lights come on one by one, turn green, amber and red, flash, and the screen shows messages and scrolls a list down and back up. **Stop** ends it early; afterwards the stick shows the profile again. It is not available without a stick or while X-Plane drives it, and it changes nothing in the profile.
+
+### Fixed
+- **Finder and the open app showed the old icon (#130).** Symptom: after the new icon of 1.6.3, an app built over an earlier build still had the old icon in Finder and while open. Cause: the build only replaced files inside the app, so the app folder kept its old date and macOS kept its cached icon. Fix: every build and install marks the app as changed and registers it with macOS again. Fixed in 1.7.0.
+
 ## 1.6.7
 
 ### Changed

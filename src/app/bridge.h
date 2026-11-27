@@ -273,6 +273,10 @@ void x52_test(int on);
 void x52_text(const char* l0, const char* l1, const char* l2);
 void x52_clear_text(void);
 
+// The Demo button's show on the stick: on 1 starts it, 0 stops it. It ends by itself after a few seconds.
+void x52_demo(int on);
+int x52_demo_running(void);
+
 #ifdef __cplusplus
 }
 #endif
