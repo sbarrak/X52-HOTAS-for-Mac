@@ -99,8 +99,6 @@ bind 19 1 press "Chase view" cmd:sim/view/chase
 bind 3 2 hold "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
 bind 9 2 press "Fuel tank left" cmd:sim/fuel/fuel_tank_selector_lft_one
 bind 10 2 press "Fuel tank right" cmd:sim/fuel/fuel_tank_selector_rgt_one
-bind 11 2 press "Fuel pumps on" cmd:sim/fuel/fuel_pumps_on
-bind 12 2 press "Fuel pumps off" cmd:sim/fuel/fuel_pumps_off
 bind 24 2 press "Cockpit view" cmd:sim/view/3d_cockpit_cmnd_look
 bind 25 2 press "Circle view" cmd:sim/view/circle
 bind 26 2 press "Chase view" cmd:sim/view/chase
@@ -114,8 +112,6 @@ bind 18 4 press "Zoom out" cmd:sim/general/zoom_out
 bind 3 5 hold "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
 bind 9 5 press "Fuel tank left" cmd:sim/fuel/fuel_tank_selector_lft_one
 bind 10 5 press "Fuel tank right" cmd:sim/fuel/fuel_tank_selector_rgt_one
-bind 11 5 press "Fuel pumps on" cmd:sim/fuel/fuel_pumps_on
-bind 12 5 press "Fuel pumps off" cmd:sim/fuel/fuel_pumps_off
 bind 17 5 press "Zoom in" cmd:sim/general/zoom_in
 bind 18 5 press "Zoom out" cmd:sim/general/zoom_out
 bind 24 5 press "Cockpit view" cmd:sim/view/3d_cockpit_cmnd_look

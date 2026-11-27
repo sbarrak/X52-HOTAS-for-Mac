@@ -112,7 +112,6 @@ bind 24 1 press "Landing lights" save:sim/cockpit2/switches/landing_lights_switc
 bind 26 1 press "Strobes" cmd:sim/lights/strobe_lights_toggle
 bind 27 1 press "Nav lights" cmd:sim/lights/nav_lights_toggle
 bind 3 2 hold "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
-bind 5 2 press "AP approach" cmd:sim/autopilot/approach
 bind 7 2 press "AP wing leveler" cmd:sim/autopilot/return_to_level
 bind 9 2 press "AP HDG" cmd:sim/autopilot/heading
 bind 10 2 press "AP NAV" cmd:sim/autopilot/NAV
@@ -128,7 +127,6 @@ bind 26 2 press "ALT select -" cmd:sim/autopilot/altitude_down
 bind 27 2 press "VS -" cmd:sim/autopilot/vertical_speed_down
 bind 3 3 press "Gear up/down" cmd:sim/flight_controls/landing_gear_toggle
 bind 3 3 hold "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
-bind 5 3 press "AP approach" cmd:sim/autopilot/approach
 bind 9 3 press "AP HDG" cmd:sim/autopilot/heading
 bind 10 3 press "AP NAV" cmd:sim/autopilot/NAV
 bind 11 3 press "Fuel pumps on" cmd:sim/fuel/fuel_pumps_on
@@ -167,7 +165,6 @@ bind 26 5 press "ALT select -" cmd:sim/autopilot/altitude_down
 bind 27 5 press "VS -" cmd:sim/autopilot/vertical_speed_down
 bind 3 6 press "Gear up/down" cmd:sim/flight_controls/landing_gear_toggle
 bind 3 6 hold "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
-bind 5 6 press "AP approach" cmd:sim/autopilot/approach
 bind 9 6 press "AP HDG" cmd:sim/autopilot/heading
 bind 10 6 press "AP NAV" cmd:sim/autopilot/NAV
 bind 11 6 press "Fuel pumps on" cmd:sim/fuel/fuel_pumps_on

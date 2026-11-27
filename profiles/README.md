@@ -22,14 +22,14 @@ aircraft does not have it, the button is left empty rather than given something 
 | A tap / hold | gear / parking brake | - / parking brake | gear / parking brake |
 | B | autopilot on/off | same | same |
 | Trigger (1st / 2nd stage) | AP disconnect / Contact ATC | same | same |
-| C | flight director | AP approach | AP approach |
+| C | flight director | AP approach (not in the Lancair and RV-10) | AP approach (not in the Lancair and RV-10) |
 | D | beacon | AP wing leveler (engages the AP wings level) | reverse (held; Citation X and King Air: tap on / tap off) |
 | T1 up / down | battery on / off | AP HDG / NAV | autobrake + / - (no autobrake: HDG / NAV) |
-| T2 up / down | avionics on / off | AP ALT hold / VS | spoilers arm / retract (others: fuel pumps) |
+| T2 up / down | avionics on / off | AP ALT hold / VS | spoilers arm / retract (others: fuel pumps; none in the PA-18, L-5, Aerolite and R22) |
 | T3 up / down | APU start / off | autothrottle / level change (airliners), FLC | TOGA (airliners), pitot heat |
 | Throttle hat up, right, down, left | landing, taxi, strobes, nav lights | ALT select + / speed + (airliners) or VS + / ALT - / speed - or VS - | the same lights as takeoff |
 | Scroll wheel | zoom | heading bug, click: HDG sync | pitch trim, click: takeoff trim |
-| Hat 2 | pitch trim, rudder trim (helicopters: cyclic trim) | same | same |
+| Hat 2 | pitch trim, rudder trim (helicopters: cyclic trim; empty in the R22) | same | same |
 
 - **Wheel brakes on E** begin when E goes down and end when it comes up (no hold delay), and stay on across a mode
   or pinkie change until E is let go. The parking brake is each aircraft's own control (A held).

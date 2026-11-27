@@ -14,6 +14,7 @@
   - Profiles already saved, your own copies included, are not changed.
 
 ### Fixed
+- **Buttons that did nothing in some aircraft (#121).** Symptom: found with the stick in X-Plane: the fuel pump buttons (T2) did nothing in the PA-18, L-5, Aerolite and R22; AP approach (C) did nothing in the Lancair Evolution and RV-10; hat 2 trim did nothing in the R22. Cause: these aircraft have no electric fuel pump, their autopilots have no approach mode, and X-Plane's trim does not move the R22's cyclic. Fix: those buttons are left empty in these profiles. Fixed in 1.6.4.
 - **The Aerolite 103's flaps did not follow the slider (#121).** Symptom: the slider did nothing in the Aerolite. Cause: the ready-made profile said it had no flaps, but its cockpit has a flap lever with two detents. Fix: the slider sets its flaps. Fixed in 1.6.4.
 - **The Aerolite 103 had carb heat buttons it does not have (#121).** Symptom: the carb heat buttons did nothing. Cause: the profile assumed carb heat; the cockpit has none (it has a mixture lever, now on the E dial). Fixed in 1.6.4.
 - **The ASK 21's tow release used a different command from its cockpit (#121).** Symptom: none seen, but the cockpit's handle releases the tow and the winch. Cause: the profile used `glider_tow_release`, the cockpit `glider_all_release`. Fix: A uses the cockpit's command. Fixed in 1.6.4.

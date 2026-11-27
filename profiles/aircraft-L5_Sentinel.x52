@@ -111,8 +111,6 @@ bind 3 2 hold "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
 bind 7 2 press "Carb heat" cmd:sim/engines/carb_heat_toggle
 bind 9 2 press "Fuel tank left" cmd:sim/fuel/fuel_tank_selector_lft_one
 bind 10 2 press "Fuel tank right" cmd:sim/fuel/fuel_tank_selector_rgt_one
-bind 11 2 press "Fuel pumps on" cmd:sim/fuel/fuel_pumps_on
-bind 12 2 press "Fuel pumps off" cmd:sim/fuel/fuel_pumps_off
 bind 17 2 press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
 bind 18 2 press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
 bind 19 2 press "Take-off trim" cmd:sim/flight_controls/pitch_trim_takeoff
@@ -121,8 +119,6 @@ bind 25 2 press "Circle view" cmd:sim/view/circle
 bind 26 2 press "Chase view" cmd:sim/view/chase
 bind 27 2 press "Free camera" cmd:sim/view/free_camera
 bind 3 3 hold "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
-bind 11 3 press "Fuel pumps on" cmd:sim/fuel/fuel_pumps_on
-bind 12 3 press "Fuel pumps off" cmd:sim/fuel/fuel_pumps_off
 bind 17 3 press "Trim nose down" cmd:sim/flight_controls/pitch_trim_down
 bind 18 3 press "Trim nose up" cmd:sim/flight_controls/pitch_trim_up
 bind 19 3 press "Take-off trim" cmd:sim/flight_controls/pitch_trim_takeoff
@@ -143,8 +139,6 @@ bind 3 5 hold "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
 bind 7 5 press "Carb heat" cmd:sim/engines/carb_heat_toggle
 bind 9 5 press "Fuel tank left" cmd:sim/fuel/fuel_tank_selector_lft_one
 bind 10 5 press "Fuel tank right" cmd:sim/fuel/fuel_tank_selector_rgt_one
-bind 11 5 press "Fuel pumps on" cmd:sim/fuel/fuel_pumps_on
-bind 12 5 press "Fuel pumps off" cmd:sim/fuel/fuel_pumps_off
 bind 17 5 press "Zoom in" cmd:sim/general/zoom_in
 bind 18 5 press "Zoom out" cmd:sim/general/zoom_out
 bind 24 5 press "Cockpit view" cmd:sim/view/3d_cockpit_cmnd_look
@@ -152,8 +146,6 @@ bind 25 5 press "Circle view" cmd:sim/view/circle
 bind 26 5 press "Chase view" cmd:sim/view/chase
 bind 27 5 press "Free camera" cmd:sim/view/free_camera
 bind 3 6 hold "Parking brake" cmd:sim/flight_controls/brakes_toggle_max
-bind 11 6 press "Fuel pumps on" cmd:sim/fuel/fuel_pumps_on
-bind 12 6 press "Fuel pumps off" cmd:sim/fuel/fuel_pumps_off
 bind 17 6 press "Zoom in" cmd:sim/general/zoom_in
 bind 18 6 press "Zoom out" cmd:sim/general/zoom_out
 bind 24 6 press "Landing lights" cmd:sim/lights/landing_lights_toggle

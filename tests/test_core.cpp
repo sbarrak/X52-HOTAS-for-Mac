@@ -2737,7 +2737,10 @@ TEST(the_civil_profiles_share_one_layout) {
                 const Binding* t2 = p.find(15, layer);
                 CHECK(!t2 || actionToText(t2->press).find("take_off_go_around") == std::string::npos);
             }
-            CHECK_EQ(actionToText(p.find(5, 2)->press), std::string("cmd:sim/autopilot/approach"));   // C: approach
+            // C: approach, except the Lancair and the RV-10, whose autopilots have no approach mode (C is empty).
+            bool noApr = n == "aircraft-N844X.x52" || n == "aircraft-RV-10.x52";
+            if (noApr) CHECK(p.find(5, 2) == nullptr && p.find(5, 3) == nullptr);
+            else CHECK(p.find(5, 2) && actionToText(p.find(5, 2)->press) == "cmd:sim/autopilot/approach");
             CHECK_EQ(actionToText(p.find(11, 2)->press), std::string("cmd:sim/autopilot/altitude_hold"));   // T2 up
         }
     }

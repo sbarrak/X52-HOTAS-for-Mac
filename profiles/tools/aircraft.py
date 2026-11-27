@@ -151,18 +151,18 @@ CIVIL = {
     "Cessna 172 SP Skyhawk": dict(lights=_lights(), park="sim/flight_controls/brakes_toggle_max", avionics=True,
                                   no_flc=("Cessna_172SP", "Cessna_172SP_seaplane"), dial_e="mixture"),
     "Piper PA-18 Super Cub": dict(lights=_lights(drop=("down",)), park="sim/flight_controls/brakes_toggle_max",
-                                  avionics=True, dial_i="carb", dial_e="mixture"),
+                                  avionics=True, dial_i="carb", dial_e="mixture", fuel_pumps=False),
     "Stinson L-5 Sentinel": dict(lights=_lights(drop=("right",)), park="sim/flight_controls/brakes_toggle_max",
-                                 dial_i="carb", dial_e="mixture"),
+                                 dial_i="carb", dial_e="mixture", fuel_pumps=False),
     "Van's RV-10": dict(lights=_lights(drop=("beacon",), up=_landing_group(1)), park="sim/flight_controls/park_brake_toggle",
-                        avionics=True, dial_i="prop", dial_e="mixture"),
+                        avionics=True, dial_i="prop", dial_e="mixture", apr=False),
     "Cirrus SR22": dict(lights=_lights(drop=("right", "beacon"), up=_landing_group(1),
                                        x_right=_tog("Wing inspection", "generic_13_light_tog")),
                         park="sim/flight_controls/park_brake_toggle", avionics=True, dial_e="mixture"),
     # No exterior lights and no parking-brake control in the cockpit; its master switch has its own commands.
     "Aero-Works Aerolite 103": dict(lights={}, park="sim/flight_controls/brakes_toggle_max",
                                     battery=("laminar/aerolite/switch/master_on", "laminar/aerolite/switch/master_off", "Master"),
-                                    dial_e="mixture"),
+                                    dial_e="mixture", fuel_pumps=False),
     "BETA Technologies Alia-250": dict(lights=_lights(drop=("right",), x_up=_tog("Search light", "generic_01_light_tog")),
                                        park="sim/flight_controls/brakes_toggle_max"),
     "Beechcraft Baron 58": dict(lights=_lights(up=_landing_group(1, 2), x_right=_tog("Wing ice light", "generic_01_light_tog")),
@@ -176,7 +176,7 @@ CIVIL = {
                                      fd="laminar/c90/avionics/switch/fd",
                                      rev=("Reverse on/off", "cmd:sim/engines/thrust_reverse_toggle")),
     "Lancair Evolution": dict(lights=_lights(drop=("right", "beacon"), up=_landing_group(1)),
-                              park="sim/flight_controls/brakes_toggle_max", dial_i="prop"),
+                              park="sim/flight_controls/brakes_toggle_max", dial_i="prop", apr=False),
     "Cirrus Vision SF50": dict(lights=_lights(drop=("right", "beacon")), park="sim/flight_controls/park_brake_toggle"),
     # Ground recognition / off / anti-collision is one selector (so no separate beacon on D).
     # Tested: its landing lights follow only its own L / R toggles; the park handle is a lever (no command);
@@ -275,7 +275,10 @@ CIVIL = {
                            # X-Plane's pitot heat commands are undone by it, so T3 turns the knob a notch each way.
                            pitot=("laminar/md82cmd/ice/selheatknob_up", "laminar/md82cmd/ice/selheatknob_dwn",
                                   "Probe heat knob +", "Probe heat knob -")),
-    "Robinson R22 Beta II": dict(lights=_lights(drop=("right", "beacon")), park=None, dial_e="carb"),
+    # No electric fuel pump (nor in the PA-18, L-5 and Aerolite: fuel_pumps=False); X-Plane's trim does nothing
+    # in the R22 (its only trim handle freezes the cyclic), so hat 2 stays empty (hat_trim=False).
+    "Robinson R22 Beta II": dict(lights=_lights(drop=("right", "beacon")), park=None, dial_e="carb",
+                                 fuel_pumps=False, hat_trim=False),
     "Sikorsky S-76C": dict(lights=_lights(up=_landing_group(2, 3), x_right=_tog("Search light", "generic_01_light_tog")),
                            park="sim/flight_controls/brakes_toggle_max", avionics=True),
     # A glider: no lights, no parking brake; the airbrake handle is the speed brake.
@@ -396,7 +399,9 @@ def civil(f):
             L[mode][A] = ("Gear up/down", _steps(c.get("gear", "sim/flight_controls/landing_gear_toggle")))
         if park:
             H[mode][A] = park   # alone (no tap) on fixed gear and in cruise
-    if k == "heli":
+    if not c.get("hat_trim", True):
+        pass
+    elif k == "heli":
         any_[SHAT_U] = ("Cyclic trim fwd", S("flight_controls/pitch_trim_down"))
         any_[SHAT_D] = ("Cyclic trim aft", S("flight_controls/pitch_trim_up"))
         any_[SHAT_L] = ("Cyclic trim L", S("flight_controls/aileron_trim_left"))
@@ -475,7 +480,8 @@ def civil(f):
 
     # ---- Mode 2: cruise
     if f["ap"]:
-        m2[C] = ("AP approach", S("autopilot/approach"))
+        if c.get("apr", True):   # the Lancair's and RV-10's autopilots have no approach mode
+            m2[C] = ("AP approach", S("autopilot/approach"))
         # Tested in all of them: X-Plane's wing leveler does nothing with the autopilot off in the King Air and
         # the Citation X and only turns the flight director on in the G1000 aircraft; return to level (the SR22's
         # and SF50's own LVL button) engages the autopilot wings level in every one.
@@ -508,8 +514,9 @@ def civil(f):
                 m2[D] = ("Carb heat", S("engines/carb_heat_toggle")) if f["carb"] else ("Pitot heat", S("ice/pitot_heat0_tog"))
             m2[T1U] = ("Fuel tank left", S("fuel/fuel_tank_selector_lft_one"))
             m2[T1D] = ("Fuel tank right", S("fuel/fuel_tank_selector_rgt_one"))
-            m2[T2U] = ("Fuel pumps on", S("fuel/fuel_pumps_on"))
-            m2[T2D] = ("Fuel pumps off", S("fuel/fuel_pumps_off"))
+            if c.get("fuel_pumps", True):
+                m2[T2U] = ("Fuel pumps on", S("fuel/fuel_pumps_on"))
+                m2[T2D] = ("Fuel pumps off", S("fuel/fuel_pumps_off"))
             if not f["carb"] and k != "ultralight":   # the carburettor aircraft never had pitot heat here (carb heat: dial, D)
                 m2[T3U] = ("Pitot heat on", S("ice/pitot_heat0_on"))
                 m2[T3D] = ("Pitot heat off", S("ice/pitot_heat0_off"))
@@ -517,7 +524,7 @@ def civil(f):
         trim_wheel(m2)
 
     # ---- Mode 3: approach & landing
-    if f["ap"]:
+    if f["ap"] and c.get("apr", True):
         m3[C] = ("AP approach", S("autopilot/approach"))
     if f["rev"]:
         m3[D] = c.get("rev", ("Reverse (hold)", S("engines/thrust_reverse_hold")))
@@ -530,7 +537,7 @@ def civil(f):
     if f["speedbrake"] and c.get("spoiler_arm", True):
         m3[T2U] = ("Spoilers arm", S("flight_controls/speed_brakes_arm_toggle"))
         m3[T2D] = ("Spoilers retract", S("flight_controls/speed_brakes_up_all"))
-    elif k in ("piston", "turboprop", "heli", "jet"):
+    elif k in ("piston", "turboprop", "heli", "jet") and c.get("fuel_pumps", True):
         m3[T2U] = ("Fuel pumps on", S("fuel/fuel_pumps_on"))
         m3[T2D] = ("Fuel pumps off", S("fuel/fuel_pumps_off"))
     if airliner:
