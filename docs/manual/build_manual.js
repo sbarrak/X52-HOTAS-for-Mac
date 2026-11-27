@@ -189,6 +189,11 @@ add(p("If a button should type a keyboard key, macOS needs to be told that X-Pla
 add(h2("2.5  The menu bar icon and the window"));
 add(p("Once running, the app lives in the menu bar, with the app's own icon. **Click** the icon to open the app's window; **right-click** it (or Control-click) for its menu. The menu shows the version and the state of the stick, and has **About X52 Pro**, **Check for updates...**, **Check for updates automatically**, **Open settings...**, **Open pages editor...**, **Calibrate stick...**, **Open guides**, **Setup...**, **Uninstall X52 Pro...**, **Start at login** and **Quit X52 Pro**. While a window is open the app also appears in the Dock; hiding it or closing the last window takes the Dock icon away. **Command-Q** quits it: the stick is no longer driven by the app. **Command-H** only hides it, and it keeps running; closing the window also leaves it running in the menu bar."));
 add(p("The stick forgets its lights when it loses power, so the app sends them again whenever the stick is plugged in. Lights, screen and clock settings hold in any program; the button programming stays inside X-Plane."));
+add(p("**Basic and Advanced.** The switch at the top of the window sets how much it shows, and the app remembers it. A new user starts in **Basic**; someone upgrading starts in **Advanced**. The switch never changes a profile."));
+add(bullet("**Basic** has the Buttons, Lights, Alarms, Screen & clock, Axes and Test tabs. It leaves out: adding keystroke, dataref and wait steps and empty held and released sections; the button numbering help; blank alarms and editing an alarm's trigger; how long a mode name shows, the latched clutch and fast wheel turns; stick smoothing and damping, Steady, From and To, zoom steps, calibration values and the list of every control; and the folder paths at the bottom."));
+add(bullet("**Advanced** shows everything, including the **Live lights**, **Pages** and **Master & brightness** tabs."));
+add(bullet("In Basic, a line says when the profile in use has something that is left out (**In Advanced: ...** or **Advanced settings in use**); **Show** switches to Advanced. A button that already has a keystroke, wait or held action still shows it."));
+add(bullet("In both views, press the **(i)** button next to a setting or a short line to read the full explanation."));
 add(h2("2.6  The app and the plugin working together"));
 add(p("They share the same profile files. While X-Plane is running, the plugin drives the stick and the app stays quiet: it still saves what you change, and the plugin applies it within a second. When X-Plane quits, the app takes over again. Without X-Plane installed, profiles live in `~/Library/Application Support/X52Pro/`; with it, in `X-Plane 12/Output/preferences/X52Pro/`."));
 
@@ -272,6 +277,7 @@ add(bullet("**Copy to all modes from** copies one mode's colours to the other tw
 add(bullet("**Light brightness** sets how bright the lights are."));
 add(p("Changing the lights of another mode does not change what the stick shows now; it shows them when you turn the dial to that mode. A profile from before pinkie colours existed keeps its colours for the pinkie too."));
 add(h2("4.4  Live lights"));
+add(p("This tab is in the **Advanced** view."));
 add(p("A live light follows the simulator instead of the mode dial. A rule overrides the plain colours of the Lights tab, and alarms override rules. A light can have up to 3 levels (3 rules): the first level whose test is true decides the colour, and the last level also says what to show when none is true. For example Button A: green when the gear is down (level 1), amber while it moves (level 2), off otherwise (level 3)."));
 add(...image("app-live-lights.png", "Figure 3. The Live lights tab: three rules, one per light (parking brake, gear and flaps)."));
 add(bullet("**Add rule** adds a line. Click a line (its arrow) to open or close it. Tick boxes and press **Remove selected** to delete several at once; **Select all** ticks every line."));
@@ -297,6 +303,7 @@ add(bullet("**Mode names**: when the mode dial moves, the stick's screen says \"
 add(bullet("**Latched clutch**: one press of the clutch (i) turns safe mode on, the next press turns it off. Safe mode applies in X-Plane: buttons only show their name on the screen, and the clutch and POV lights flash while it is on."));
 add(bullet("**Fast turns of the right wheel jump**: while changing heading, altitude, vertical speed, speed, OBS or a fine COM/NAV value, spinning the wheel quickly repeats each click (by default up to x10: heading moves 10 degrees, altitude 1000 ft). A slow turn still steps by one. **Fast jump** sets the factor."));
 add(h2("4.7  Pages"));
+add(p("This tab is in the **Advanced** view."));
 add(p("Lists the left wheel's pages in order: the built-in pages (with a lock) and your own. **Open pages editor...** opens the editor window (section 4.12). **Restore default pages...** asks first, then removes all your pages and brings back the usual order."));
 add(...image("app-pages.png", "Figure 6. The Pages tab."));
 add(p("**Radio screens** chooses the layout for the radio pages in this profile:"));
@@ -304,6 +311,7 @@ add(bullet("**Classic**: one radio per screen (COM1 / NAV1, COM2 / NAV2, ADF).")
 add(bullet("**Side by side**: COM 1+2, NAV 1+2 and ADF 1+2, each pair on one screen."));
 add(p("**Order for** chooses whether the order below applies to every mode or to one mode only, so that, for example, mode 2 can start with the autopilot page. Turning the mode dial to a mode whose order differs opens the first page of that mode's order. The eye shows or skips a page; a skipped page stays in the list (crossed out) and the left wheel passes it by."));
 add(h2("4.8  Master & brightness"));
+add(p("This tab is in the **Advanced** view."));
 add(p("The **master switch** keeps the screen, and separately every light, on only while a dataref has the value you choose, for example while the avionics are powered (**Use avionics power** fills that in; **Use battery** and **Always on** are there too). When the test is false the screen goes blank or the lights go dark. With no dataref chosen, or one X-Plane does not know, it stays on."));
 add(...image("app-master.png", "Figure 7. The Master & brightness tab: the screen and the lights follow avionics power."));
 add(bullet("**Try it off on the stick** switches it off for five seconds without X-Plane, so you can see it working."));
