@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.6
+
+### Changed
+- **The update window explains the frequent updates and links to what is new (#127).** The "A new version is available" window says that the app is in its initial development stages, with constant updates and feature additions, and has a **See what is new** link to the new version's release page on GitHub, which lists its changes and issue numbers.
+
 ## 1.6.5
 
 ### Changed
