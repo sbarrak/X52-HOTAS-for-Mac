@@ -18,6 +18,9 @@ local-only/
 # My own profiles for add-on (non-Laminar) aircraft: local only
 my_profiles/
 
+# Earlier copies of the button maps: local only
+docs/mapping/originals/
+
 # Design mockups: local only
 mockups/
 claude_mockup_*/

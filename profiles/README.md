@@ -1,7 +1,8 @@
 # Ready-made profiles for the X-Plane 12 aircraft
 
 One X52 Pro profile per aircraft that comes with X-Plane 12, plus a printable button map
-(`mapping/<aircraft> - X52 Pro map.pdf`, A4 landscape) for each.
+([`docs/mapping/<aircraft> - X52 Pro map.pdf`](../docs/mapping/), also as a Word file; A4 landscape). Variants of
+one aircraft share a map.
 
 ## Modes
 
