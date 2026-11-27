@@ -1165,8 +1165,13 @@ struct AlarmRow: View {
                     ColorChoice(selection: c2, single: single, allowMode: false)
                 }
             }
-            Text("Triggered when").foregroundStyle(.secondary)
-            TriggerEditor(m: m, kind: 1, index: alarm)
+            if m.advanced {
+                Text("Triggered when").foregroundStyle(.secondary)
+                TriggerEditor(m: m, kind: 1, index: alarm)
+            } else {
+                Text("Triggered when: \(triggerSummary(1, alarm))").foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             HStack {
                 Button("Try on the stick") { x52_alarm_try(a); m.tick() }
                     .disabled(m.pluginActive || !m.connected)
@@ -1207,11 +1212,13 @@ struct AlarmsTab: View {
                     }
                 }
                 .frame(width: 150)
-                Button("Add blank alarm") {
-                    let n = Int(x52_alarm_add())
-                    if n >= 0 { m.alarmOpen.insert(n); m.alarmNotice = "" }
-                    else { m.alarmNotice = "Every light already has 3 alarms, the most a light can have." }
-                    m.tick()
+                if m.advanced {
+                    Button("Add blank alarm") {
+                        let n = Int(x52_alarm_add())
+                        if n >= 0 { m.alarmOpen.insert(n); m.alarmNotice = "" }
+                        else { m.alarmNotice = "Every light already has 3 alarms, the most a light can have." }
+                        m.tick()
+                    }
                 }
                 Button("Remove selected") {
                     guard confirm("Remove \(plural(m.alarmChecked.count, "alarm"))?",
@@ -1231,7 +1238,7 @@ struct AlarmsTab: View {
             }
             Divider()
             if count == 0 {
-                Text("No alarms yet. Pick a template, for example the stall alarm, or add a blank one.").foregroundStyle(.secondary)
+                Text("No alarms yet. Pick a template, for example the stall alarm" + (m.advanced ? ", or add a blank one." : ".")).foregroundStyle(.secondary)
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -1327,6 +1334,7 @@ struct ModeNamesRow: View {
                     TextField("e.g. Takeoff", text: name).textFieldStyle(.roundedBorder).frame(width: 200)
                 }
             }
+            if m.advanced {
             HStack {
                 Text("Show the name for").frame(width: 130, alignment: .leading)
                 Stepper(ms.wrappedValue == 0 ? "never" : String(format: "%.1f s", Double(ms.wrappedValue) / 1000), value: ms, in: 0...10000, step: 500)
@@ -1334,6 +1342,7 @@ struct ModeNamesRow: View {
             }
             Text("When the mode dial moves, the stick's screen says the mode's name for this long, then goes back to the page you were on. Saved in the aircraft's profile; 0 turns it off.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }
@@ -1361,6 +1370,7 @@ struct ScreenTab: View {
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Divider()
             ModeNamesRow(m: m)
+            if m.advanced {
             Divider()
             Toggle("Latched clutch: one press of the clutch (i) turns safe mode on, the next turns it off", isOn: latched)
             Text("Safe mode applies in X-Plane: buttons only show their name on the screen. The clutch and POV lights flash while it is on.")
@@ -1374,6 +1384,7 @@ struct ScreenTab: View {
             }
             Text("A slow turn still steps by one; spinning the wheel repeats each click (HDG 10 degrees, altitude 1000 ft at x 10).")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(.trailing, 8)
         }
@@ -1596,12 +1607,14 @@ struct StepList: View {
             ForEach(0..<Int(x52_step_count(b, l, h)), id: \.self) { StepRow(m: m, hold: hold, index: $0) }
             HStack {
                 Button("+ Command") { _ = x52_step_add(b, l, h, 0); m.tick() }
-                Button("+ Keystroke") { _ = x52_step_add(b, l, h, 1); m.tick() }
-                Button("+ Dataref") { _ = x52_step_add(b, l, h, 3); m.tick() }
-                if hold == 2 {
-                    Text("remember a dataref when pressed, put it back here").font(.caption).foregroundStyle(.secondary)
+                if m.advanced {
+                    Button("+ Keystroke") { _ = x52_step_add(b, l, h, 1); m.tick() }
+                    Button("+ Dataref") { _ = x52_step_add(b, l, h, 3); m.tick() }
+                    if hold == 2 {
+                        Text("remember a dataref when pressed, put it back here").font(.caption).foregroundStyle(.secondary)
+                    }
+                    Button("+ Wait") { _ = x52_step_add(b, l, h, 2); m.tick() }
                 }
-                Button("+ Wait") { _ = x52_step_add(b, l, h, 2); m.tick() }
             }
         }
     }
@@ -1760,8 +1773,10 @@ struct ButtonsTab: View {
                 }
             }
             ClearList(m: m)
-            Text("The numbers are the usual X52 button numbers (JOY1 to JOY39 in Windows lists): 9 and 10 are toggle 1 up and down, 11 and 12 toggle 2, 13 and 14 toggle 3, 15 the trigger's second stage, 16 the mouse button, 17 to 19 the scroll wheel, 20 to 23 the stick's hat, 24 to 27 the throttle's hat, 40 to 43 the stick's main hat (POV 1, which the stick reports as a hat switch, not as buttons: a diagonal holds two), 44 to 47 the throttle's mouse nub (arrows), 48 to 51 the nub pushed all the way (Shift + arrows, a faster pan), 28 to 30 the mode dial, 31 the clutch.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if m.advanced {
+                Text("The numbers are the usual X52 button numbers (JOY1 to JOY39 in Windows lists): 9 and 10 are toggle 1 up and down, 11 and 12 toggle 2, 13 and 14 toggle 3, 15 the trigger's second stage, 16 the mouse button, 17 to 19 the scroll wheel, 20 to 23 the stick's hat, 24 to 27 the throttle's hat, 40 to 43 the stick's main hat (POV 1, which the stick reports as a hat switch, not as buttons: a diagonal holds two), 44 to 47 the throttle's mouse nub (arrows), 48 to 51 the nub pushed all the way (Shift + arrows, a faster pan), 28 to 30 the mode dial, 31 the clutch.")
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             Text("Searches use X-Plane's own lists of commands and datarefs, so this works without X-Plane running. A button you program here must be set to Do nothing in X-Plane's Settings > Joystick.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
@@ -1780,10 +1795,15 @@ struct ButtonsTab: View {
                 }
                 StepList(m: m, hold: 0, title: "When pressed")
                 Divider()
-                StepList(m: m, hold: 1, title: "When held longer than 0.4 s (optional)")
-                Divider()
-                StepList(m: m, hold: 2, title: "When released (optional)")
-                Divider()
+                // Basic shows these two only when the button already has something there, so nothing acts unseen.
+                if m.advanced || x52_step_count(b, l, 1) > 0 || !str(x52_bind_label(b, l, 1)).isEmpty {
+                    StepList(m: m, hold: 1, title: "When held longer than 0.4 s (optional)")
+                    Divider()
+                }
+                if m.advanced || x52_step_count(b, l, 2) > 0 {
+                    StepList(m: m, hold: 2, title: "When released (optional)")
+                    Divider()
+                }
                 Button("Clear this button in \(str(x52_layer_name(l)))") {
                     guard confirm("Clear button \(m.btn) in \(str(x52_layer_name(l)))?",
                                   "Its commands, keys and name on the screen are removed.", "Clear") else { return }
@@ -2025,7 +2045,7 @@ struct CalibrationRow: View {
                 Text(m.calibrating ? "Calibrating..." : status).foregroundStyle(m.calibrating ? Color.orange : Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            ForEach(measured, id: \.self) { line in
+            ForEach(m.advanced ? measured : [], id: \.self) { line in
                 Text(line).font(.callout.monospacedDigit()).foregroundStyle(.secondary).padding(.leading, 132)
             }
             Text("Measures where your stick really rests and how far it really goes (min .. centre .. max), so the centre is exactly zero and the ends give full travel. It belongs to the stick, not to a profile, and is used by the plugin while it drives the stick. Do it with the aircraft on the ground or paused: the stick still flies the aircraft meanwhile.")
@@ -2306,7 +2326,7 @@ struct DialSteadyRow: View {
             Text(title).frame(width: 120, alignment: .leading).foregroundStyle(row?.moving == true ? Color.green : Color.primary)
             ProgressView(value: Double(row?.percent ?? 0), total: 100).frame(width: 110)
             Text(row.map { "\($0.percent) %" } ?? "-").frame(width: 48, alignment: .trailing).monospacedDigit()
-            Stepper("Steady \(st.wrappedValue) %", value: st, in: 0...20).frame(width: 170, alignment: .leading)
+            if m.advanced { Stepper("Steady \(st.wrappedValue) %", value: st, in: 0...20).frame(width: 170, alignment: .leading) }
             if key != "slider" {   // the dials: their job in X-Plane, and which way they turn
                 Picker("", selection: Binding<Int>(get: { m.get("rotary_\(key)") }, set: { m.set("rotary_\(key)", $0) })) {
                     ForEach(0..<Int(x52_dial_use_count()), id: \.self) { j in
@@ -2318,7 +2338,7 @@ struct DialSteadyRow: View {
                     .disabled(m.get("rotary_\(key)") == 0)
             }
         }
-        if key != "slider" && m.get("rotary_\(key)") >= 3 {   // a lever job: the part of its range a full turn covers
+        if m.advanced && key != "slider" && m.get("rotary_\(key)") >= 3 {   // a lever job: the part of its range a full turn covers
             let from = Binding<Int>(get: { m.get("rotary_\(key)_from") }, set: { m.set("rotary_\(key)_from", $0) })
             let to = Binding<Int>(get: { m.get("rotary_\(key)_to") }, set: { m.set("rotary_\(key)_to", $0) })
             HStack(spacing: 12) {
@@ -2351,6 +2371,7 @@ struct AxesTab: View {
             AxisCurveRow(m: m, title: "Stick fwd/back", key: "pitch", usage: 0x31)
             AxisCurveRow(m: m, title: "Stick twist", key: "yaw", usage: 0x35)
             AxisCurveRow(m: m, title: "Throttle", key: "throttle", usage: 0x32)
+            if m.advanced {
             HStack(spacing: 16) {
                 let sm = Binding<Int>(get: { m.get("stick_smoothing") }, set: { m.set("stick_smoothing", $0) })
                 let dm = Binding<Int>(get: { m.get("stick_damping") }, set: { m.set("stick_damping", $0) })
@@ -2362,12 +2383,15 @@ struct AxesTab: View {
             }
             Text("With the plugin driving the stick, X-Plane's own curve and stability augmentation are skipped: the curves, smoothing and damping here take their place.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             CalibrationRow(m: m)
-            Text("Dials and slider: a change smaller than Steady is ignored, so the value does not flicker. Saved in the aircraft's profile.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if m.advanced {
+                Text("Dials and slider: a change smaller than Steady is ignored, so the value does not flicker. Saved in the aircraft's profile.")
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             DialSteadyRow(m: m, title: "Lower rotary (i)", key: "lower", usage: 0x33)
             DialSteadyRow(m: m, title: "Upper rotary (E)", key: "upper", usage: 0x34)
-            if m.get("rotary_lower") == 2 || m.get("rotary_upper") == 2 {
+            if m.advanced && (m.get("rotary_lower") == 2 || m.get("rotary_upper") == 2) {
                 let zs = Binding<Int>(get: { m.get("rotary_zoom_steps") }, set: { m.set("rotary_zoom_steps", $0) })
                 HStack(spacing: 12) {
                     Text("Zoom strength").frame(width: 120, alignment: .leading)
@@ -2375,17 +2399,21 @@ struct AxesTab: View {
                         .help("How far one full turn of a dial set to Zoom zooms the view, in steps of X-Plane's own zoom. More is a stronger zoom. You can change it while flying.")
                 }
             }
+            if m.advanced {
             let wz = Binding<Int>(get: { m.get("wheel_zoom_steps") }, set: { m.set("wheel_zoom_steps", $0) })
             HStack(spacing: 12) {
                 Text("Scroll wheel").frame(width: 120, alignment: .leading)
                 Stepper(wz.wrappedValue == 1 ? "1 zoom step per notch" : "\(wz.wrappedValue) zoom steps per notch", value: wz, in: 1...24).frame(width: 260, alignment: .leading)
                     .help("How far one notch of the scroll wheel behind the throttle zooms when the wheel is set to Zoom in / Zoom out on the Buttons tab (mode 1 in the ready-made profiles). 1 is one step, as before. Other jobs of the wheel are not changed.")
             }
+            }
             Text("The lower dial (i) and the E dial can set the speed brake in four steps (Armed, Retracted, Half, Full) or zoom the view. The plugin only acts while you turn the dial, so buttons, the mouse and the auto-spoilers still work. Set the dial to None in X-Plane's Joystick settings if X-Plane uses it too.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            Text("Smooth jobs (prop, mixture, trims, cowl flaps, carb heat) cover the game's range for this aircraft (From/To narrow it). The plugin waits until you turn the dial to X-Plane's own value, so nothing jumps.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            DialSteadyRow(m: m, title: "Slider", key: "slider", usage: 0x36)
+            if m.advanced {
+                Text("Smooth jobs (prop, mixture, trims, cowl flaps, carb heat) cover the game's range for this aircraft (From/To narrow it). The plugin waits until you turn the dial to X-Plane's own value, so nothing jumps.")
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            if m.advanced { DialSteadyRow(m: m, title: "Slider", key: "slider", usage: 0x36) }
             HStack(spacing: 16) {
                 Toggle("Slider sets the flaps", isOn: Binding(get: { m.get("slider_flaps") != 0 }, set: { m.set("slider_flaps", $0 ? 1 : 0) }))
                 Toggle("Invert flaps", isOn: Binding(get: { m.get("slider_invert") != 0 }, set: { m.set("slider_invert", $0 ? 1 : 0) }))
@@ -2393,6 +2421,7 @@ struct AxesTab: View {
             }
             Text("In X-Plane the slider moves the flap lever to the aircraft's own stops. With Invert flaps off (as in the ready-made profiles), pushed away from you deploys the flaps and towards you retracts them; Invert flaps reverses that. This works whether the axes above are on or off. Flap buttons still work in between. Set the slider to None in X-Plane's Joystick settings if X-Plane uses it for something else.")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if m.advanced {
             Divider()
             let moving = m.axes.first { $0.moving }
             Text(moving.map { "Moving now: \($0.name)   \($0.text)" } ?? "Moving now: move a control to see which one it is")
@@ -2408,6 +2437,7 @@ struct AxesTab: View {
                     }
                 }
                 if m.axes.isEmpty { Text("The stick is not reporting anything yet.").foregroundStyle(.secondary) }
+            }
             }
         }
         .padding(.trailing, 8)
