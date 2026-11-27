@@ -1029,3 +1029,14 @@ TEST(hidden_tabs_and_settings_are_reported_when_the_profile_uses_them) {
     CHECK_EQ(x52_hidden_settings(7), 0);
     x52_stop();
 }
+
+TEST(an_app_used_before_is_known_by_its_preferences_or_its_support_folder) {
+    std::string home = freshDir("view_home");
+    CHECK_EQ(x52_used_before(home.c_str(), 0), 0);   // a new user
+    CHECK_EQ(x52_used_before(home.c_str(), 1), 1);   // saved preferences
+    mkdir((home + "/Library").c_str(), 0755);
+    mkdir((home + "/Library/Application Support").c_str(), 0755);
+    CHECK_EQ(x52_used_before(home.c_str(), 0), 0);
+    mkdir((home + "/Library/Application Support/X52Pro").c_str(), 0755);   // every earlier start made it
+    CHECK_EQ(x52_used_before(home.c_str(), 0), 1);
+}

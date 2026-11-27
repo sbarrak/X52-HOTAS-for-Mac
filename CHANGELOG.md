@@ -3,7 +3,7 @@
 ## 1.8.0
 
 ### Added
-- **Basic and Advanced views (#141).** A switch at the top of the app's window. Basic leaves out the rarely changed settings and the Live lights, Pages and Master & brightness tabs, and says when the profile in use has any of them, with **Show** to switch. A new user starts in Basic; someone upgrading starts in Advanced. The switch never changes a profile.
+- **Basic and Advanced views (#141).** A switch at the top of the app's window. Basic leaves out the rarely changed settings and the Live lights, Pages and Master & brightness tabs, and says when the profile in use has any of them, with **Show** to switch. A new user starts in Basic; someone who used the app before starts in Advanced. The switch never changes a profile.
 
 ### Changed
 - **Explanations behind an (i) button (#141).** The long paragraphs on the app's tabs are now one short line or an (i) button that opens the full text. Warnings and what you must set in X-Plane stay visible.

@@ -230,6 +230,8 @@ void x52_set(const char* name, int value);
 // The view to open with: `saved` is -1 (never chosen), 0 Basic or 1 Advanced; without a saved choice an app that was
 // used before opens in Advanced and a new one in Basic.
 int x52_view_initial(int saved, int used_before);
+// 1 when this Mac used the app before: it has saved preferences, or the support folder every start makes under `home`.
+int x52_used_before(const char* home, int has_preferences);
 // Tab numbers are the app's: 0 Lights, 1 Live lights, 3 Screen & clock, 5 Master & brightness, 7 Axes, 8 Pages.
 int x52_hidden_tabs(void);              // bit 1 << tab: a tab Basic hides that the profile in use fills
 int x52_hidden_settings(int tab);       // 1: a setting Basic hides on this visible tab is in use

@@ -930,6 +930,13 @@ int x52_view_initial(int saved, int used_before) {
     return saved == 0 || saved == 1 ? saved : used_before ? 1 : 0;
 }
 
+int x52_used_before(const char* home, int has_preferences) {
+    if (has_preferences) return 1;
+    struct stat st;
+    std::string support = std::string(home ? home : "") + "/Library/Application Support/X52Pro";
+    return stat(support.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
+}
+
 int x52_hidden_tabs(void) {
     if (!agent) return 0;
     Profile p = agent->profile();

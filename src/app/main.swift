@@ -54,8 +54,8 @@ final class Model: ObservableObject {
     @Published var advanced: Bool = {
         let d = UserDefaults.standard
         let saved: Int32 = (d.object(forKey: "advancedView") as? Bool).map { $0 ? 1 : 0 } ?? -1
-        let used = ["profileKey", "xplaneFolder", "lastUpdateCheck", "manualTemplate"].contains { d.object(forKey: $0) != nil }
-        let on = x52_view_initial(saved, used ? 1 : 0) != 0
+        let prefs = ["profileKey", "xplaneFolder", "lastUpdateCheck", "checkForUpdates", "manualTemplate"].contains { d.object(forKey: $0) != nil }
+        let on = x52_view_initial(saved, x52_used_before(userHome, prefs ? 1 : 0)) != 0
         d.set(on, forKey: "advancedView")
         return on
     }()
