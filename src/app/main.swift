@@ -532,6 +532,42 @@ extension View {
     func delayedTip(_ text: String) -> some View { modifier(DelayedTip(text: text)) }
 }
 
+// An explanation kept out of the way: the (i) opens the whole text in a popover.
+final class InfoState: ObservableObject {
+    @Published var open = false
+}
+
+struct InfoButton: View {
+    let topic: String
+    let text: String
+    @StateObject private var st = InfoState()
+    var body: some View {
+        Button { st.open.toggle() } label: { Image(systemName: "info.circle") }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("About \(topic)")
+            .help("About \(topic)")
+            .popover(isPresented: $st.open, arrowEdge: .bottom) {
+                Text(text).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                    .frame(width: 360, alignment: .leading).padding(14)
+            }
+    }
+}
+
+// One short line and the (i) with the rest.
+struct HelpLine: View {
+    let topic: String
+    var short: String = ""
+    let long: String
+    var body: some View {
+        HStack(spacing: 6) {
+            if !short.isEmpty {
+                Text(short).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            InfoButton(topic: topic, text: long)
+        }
+    }
+}
+
 // Undo and redo for the edits to the profile in use.
 struct UndoRedoButtons: View {
     @ObservedObject var m: Model
@@ -817,8 +853,7 @@ struct LightsTab: View {
             .padding(.top, 4)
             Divider()
             BrightnessRow(m: m, title: "Light brightness", name: "led_brightness")
-            Text("The mode dial on the stick picks the column, and holding the pinkie switch picks the Pinkie set. Changing the lights of another mode does not change what the stick shows now; it shows them when you turn the dial to that mode.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HelpLine(topic: "the light columns", short: "The mode dial and the pinkie pick the column.", long: "The mode dial on the stick picks the column, and holding the pinkie switch picks the Pinkie set. Changing the lights of another mode does not change what the stick shows now; it shows them when you turn the dial to that mode.")
             if !m.isPro {
                 Text("This stick is a standard X52: button colours need the X52 Pro.").foregroundStyle(.orange)
             }
@@ -1039,8 +1074,7 @@ struct LiveTab: View {
     var body: some View {
         let count = Int(x52_rule_count())
         VStack(alignment: .leading, spacing: 10) {
-            Text("Live lights follow the simulator instead of the mode dial. Open a rule to set what it watches and the colours it shows. A rule overrides the plain colours from the Lights tab, and alarms (Alarms tab) override rules. A light can have up to 3 levels: open a rule and press Add level, and the first level whose test is true decides the colour. The last level also says what to show when none is true.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HelpLine(topic: "live lights", short: "Live lights follow the simulator.", long: "Live lights follow the simulator instead of the mode dial. Open a rule to set what it watches and the colours it shows. A rule overrides the plain colours from the Lights tab, and alarms (Alarms tab) override rules. A light can have up to 3 levels: open a rule and press Add level, and the first level whose test is true decides the colour. The last level also says what to show when none is true.\n\nThe plugin reads the dataref inside X-Plane. Without the plugin this app asks X-Plane over the network (X-Plane Settings > Network > accept incoming connections, port 49000).")
             HStack {
                 Button("Add rule") {
                     let i = Int(x52_rule_add())
@@ -1102,8 +1136,6 @@ struct LiveTab: View {
                     }
                 }
             }
-            Text("The plugin reads the dataref inside X-Plane. Without the plugin this app asks X-Plane over the network (X-Plane Settings > Network > accept incoming connections, port 49000).")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -1195,8 +1227,7 @@ struct AlarmsTab: View {
     var body: some View {
         let count = Int(x52_alarm_count())
         VStack(alignment: .leading, spacing: 10) {
-            Text("Alarms have the highest priority: an alarm overrules the live lights (Live lights tab), and those overrule the plain colours (Lights tab). The first alarm in the list that is triggered decides its light. An alarm that is not triggered leaves the light to the next one, so a gear alarm can still show while the stall alarm above it is quiet. A light can have up to 3 alarms, which makes levels: for example amber, then red, then red flashing, as the test gets worse. When the situation ends the alarm stops and the light goes back to its live light or colour.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HelpLine(topic: "alarms", short: "Alarms override live lights and colours.", long: "Alarms have the highest priority: an alarm overrules the live lights (Live lights tab), and those overrule the plain colours (Lights tab). The first alarm in the list that is triggered decides its light. An alarm that is not triggered leaves the light to the next one, so a gear alarm can still show while the stall alarm above it is quiet. A light can have up to 3 alarms, which makes levels: for example amber, then red, then red flashing, as the test gets worse. When the situation ends the alarm stops and the light goes back to its live light or colour.\n\nBlinking is done by the app or the plugin, 1 s a cycle (slow) or 0.5 s (fast). The same dataref can feed several alarms. Brightness stays as set on the Lights tab.")
             if !m.alarmNotice.isEmpty {
                 Text(m.alarmNotice).font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
             }
@@ -1270,8 +1301,6 @@ struct AlarmsTab: View {
                     }
                 }
             }
-            Text("Blinking is done by the app or the plugin, 1 s a cycle (slow) or 0.5 s (fast). The same dataref can feed several alarms. Brightness stays as set on the Lights tab.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -1339,9 +1368,8 @@ struct ModeNamesRow: View {
                 Text("Show the name for").frame(width: 130, alignment: .leading)
                 Stepper(ms.wrappedValue == 0 ? "never" : String(format: "%.1f s", Double(ms.wrappedValue) / 1000), value: ms, in: 0...10000, step: 500)
                     .frame(width: 200, alignment: .leading)
+                InfoButton(topic: "mode names", text: "When the mode dial moves, the stick's screen says the mode's name for this long, then goes back to the page you were on. Saved in the aircraft's profile; 0 turns it off.")
             }
-            Text("When the mode dial moves, the stick's screen says the mode's name for this long, then goes back to the page you were on. Saved in the aircraft's profile; 0 turns it off.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -1365,25 +1393,26 @@ struct ScreenTab: View {
                     Text("Year - Month - Day").tag(2)
                 }
                 .labelsHidden().frame(width: 190)
+                InfoButton(topic: "the clocks", text: "On the stick, the Start/Stop and Reset buttons under the screen switch between the three clocks. Function switches to the stopwatch. Clock 2 and 3 are always set from GMT, whatever Clock 1 shows. Simulator local time follows X-Plane's clock; while X-Plane is not running, Clock 1 shows the Mac's local time instead, and GMT the Mac's GMT.")
             }
-            Text("On the stick, the Start/Stop and Reset buttons under the screen switch between the three clocks. Function switches to the stopwatch. Clock 2 and 3 are always set from GMT, whatever Clock 1 shows. Simulator local time follows X-Plane's clock; while X-Plane is not running, Clock 1 shows the Mac's local time instead, and GMT the Mac's GMT.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Divider()
             ModeNamesRow(m: m)
             if m.advanced {
             Divider()
-            Toggle("Latched clutch: one press of the clutch (i) turns safe mode on, the next turns it off", isOn: latched)
-            Text("Safe mode applies in X-Plane: buttons only show their name on the screen. The clutch and POV lights flash while it is on.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 6) {
+                Toggle("Latched clutch: one press of the clutch (i) turns safe mode on, the next turns it off", isOn: latched)
+                InfoButton(topic: "safe mode", text: "Safe mode applies in X-Plane: buttons only show their name on the screen. The clutch and POV lights flash while it is on.")
+            }
             Divider()
             let dialOn = Binding<Bool>(get: { m.get("dial_accel") != 0 }, set: { m.set("dial_accel", $0 ? 1 : 0) })
             let factor = Binding<Int>(get: { m.get("dial_factor") }, set: { m.set("dial_factor", $0) })
-            Toggle("Fast turns of the right wheel jump: heading, altitude, speed and fine tuning change in bigger steps", isOn: dialOn)
+            HStack(spacing: 6) {
+                Toggle("Fast turns of the right wheel jump: heading, altitude, speed and fine tuning change in bigger steps", isOn: dialOn)
+                InfoButton(topic: "fast wheel turns", text: "A slow turn still steps by one; spinning the wheel repeats each click (HDG 10 degrees, altitude 1000 ft at x 10).")
+            }
             if dialOn.wrappedValue {
                 Stepper("Fast jump: x \(factor.wrappedValue)", value: factor, in: 2...50).frame(width: 200, alignment: .leading)
             }
-            Text("A slow turn still steps by one; spinning the wheel repeats each click (HDG 10 degrees, altitude 1000 ft at x 10).")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.trailing, 8)
@@ -1690,8 +1719,7 @@ struct ButtonsTab: View {
         let layer = Binding<Int>(get: { m.btnLayer }, set: { m.btnLayer = $0 })
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("To use the buttons here, start from a blank profile (New blank profile in the menu next to the profile picker), or import what X-Plane has on the stick's buttons into a new profile. Each button you program here must then be set to Do nothing in X-Plane's Settings > Joystick, or X-Plane and the plugin both act on it.")
-                    .font(.callout).fixedSize(horizontal: false, vertical: true)
+                HelpLine(topic: "programming buttons", short: "Set each button you program here to Do nothing in X-Plane's Settings > Joystick.", long: "To use the buttons here, start from a blank profile (New blank profile in the menu next to the profile picker), or import what X-Plane has on the stick's buttons into a new profile. Each button you program here must then be set to Do nothing in X-Plane's Settings > Joystick, or X-Plane and the plugin both act on it.\n\nSearches use X-Plane's own lists of commands and datarefs, so this works without X-Plane running. A button you program here must be set to Do nothing in X-Plane's Settings > Joystick.")
                 if m.importOpen {
                     let names = str(x52_xplane_profiles()).split(separator: "\n").map(String.init)
                     HStack {
@@ -1730,6 +1758,7 @@ struct ButtonsTab: View {
                     Text(m.importNote).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(8).background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.1)))
             HStack(spacing: 8) {
                 Text("Programming for").foregroundStyle(.secondary)
@@ -1774,11 +1803,8 @@ struct ButtonsTab: View {
             }
             ClearList(m: m)
             if m.advanced {
-                Text("The numbers are the usual X52 button numbers (JOY1 to JOY39 in Windows lists): 9 and 10 are toggle 1 up and down, 11 and 12 toggle 2, 13 and 14 toggle 3, 15 the trigger's second stage, 16 the mouse button, 17 to 19 the scroll wheel, 20 to 23 the stick's hat, 24 to 27 the throttle's hat, 40 to 43 the stick's main hat (POV 1, which the stick reports as a hat switch, not as buttons: a diagonal holds two), 44 to 47 the throttle's mouse nub (arrows), 48 to 51 the nub pushed all the way (Shift + arrows, a faster pan), 28 to 30 the mode dial, 31 the clutch.")
-                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                HelpLine(topic: "button numbers", short: "Button numbers", long: "The numbers are the usual X52 button numbers (JOY1 to JOY39 in Windows lists): 9 and 10 are toggle 1 up and down, 11 and 12 toggle 2, 13 and 14 toggle 3, 15 the trigger's second stage, 16 the mouse button, 17 to 19 the scroll wheel, 20 to 23 the stick's hat, 24 to 27 the throttle's hat, 40 to 43 the stick's main hat (POV 1, which the stick reports as a hat switch, not as buttons: a diagonal holds two), 44 to 47 the throttle's mouse nub (arrows), 48 to 51 the nub pushed all the way (Shift + arrows, a faster pan), 28 to 30 the mode dial, 31 the clutch.")
             }
-            Text("Searches use X-Plane's own lists of commands and datarefs, so this works without X-Plane running. A button you program here must be set to Do nothing in X-Plane's Settings > Joystick.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
     @ViewBuilder private var editor: some View {
@@ -1921,14 +1947,12 @@ struct MasterTab: View {
     var body: some View {
         ScrollView {
         VStack(alignment: .leading, spacing: 14) {
-            Text("A master switch keeps the screen, or every light, on only while a dataref has the value you choose, for example while the avionics are powered. When it is false the screen goes blank or the lights go dark. With no dataref chosen, or if X-Plane does not know it, it stays on.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HelpLine(topic: "master switches", short: "The screen and lights can follow a dataref.", long: "A master switch keeps the screen, or every light, on only while a dataref has the value you choose, for example while the avionics are powered. When it is false the screen goes blank or the lights go dark. With no dataref chosen, or if X-Plane does not know it, it stays on.")
             MasterBlock(m: m, which: 0, title: "Screen")
             Divider()
             MasterBlock(m: m, which: 1, title: "Lights")
             Divider()
-            Text("Brightness can follow a dataref instead of the fixed sliders, for example the panel light dial: the value runs between the two points and the brightness between dimmest and brightest. With no dataref, or one X-Plane does not know, the slider on the Lights and Screen tabs applies.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HelpLine(topic: "brightness", short: "Brightness can follow a dataref too.", long: "Brightness can follow a dataref instead of the fixed sliders, for example the panel light dial: the value runs between the two points and the brightness between dimmest and brightest. With no dataref, or one X-Plane does not know, the slider on the Lights and Screen tabs applies.")
             BrightBlock(m: m, which: 0, title: "Screen brightness")
             Divider()
             BrightBlock(m: m, which: 1, title: "Light brightness")
@@ -2048,8 +2072,7 @@ struct CalibrationRow: View {
             ForEach(m.advanced ? measured : [], id: \.self) { line in
                 Text(line).font(.callout.monospacedDigit()).foregroundStyle(.secondary).padding(.leading, 132)
             }
-            Text("Measures where your stick really rests and how far it really goes (min .. centre .. max), so the centre is exactly zero and the ends give full travel. It belongs to the stick, not to a profile, and is used by the plugin while it drives the stick. Do it with the aircraft on the ground or paused: the stick still flies the aircraft meanwhile.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HelpLine(topic: "calibration", short: "Calibrate on the ground or paused: the stick still flies the aircraft.", long: "Measures where your stick really rests and how far it really goes (min .. centre .. max), so the centre is exactly zero and the ends give full travel. It belongs to the stick, not to a profile, and is used by the plugin while it drives the stick. Do it with the aircraft on the ground or paused: the stick still flies the aircraft meanwhile.")
         }
     }
 }
@@ -2359,14 +2382,16 @@ struct AxesTab: View {
         ScrollView {
         VStack(alignment: .leading, spacing: 10) {
             Toggle("The plugin drives the stick and twist (overrides X-Plane's own axis settings)", isOn: on)
-            Text(on.wrappedValue
-                 ? "While X-Plane runs, the plugin reads the stick and gives X-Plane the result. The dead zone, curve and inversion below apply."
-                 : "Off: X-Plane reads the stick itself, with its own Joystick settings and null zone. The settings below wait until you switch this on.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            Toggle("The plugin drives the throttle (engine power and the cockpit levers)", isOn: Binding(get: { m.get("throttle_plugin") != 0 }, set: { m.set("throttle_plugin", $0 ? 1 : 0) }))
-                .help("Engine power and the cockpit levers follow the X52 lever whatever X-Plane's own axis assignment is. The stick and twist stay X-Plane's.")
-            Text("The throttle is only taken over once it has moved. While X-Plane's autothrottle is on it drives the power; afterwards the lever takes over when it reaches that power. This works inside X-Plane only: the app itself never moves the controls.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HelpLine(topic: "the stick override",
+                     short: on.wrappedValue ? "Dead zone, expo and invert below apply." : "Off: X-Plane reads the stick itself.",
+                     long: on.wrappedValue
+                         ? "While X-Plane runs, the plugin reads the stick and gives X-Plane the result. The dead zone, curve and inversion below apply."
+                         : "Off: X-Plane reads the stick itself, with its own Joystick settings and null zone. The settings below wait until you switch this on.")
+            HStack(spacing: 6) {
+                Toggle("The plugin drives the throttle (engine power and the cockpit levers)", isOn: Binding(get: { m.get("throttle_plugin") != 0 }, set: { m.set("throttle_plugin", $0 ? 1 : 0) }))
+                    .help("Engine power and the cockpit levers follow the X52 lever whatever X-Plane's own axis assignment is. The stick and twist stay X-Plane's.")
+                InfoButton(topic: "the throttle", text: "The throttle is only taken over once it has moved. While X-Plane's autothrottle is on it drives the power; afterwards the lever takes over when it reaches that power. This works inside X-Plane only: the app itself never moves the controls.")
+            }
             AxisCurveRow(m: m, title: "Stick left/right", key: "roll", usage: 0x30)
             AxisCurveRow(m: m, title: "Stick fwd/back", key: "pitch", usage: 0x31)
             AxisCurveRow(m: m, title: "Stick twist", key: "yaw", usage: 0x35)
@@ -2380,14 +2405,12 @@ struct AxesTab: View {
                     .help("Small, slow stick changes (jitter, hand tremor) are smoothed over about this long. Big or quick moves, such as letting go of the stick, reach X-Plane at once. 0 = off.")
                 Stepper("Damping \(dm.wrappedValue) %", value: dm, in: 0...100, step: 10).frame(width: 170, alignment: .leading)
                     .help("A light pitch and roll damper in place of X-Plane's stability augmentation, which is skipped while the plugin drives the stick. Only near the centre of the stick, never more than a few percent of the travel, off on the ground and with the autopilot on. 0 = off.")
+                InfoButton(topic: "stick handling", text: "With the plugin driving the stick, X-Plane's own curve and stability augmentation are skipped: the curves, smoothing and damping here take their place.")
             }
-            Text("With the plugin driving the stick, X-Plane's own curve and stability augmentation are skipped: the curves, smoothing and damping here take their place.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             CalibrationRow(m: m)
             if m.advanced {
-                Text("Dials and slider: a change smaller than Steady is ignored, so the value does not flicker. Saved in the aircraft's profile.")
-                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                HelpLine(topic: "Steady", short: "Dials and slider", long: "Dials and slider: a change smaller than Steady is ignored, so the value does not flicker. Saved in the aircraft's profile.")
             }
             DialSteadyRow(m: m, title: "Lower rotary (i)", key: "lower", usage: 0x33)
             DialSteadyRow(m: m, title: "Upper rotary (E)", key: "upper", usage: 0x34)
@@ -2407,11 +2430,9 @@ struct AxesTab: View {
                     .help("How far one notch of the scroll wheel behind the throttle zooms when the wheel is set to Zoom in / Zoom out on the Buttons tab (mode 1 in the ready-made profiles). 1 is one step, as before. Other jobs of the wheel are not changed.")
             }
             }
-            Text("The lower dial (i) and the E dial can set the speed brake in four steps (Armed, Retracted, Half, Full) or zoom the view. The plugin only acts while you turn the dial, so buttons, the mouse and the auto-spoilers still work. Set the dial to None in X-Plane's Joystick settings if X-Plane uses it too.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HelpLine(topic: "the dial jobs", short: "Set a dial used here to None in X-Plane's Joystick settings.", long: "The lower dial (i) and the E dial can set the speed brake in four steps (Armed, Retracted, Half, Full) or zoom the view. The plugin only acts while you turn the dial, so buttons, the mouse and the auto-spoilers still work. Set the dial to None in X-Plane's Joystick settings if X-Plane uses it too.")
             if m.advanced {
-                Text("Smooth jobs (prop, mixture, trims, cowl flaps, carb heat) cover the game's range for this aircraft (From/To narrow it). The plugin waits until you turn the dial to X-Plane's own value, so nothing jumps.")
-                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                HelpLine(topic: "smooth dial jobs", short: "Smooth jobs", long: "Smooth jobs (prop, mixture, trims, cowl flaps, carb heat) cover the game's range for this aircraft (From/To narrow it). The plugin waits until you turn the dial to X-Plane's own value, so nothing jumps.")
             }
             if m.advanced { DialSteadyRow(m: m, title: "Slider", key: "slider", usage: 0x36) }
             HStack(spacing: 16) {
@@ -2419,8 +2440,7 @@ struct AxesTab: View {
                 Toggle("Invert flaps", isOn: Binding(get: { m.get("slider_invert") != 0 }, set: { m.set("slider_invert", $0 ? 1 : 0) }))
                     .disabled(m.get("slider_flaps") == 0)
             }
-            Text("In X-Plane the slider moves the flap lever to the aircraft's own stops. With Invert flaps off (as in the ready-made profiles), pushed away from you deploys the flaps and towards you retracts them; Invert flaps reverses that. This works whether the axes above are on or off. Flap buttons still work in between. Set the slider to None in X-Plane's Joystick settings if X-Plane uses it for something else.")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HelpLine(topic: "the flap slider", short: "Set the slider to None in X-Plane if X-Plane also uses it.", long: "In X-Plane the slider moves the flap lever to the aircraft's own stops. With Invert flaps off (as in the ready-made profiles), pushed away from you deploys the flaps and towards you retracts them; Invert flaps reverses that. This works whether the axes above are on or off. Flap buttons still work in between. Set the slider to None in X-Plane's Joystick settings if X-Plane uses it for something else.")
             if m.advanced {
             Divider()
             let moving = m.axes.first { $0.moving }
@@ -2845,8 +2865,7 @@ struct PagesTab: View {
     @ObservedObject var m: Model
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Screen pages of your own: rows of text, live dataref values, and links to more pages. The list is the left wheel's order: move any page, built-in ones too, or skip it with the eye.")
-                .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HelpLine(topic: "screen pages", short: "Screen pages of your own.", long: "Screen pages of your own: rows of text, live dataref values, and links to more pages. The list is the left wheel's order: move any page, built-in ones too, or skip it with the eye.")
             Picker("Radio screens:", selection: Binding(get: { m.get("radio_side") }, set: { m.set("radio_side", $0) })) {
                 Text("Classic: one radio per screen (COM1 / NAV1, COM2 / NAV2, ADF)").tag(0)
                 Text("Side by side: COM 1+2, NAV 1+2, ADF 1+2").tag(1)
