@@ -1,8 +1,14 @@
-// Draws the app icon (Dock, Command+Tab, Finder) into an .iconset folder; iconutil turns it into AppIcon.icns.
-//   swift tools/make_icon.swift build/AppIcon.iconset && iconutil -c icns build/AppIcon.iconset -o build/AppIcon.icns
+// Builds the app icon (Dock, Command+Tab, Finder) from the artwork in assets/AppIcon.png into an .iconset folder;
+// iconutil turns it into AppIcon.icns.
+//   swift tools/make_icon.swift assets/AppIcon.png build/AppIcon.iconset && iconutil -c icns build/AppIcon.iconset -o build/AppIcon.icns
+// The artwork is a square picture; each size puts it in the usual macOS icon shape (a rounded square inset from the
+// canvas edge, transparent around it), so the picture's own corners and background are cut away.
 import AppKit
 
-let out = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "AppIcon.iconset"
+let args = CommandLine.arguments
+let src = args.count > 1 ? args[1] : "assets/AppIcon.png"
+let out = args.count > 2 ? args[2] : "AppIcon.iconset"
+guard let art = NSImage(contentsOfFile: src) else { fatalError("cannot read \(src)") }
 try? FileManager.default.createDirectory(atPath: out, withIntermediateDirectories: true)
 
 func draw(_ px: Int) -> Data {
@@ -10,25 +16,13 @@ func draw(_ px: Int) -> Data {
                                samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
                                bytesPerRow: 0, bitsPerPixel: 0)!
     NSGraphicsContext.saveGraphicsState()
-    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+    let ctx = NSGraphicsContext(bitmapImageRep: rep)!
+    ctx.imageInterpolation = .high
+    NSGraphicsContext.current = ctx
     let s = CGFloat(px)
-    // The usual macOS icon shape: a rounded square inset from the canvas edge.
     let box = NSRect(x: s * 0.1, y: s * 0.1, width: s * 0.8, height: s * 0.8)
-    let shape = NSBezierPath(roundedRect: box, xRadius: s * 0.18, yRadius: s * 0.18)
-    NSGradient(starting: NSColor(red: 0.16, green: 0.20, blue: 0.27, alpha: 1),
-               ending: NSColor(red: 0.04, green: 0.05, blue: 0.08, alpha: 1))!.draw(in: shape, angle: -90)
-    // The stick's green screen along the bottom.
-    NSColor(red: 0.4, green: 0.95, blue: 0.5, alpha: 0.9).setFill()
-    NSBezierPath(roundedRect: NSRect(x: s * 0.3, y: s * 0.2, width: s * 0.4, height: s * 0.05), xRadius: s * 0.02, yRadius: s * 0.02).fill()
-    // A flight stick: base, shaft and grip with a red fire button.
-    NSColor(white: 0.82, alpha: 1).setFill()
-    NSBezierPath(roundedRect: NSRect(x: s * 0.3, y: s * 0.3, width: s * 0.4, height: s * 0.09), xRadius: s * 0.04, yRadius: s * 0.04).fill()
-    NSColor(white: 0.6, alpha: 1).setFill()
-    NSBezierPath(rect: NSRect(x: s * 0.475, y: s * 0.37, width: s * 0.05, height: s * 0.16)).fill()
-    NSColor.white.setFill()
-    NSBezierPath(roundedRect: NSRect(x: s * 0.41, y: s * 0.5, width: s * 0.18, height: s * 0.27), xRadius: s * 0.08, yRadius: s * 0.08).fill()
-    NSColor(red: 0.95, green: 0.25, blue: 0.2, alpha: 1).setFill()
-    NSBezierPath(ovalIn: NSRect(x: s * 0.465, y: s * 0.67, width: s * 0.07, height: s * 0.07)).fill()
+    NSBezierPath(roundedRect: box, xRadius: s * 0.18, yRadius: s * 0.18).addClip()
+    art.draw(in: box, from: .zero, operation: .copy, fraction: 1)
     NSGraphicsContext.restoreGraphicsState()
     return rep.representation(using: .png, properties: [:])!
 }

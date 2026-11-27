@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.3
+
+### Changed
+- **New app icon (#122).** The icon in the Dock, Command+Tab and Finder is new artwork: the stick linked to an aircraft. It is kept as a picture in `assets/AppIcon.png`; `tools/make_icon.swift` now builds every icon size from it in the usual macOS rounded shape, instead of drawing the old icon in code.
+
 ## 1.6.2
 
 ### Fixed
