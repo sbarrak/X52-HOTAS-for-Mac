@@ -67,5 +67,5 @@ Several agents (Claude, ChatGPT or others) may work on this repo at the same tim
 - **Before starting:** read the open issues and PRs. If another open branch touches the same files, comment on that issue and ask the user before starting.
 - **One writer per branch:** only the agent that owns a branch pushes to it. Other agents review by PR comment and never push to someone else's branch.
 - **Review:** a review is a PR comment that says what was checked and what was found. It does not approve or merge.
-- **Merging:** agents never merge. Merging stays with the user.
+- **Merging:** no auto-merge, ever. An agent asks the user before merging, and merges a pull request only after a yes for that pull request; an earlier yes does not cover the next one.
 - **Public repo:** issues, PRs and comments contain no personal data, local paths or secrets.
