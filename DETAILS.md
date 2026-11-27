@@ -128,6 +128,21 @@ Control-click) for the menu: **Open settings...**, **Open guides**, **Setup...**
 app; **Command-H** hides it and it keeps running.
 The app is in the Dock only while a window is open: hiding it or closing the last window takes the Dock icon away.
 
+**Basic and Advanced.** The switch at the top of the window sets how much it shows, and the app remembers it.
+A new user starts in Basic; someone upgrading starts in Advanced. The switch never changes a profile.
+
+- **Basic** has the Buttons, Lights, Alarms, Screen & clock, Axes and Test tabs, and leaves out the rarely changed
+  settings: keystroke, dataref and wait steps and empty held and released sections, blank alarms and trigger
+  editing, the mode name time, latched clutch and fast wheel turns, stick smoothing and damping, Steady, From/To,
+  zoom steps, calibration values, the list of every control and the folder paths.
+- **Advanced** shows everything, including **Live lights**, **Pages** and **Master & brightness**. The sections
+  below that name one of these three tabs, or one of those settings, mean the Advanced view.
+- In Basic a line says when the profile in use has something left out, with **Show** to switch. A button that
+  already has a keystroke, wait or held action still shows it.
+- In both views the **(i)** buttons open the full explanation of a setting.
+
+In the window:
+
 - **Lights** – a colour for every light in each of the three modes, and brightness.
 - **Screen and clock** – screen brightness, what Clock 1 shows (GMT, the simulator's local time, the Mac's
   local time or a fixed time zone), Clock 2 and 3 time zones (always from GMT), 12/24 hour, date order,
@@ -481,7 +496,7 @@ presses) `tests/test_agent.cpp` (the menu bar app's saving rules), `tests/test_x
 in a made-up home folder). `make release` makes `bin/X52-Pro-<version>.dmg`; the version comes from the `VERSION` file.
 
 **Pictures and manual.** The pictures in `docs/images` are drawn by the app itself: `bin/X52Pro.app/Contents/MacOS/X52Pro
---snapshot <folder> --profile aircraft-Cessna_CitationX` writes one PNG per tab. With `X52_SANDBOX=<folder>` in
+--snapshot <folder> --profile aircraft-Cessna_CitationX` writes one PNG per tab (`--basic` draws the Basic view). With `X52_SANDBOX=<folder>` in
 the environment, setup and uninstall see only that folder, so they can be tried without touching the real install. The Word manual is made from them by
 `node docs/manual/build_manual.js` (it needs the `docx` npm package).
 

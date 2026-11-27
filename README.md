@@ -47,6 +47,8 @@ Radios. Autopilot. Heading. The little screen becomes your panel, tuned with two
 
 Macros, tap and hold, any X-Plane command. Make the stick yours.
 
+Start simple: the **Basic** view shows the everyday settings, **Advanced** shows everything.
+
 ## Every aircraft. Documented.
 
 Each ready-made profile comes with a printable button map and a full [guide](profiles/README.md): what every button does, in every mode.
