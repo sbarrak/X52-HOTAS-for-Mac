@@ -45,10 +45,13 @@ struct UninstallPlan {
     std::vector<std::string> folders;      // removed afterwards when empty, deepest first
     std::vector<std::string> missing;      // recorded X-Plane folders that are not there
     std::vector<std::string> unreadable;   // folders that could not be looked into
+    std::vector<std::string> record;       // the install record: removed last, and only when all else went well
 };
 // What taking everything out would do, for the X-Plane folders found now and the recorded ones. Changes nothing.
 UninstallPlan planUninstall(const SetupPaths& p, const std::vector<std::string>& foundXPlanes);
 Report removeFiles(const UninstallPlan& plan);   // the `remove` list; unreadable folders count as failed
+// Only after everything else went well: until then a second run still knows every folder that was used.
+Report removeRecord(const UninstallPlan& plan);
 void pruneFolders(const UninstallPlan& plan);
 
 }  // namespace x52

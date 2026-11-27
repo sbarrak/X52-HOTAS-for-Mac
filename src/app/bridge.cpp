@@ -171,7 +171,7 @@ void x52_uninstall_plan(const char* chosen_xplane) {
     if (chosen_xplane && isXPlaneDir(chosen_xplane)) found.push_back(chosen_xplane);
     found.erase(std::remove_if(found.begin(), found.end(), [](const std::string& d) { return !allowed(d); }), found.end());
     uninstallPlan = planUninstall(setupPaths, found);
-    for (auto* list : {&uninstallPlan.remove, &uninstallPlan.custom, &uninstallPlan.folders})
+    for (auto* list : {&uninstallPlan.remove, &uninstallPlan.custom, &uninstallPlan.folders, &uninstallPlan.record})
         list->erase(std::remove_if(list->begin(), list->end(), [](const std::string& f) { return !allowed(f); }), list->end());
 }
 const char* x52_uninstall_list(int which) {
@@ -183,6 +183,11 @@ const char* x52_uninstall_list(int which) {
 const char* x52_uninstall_remove(void) {
     static std::string s;
     s = joined(removeFiles(uninstallPlan).failed);
+    return s.c_str();
+}
+const char* x52_uninstall_forget(void) {
+    static std::string s;
+    s = joined(removeRecord(uninstallPlan).failed);
     return s.c_str();
 }
 void x52_uninstall_prune(void) { pruneFolders(uninstallPlan); }

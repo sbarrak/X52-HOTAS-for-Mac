@@ -289,7 +289,12 @@ final class UninstallState: ObservableObject {
             reset.arguments = ["reset", "All", id]
             try? reset.run()
             reset.waitUntilExit()
-            if deleteCustom { deletePreferences(id, &problems) }
+            // Kept after a failure: they hold the chosen X-Plane folder, which a second run needs.
+            if deleteCustom && problems.isEmpty { deletePreferences(id, &problems) }
+        }
+        if problems.isEmpty {
+            problems = lines(x52_uninstall_forget())
+            x52_uninstall_prune()
         }
         failed = problems
         if !problems.isEmpty {

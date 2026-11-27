@@ -27,10 +27,12 @@ bool endsWith(const std::string& s, const std::string& end) {
     return s.size() >= end.size() && s.compare(s.size() - end.size(), end.size(), end) == 0;
 }
 
-// The names in a folder, sorted, without "." and "..".
-std::vector<std::string> namesIn(const std::string& dir) {
+// The names in a folder, sorted, without "." and "..". `opened` says whether the folder could be listed.
+std::vector<std::string> namesIn(const std::string& dir, bool* opened = nullptr) {
     std::vector<std::string> out;
-    if (DIR* d = opendir(dir.c_str())) {
+    DIR* d = opendir(dir.c_str());
+    if (opened) *opened = d != nullptr;
+    if (d) {
         while (dirent* e = readdir(d))
             if (strcmp(e->d_name, ".") != 0 && strcmp(e->d_name, "..") != 0) out.push_back(e->d_name);
         closedir(d);
@@ -133,12 +135,15 @@ std::vector<std::string> openOurFolder(const std::string& dir, UninstallPlan& pl
         addOnce(plan.unknown, dir);
         return {};
     }
-    if (access(dir.c_str(), R_OK | X_OK) != 0) {
+    // Opening it is the only sure test: macOS can refuse (Documents) a folder whose permissions allow it.
+    bool opened = false;
+    std::vector<std::string> names = namesIn(dir, &opened);
+    if (!opened || access(dir.c_str(), X_OK) != 0) {
         addOnce(plan.unreadable, dir);
         return {};
     }
     addOnce(plan.folders, dir);
-    return namesIn(dir);
+    return names;
 }
 
 void planPlugin(const std::string& xp, UninstallPlan& plan) {
@@ -158,13 +163,15 @@ void planPlugin(const std::string& xp, UninstallPlan& plan) {
 
 void planProfiles(const std::string& dir, UninstallPlan& plan) {
     static const char* const generated[] = {".DS_Store", ".plugin-active", "plugin-off", "xplane-aircraft.txt",
-                                            "xplane-map.txt", "install-record.txt"};
+                                            "xplane-map.txt", "install-record.txt.new"};
     for (const std::string& n : openOurFolder(dir, plan)) {
         const std::string path = dir + "/" + n;
         std::vector<std::string>* list = &plan.unknown;
         if (kindOf(path) != Kind::File) {
+        } else if (n == "install-record.txt") {
+            list = &plan.record;
         } else if (std::find(std::begin(generated), std::end(generated), n) != std::end(generated) || endsWith(n, ".tmp") ||
-                   endsWith(n, ".new")) {
+                   endsWith(n, ".x52.new")) {
             list = &plan.remove;
         } else if (endsWith(n, ".x52") || endsWith(n, ".x52.deleted")) {
             list = isReadyMadeFile(path) ? &plan.remove : &plan.custom;
@@ -196,6 +203,15 @@ void planCache(const std::string& path, UninstallPlan& plan) {
         return;
     }
     for (const std::string& n : openOurFolder(path, plan)) planCache(path + "/" + n, plan);
+}
+
+// The same folder under another name (a link, an alias, another spelling of an accent) counts once.
+void addFolderOnce(std::vector<std::string>& v, const std::string& dir) {
+    struct stat a, b;
+    if (stat(dir.c_str(), &a) == 0)
+        for (const std::string& other : v)
+            if (stat(other.c_str(), &b) == 0 && a.st_dev == b.st_dev && a.st_ino == b.st_ino) return;
+    addOnce(v, dir);
 }
 
 }  // namespace
@@ -246,7 +262,8 @@ Report install(const SetupPaths& p, const std::string& xplaneDir, const InstallC
             for (const std::string& n : bundledProfiles(p)) {
                 std::string to = profilesDir(p, xp) + "/" + n;
                 struct stat st;
-                if (lstat(to.c_str(), &st) == 0 && !isReadyMadeFile(to))
+                // Anything there that is not a ready-made file of its own (a link too) is the user's.
+                if (lstat(to.c_str(), &st) == 0 && (!S_ISREG(st.st_mode) || !isReadyMadeFile(to)))
                     r.kept.push_back(to);
                 else
                     copyInto(p.resources + "/profiles/" + n, to, r);
@@ -282,7 +299,7 @@ bool setupNeeded(const SetupPaths& p, const std::string& xplaneDir) {
                 std::string to = profilesDir(p, xp) + "/" + n;
                 struct stat st;
                 if (lstat(to.c_str(), &st) != 0) return true;
-                if (isReadyMadeFile(to) && !sameBytes(p.resources + "/profiles/" + n, to)) return true;
+                if (S_ISREG(st.st_mode) && isReadyMadeFile(to) && !sameBytes(p.resources + "/profiles/" + n, to)) return true;
             }
     }
     if (rec.chosen.guides)
@@ -296,8 +313,9 @@ UninstallPlan planUninstall(const SetupPaths& p, const std::vector<std::string>&
     InstallRecord rec;
     readRecord(p, rec);
     std::vector<std::string> xplanes;
-    for (const std::string& x : foundXPlanes) addOnce(xplanes, withoutSlash(x));
-    for (const std::string& x : rec.xplanes) addOnce(xplanes, x);
+    // The recorded spelling first: guides and files are noted under it.
+    for (const std::string& x : rec.xplanes) addFolderOnce(xplanes, x);
+    for (const std::string& x : foundXPlanes) addFolderOnce(xplanes, withoutSlash(x));
     for (const std::string& x : xplanes) {
         if (!isXPlaneDir(x)) {
             plan.missing.push_back(x);
@@ -328,6 +346,12 @@ Report removeFiles(const UninstallPlan& plan) {
             r.failed.push_back(f + ": " + strerror(errno));
     for (const std::string& d : plan.unreadable) r.failed.push_back(d + ": could not be read");
     return r;
+}
+
+Report removeRecord(const UninstallPlan& plan) {
+    UninstallPlan only;
+    only.remove = plan.record;
+    return removeFiles(only);
 }
 
 void pruneFolders(const UninstallPlan& plan) {

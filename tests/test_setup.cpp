@@ -1,4 +1,6 @@
 // Installing and removing everything, against a made-up home folder and X-Plane.
+#include <fcntl.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -165,6 +167,7 @@ TEST(odd_paths_survive_the_record) {
 static UninstallPlan installedPlan(const World& w) { return planUninstall(w.p, {w.xp}); }
 static Report removeAll(const UninstallPlan& plan) {
     Report r = removeFiles(plan);
+    if (r.failed.empty()) r = removeRecord(plan);
     pruneFolders(plan);
     return r;
 }
@@ -307,6 +310,72 @@ TEST(a_folder_that_cannot_be_read_is_a_failure) {
     chmod(w.guides.c_str(), 0755);
     CHECK(has(plan.unreadable, w.guides));
     CHECK(!r.failed.empty());
+}
+
+TEST(a_failed_uninstall_can_be_run_again_for_a_hand_picked_folder) {
+    World w("again");
+    install(w.p, w.xp, InstallChoice{});
+    const std::string mac = w.xp + "/Resources/plugins/X52Pro/mac_x64";
+    chmod(mac.c_str(), 0555);
+    UninstallPlan first = planUninstall(w.p, {});   // the search does not find this folder
+    Report r = removeAll(first);
+    chmod(mac.c_str(), 0755);
+    CHECK(!r.failed.empty());
+    UninstallPlan second = planUninstall(w.p, {});
+    CHECK(has(second.remove, w.xpl()));
+    CHECK(removeAll(second).failed.empty());
+    CHECK(!there(w.xpl()));
+    CHECK(!there(supportDir(w.p)));
+}
+
+TEST(a_folder_that_cannot_be_listed_is_unreadable_even_when_its_permissions_allow_it) {
+    // As when macOS refuses access to Documents: the permissions look fine, opening the folder fails.
+    // Here it fails because no file can be opened at all.
+    World w("refused");
+    install(w.p, w.xp, InstallChoice{});
+    rlimit old, none;
+    getrlimit(RLIMIT_NOFILE, &old);
+    int lowestFree = open("/dev/null", O_RDONLY);
+    close(lowestFree);
+    none = old;
+    none.rlim_cur = (rlim_t)lowestFree;
+    setrlimit(RLIMIT_NOFILE, &none);
+    UninstallPlan plan = planUninstall(w.p, {w.xp});
+    setrlimit(RLIMIT_NOFILE, &old);
+    CHECK(has(plan.unreadable, w.guides));
+}
+
+TEST(a_link_at_a_profiles_place_is_kept_on_install) {
+    World w("linkinstall");
+    put(w.d + "/outside/default.x52", ready("linked"));
+    mk(w.prof);
+    symlink((w.d + "/outside/default.x52").c_str(), (w.prof + "/default.x52").c_str());
+    Report r = install(w.p, w.xp, InstallChoice{});
+    struct stat st;
+    CHECK(lstat((w.prof + "/default.x52").c_str(), &st) == 0 && S_ISLNK(st.st_mode));
+    CHECK(has(r.kept, w.prof + "/default.x52"));
+    CHECK(!setupNeeded(w.p, w.xp));
+}
+
+TEST(one_x_plane_folder_under_two_names_is_planned_once) {
+    World w("twice");
+    install(w.p, w.xp, InstallChoice{});
+    put(w.prof + "/mine.x52", mine("once"));
+    symlink(w.xp.c_str(), (w.d + "/alias").c_str());
+    UninstallPlan plan = planUninstall(w.p, {w.d + "/alias"});
+    CHECK_EQ((int)plan.custom.size(), 1);
+    CHECK(removeAll(plan).failed.empty());
+}
+
+TEST(only_our_own_half_written_files_are_removed) {
+    World w("newfiles");
+    put(w.prof + "/notes.new", "the user's");
+    put(w.prof + "/default.x52.new", "half written");
+    put(supportDir(w.p) + "/install-record.txt.new", "half written");
+    UninstallPlan plan = installedPlan(w);
+    CHECK(has(plan.unknown, w.prof + "/notes.new"));
+    CHECK(has(plan.remove, w.prof + "/default.x52.new"));
+    CHECK(has(plan.remove, supportDir(w.p) + "/install-record.txt.new"));
 }
 
 int main() {

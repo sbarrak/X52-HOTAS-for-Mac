@@ -25,6 +25,8 @@ const char* x52_setup_guides_dir(void);
 void x52_uninstall_plan(const char* chosen_xplane);
 const char* x52_uninstall_list(int which);     // 0 remove, 1 the user's own setup, 2 left alone, 3 X-Plane folders not there
 const char* x52_uninstall_remove(void);        // removes list 0; returns what failed
+// Removes the install record, only after everything else went well (a second run needs it). Returns what failed.
+const char* x52_uninstall_forget(void);
 void x52_uninstall_prune(void);                // removes the folders that are now empty
 
 void x52_start(const char* xplane_dir, const char* fallback_dir, const char* key);

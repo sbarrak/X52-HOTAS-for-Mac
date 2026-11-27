@@ -384,6 +384,7 @@ TEST(setup_bridge_installs_and_reports) {
     CHECK(safe);
     if (safe) {
         CHECK_EQ(std::string(x52_uninstall_remove()), std::string(""));
+        CHECK_EQ(std::string(x52_uninstall_forget()), std::string(""));
         x52_uninstall_prune();
         CHECK(access((xp + "/Resources/plugins/X52Pro").c_str(), F_OK) != 0);
         CHECK(access((xp + "/Output/preferences/X52Pro/Mine.x52").c_str(), F_OK) == 0);
