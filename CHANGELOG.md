@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.1
+
+### Changed
+- **New button maps for the ready-made profiles (#133).** The Word and PDF maps in `docs/mapping/` have a new layout: what each control does in the three modes and with the Pinkie held, the screen pages, lights and alarms, the aircraft's systems with photos, and its lights. The civil aircraft maps also list holds and sequences in order. The 18 civil maps were checked against their profiles; none of this was a flight test.
+
+### Fixed
+- **The button maps on GitHub were broken (#133).** Symptom: the PDF and Word maps in `docs/mapping/` published with 1.3.0 were damaged, and later ones did not match the profiles. Cause: patching the text of the files in place failed and the result was committed. Fix: the maps are replaced with newly built ones. Fixed in 1.7.1.
+
 ## 1.7.0
 
 ### Added
