@@ -2706,7 +2706,6 @@ TEST(the_civil_profiles_share_one_layout) {
                 if (button == 6 || button == 17 || button == 18 || button == 19) continue;
                 if (button >= 24 && button <= 27) continue;
                 if (mode == 2 && button == 5) continue;
-                if (mode == 1 && (button == 13 || button == 14) && n.find("R22") != std::string::npos) continue;
                 if (mode == 3 && (button == 13 || button == 14) && p.find(13, 3) &&
                     actionToText(p.find(13, 3)->press).find("take_off_go_around") != std::string::npos) continue;
                 const Binding* a = p.find(button, mode);

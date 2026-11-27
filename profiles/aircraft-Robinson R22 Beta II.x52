@@ -117,8 +117,8 @@ bind 26 3 press "Strobes" cmd:sim/lights/strobe_lights_toggle
 bind 27 3 press "Nav lights" cmd:sim/lights/nav_lights_toggle
 bind 9 4 press "Battery on" cmd:sim/electrical/battery_1_on ; cmd:sim/electrical/battery_2_on
 bind 10 4 press "Battery off" cmd:sim/electrical/battery_1_off ; cmd:sim/electrical/battery_2_off
-bind 13 4 press "Rotor RPM +" cmd:sim/flight_controls/rotor_rpm_trim_up
-bind 14 4 press "Rotor RPM -" cmd:sim/flight_controls/rotor_rpm_trim_down
+bind 13 4 press "Governor on" cmd:sim/engines/governor_on
+bind 14 4 press "Governor off" cmd:sim/engines/governor_off
 bind 17 4 press "Zoom in" cmd:sim/general/zoom_in
 bind 18 4 press "Zoom out" cmd:sim/general/zoom_out
 bind 24 4 press "Landing lights" cmd:sim/lights/landing_lights_toggle

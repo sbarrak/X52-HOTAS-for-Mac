@@ -46,7 +46,7 @@ aircraft does not have it, the button is left empty rather than given something 
 |---|---|---|
 | Throttle hat | extra lights where the aircraft has them: up runway turnoff (or search light), right wing / ice light, down recognition, left logo | airliners: right / left = VS + / - |
 | C | | flight director |
-| T3 | R22: rotor RPM (takeoff); airliners: pitot heat (landing) | |
+| T3 | airliners: pitot heat (landing) | |
 
 - **The dials** do the same in every mode. The lower dial (i, by the clutch) is the prop (RV-10, Baron, King Air,
   Lancair), the speed brake (Citation X, 737, A330, MD-82, F-4, F-14), the airbrakes (ASK 21) or the carb heat

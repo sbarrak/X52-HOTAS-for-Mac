@@ -571,9 +571,7 @@ def civil(f):
                                              "Pitot heat on", "Pitot heat off"))
         L[6][T3U] = (lon, _steps(on))
         L[6][T3D] = (loff, _steps(off))
-    if f["kind"] == "heli" and f["governor"]:   # the R22: T3 is the governor, rotor RPM with the pinkie
-        L[4][T3U] = ("Rotor RPM +", S("flight_controls/rotor_rpm_trim_up"))
-        L[4][T3D] = ("Rotor RPM -", S("flight_controls/rotor_rpm_trim_down"))
+    # The R22's rotor RPM trim (pinkie + T3) is gone: it does nothing there (tested with the stick).
     return L, H
 
 
